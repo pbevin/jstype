@@ -17,13 +17,23 @@ data Expr = Num JSNum
   deriving (Show, Eq)
 
 data Lang = Lang {
-  assignOps :: [String]
+  assignOps :: [String],
+  unaryOps :: [String],
+  binaryOps :: [String],
+  postfixOps :: [String]
 }
 
 jsLang :: Lang
 jsLang = Lang {
   assignOps = [ "=", "+=", "-=", "*=", "/=", "%=",
-                "<<=", ">>=", ">>>=", "&=", "^=", "|="]
+                "<<=", ">>=", ">>>=", "&=", "^=", "|="],
+  unaryOps  = [ "delete", "void", "typeof",
+               "+", "-", "~", "!", "++", "--" ],
+  binaryOps = [ "+", "-", "*", "/", "%", "==", "!=", "===", "!==",
+                "&", "^", "|", "&&", "||",
+                "in", "instanceof", ">>", "<<", ">>>",
+                ">=", ">", "<=", "<" ],
+  postfixOps = [ "++", "--" ]
 }
 
 
@@ -56,16 +66,16 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
   where subtree = arbExpr (n `div` 2)
 
 arbOp :: Gen String
-arbOp = elements [ "+", "-", "*", "/" ]
+arbOp = elements (binaryOps jsLang)
 
 arbUnary :: Gen String
-arbUnary = elements [ "+", "-", "!" ]
+arbUnary = elements (unaryOps jsLang)
 
 arbNum :: Gen JSNum
 arbNum = arbitrary >>= return . JSNum . getNonNegative
 
 arbAssignOp :: Gen String
-arbAssignOp = elements [ "=", "+=", "-=", "*=", "/=", "%=" ]
+arbAssignOp = elements $ assignOps jsLang
 
 arbVar :: Gen String
 arbVar = do

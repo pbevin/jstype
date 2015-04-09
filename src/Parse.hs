@@ -13,43 +13,49 @@ import Debug.Trace
 parseJS :: String -> Either ParseError Expr
 parseJS str = parse (expr <* eof) "" str
 
+simpleParse :: String -> Expr
 simpleParse str = case parseJS str of
   Right expr -> expr
   Left err   -> error (show err)
 
 
-funStyle :: T.LanguageDef st
-funStyle = javaStyle
-
-lexer = T.makeTokenParser funStyle
+lexer = T.makeTokenParser javaStyle
 parens = T.parens lexer
 identifier = T.identifier lexer
 integer = T.integer lexer
 float = T.float lexer
 reserved = T.reserved lexer
 symbol = T.symbol lexer
+whiteSpace = T.whiteSpace lexer
 
-lexeme str = string str <* T.whiteSpace lexer
+lexeme str = string str <* whiteSpace
+resOp name = do
+  string name
+  notFollowedBy (oneOf "-+=&|^<>")
+  whiteSpace
+  return name
 
-
--- binary name = Infix (do { lexeme name; return (BinOp name) }) AssocLeft
--- unary name = Prefix (do { lexeme name; return (UnOp name) })
-
--- table = [
---   [ unary "-", unary "+" ],
---   [ unary "!" ],
---   [ binary "&", binary "|" ],
---   [ binary "*", binary "/" ],
---   [ binary "+", binary "-" ],
---   [ binary "==" ] ]
 
 expr :: Parser Expr
-expr = assignExpr $ condExpr $ additionExpr $ multiplicationExpr $ unary $ simple
+expr = foldl (flip ($)) simple [
+  unary,
+  binOps ["*", "/", "%"],
+  binOps ["+", "-"],
+  binOps [ ">>", ">>>", "<<" ],
+  binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
+  binOps [ "===", "!==", "==", "!=" ],
+  binOps [ "&" ],
+  binOps [ "^" ],
+  binOps [ "|" ],
+  binOps [ "&&" ],
+  binOps [ "||" ],
+  condExpr,
+  assignExpr ]
 
 assignExpr :: Parser Expr -> Parser Expr
 assignExpr p = try(assign) <|> p
   where assign = do v <- identifier
-                    op <- assignOp
+                    op <- lexeme "=" <|> assignOp
                     e <- expr
                     return $ Assign v op e
 
@@ -64,27 +70,21 @@ condExpr p = do
             ifFalse <- expr
             return $ Cond test ifTrue ifFalse
 
-additionExpr :: Parser Expr -> Parser Expr
-additionExpr p = do
-  e1 <- p
-  choice [bin p e1 "+", bin p e1 "-", return e1]
-
-multiplicationExpr :: Parser Expr -> Parser Expr
-multiplicationExpr p = do
-  e1 <- p
-  choice [bin p e1 "*", bin p e1 "/", return e1]
-
 unary :: Parser Expr -> Parser Expr
 unary p = try(unop) <|> p
   where unop = do
-          op <- choice [lexeme "-", lexeme "+", lexeme "!"]
+          op <- choice $ map (try . resOp) $ unaryOps jsLang
           e <- p
           return $ UnOp op e
 
+binOps :: [String] -> Parser Expr -> Parser Expr
+binOps ops p = do
+  e1 <- p
+  choice $ [ bin p e1 op | op <- ops ] ++ [ return e1 ]
+
 bin :: Parser Expr -> Expr -> String -> Parser Expr
 bin p e1 op = do
-  lexeme op
-  notFollowedBy $ char '='
+  try (resOp op)
   e2 <- p
   return $ BinOp op e1 e2
 
@@ -107,10 +107,7 @@ num = do
 
 assignOp :: Parser String
 assignOp = choice $ map op $ assignOps jsLang
-  where op name = lexeme name >> return name
-
-
-
+  where op name = try (lexeme name) >> return name
 
 
 
