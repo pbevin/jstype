@@ -38,7 +38,8 @@ resOp name = do
 
 expr :: Parser Expr
 expr = foldl (flip ($)) simple [
-  unary,
+  postfixExpr,
+  unaryExpr,
   binOps ["*", "/", "%"],
   binOps ["+", "-"],
   binOps [ ">>", ">>>", "<<" ],
@@ -70,12 +71,19 @@ condExpr p = do
             ifFalse <- expr
             return $ Cond test ifTrue ifFalse
 
-unary :: Parser Expr -> Parser Expr
-unary p = try(unop) <|> p
+unaryExpr :: Parser Expr -> Parser Expr
+unaryExpr p = try(unop) <|> p
   where unop = do
           op <- choice $ map (try . resOp) $ unaryOps jsLang
           e <- p
           return $ UnOp op e
+
+postfixExpr :: Parser Expr -> Parser Expr
+postfixExpr p = try postfix <|> p
+  where postfix = do
+          e <- p
+          op <- choice $ map (try . lexeme) $ postfixOps jsLang
+          return $ PostOp op e
 
 binOps :: [String] -> Parser Expr -> Parser Expr
 binOps ops p = do

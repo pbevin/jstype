@@ -1,5 +1,6 @@
 module ParseSpec where
 
+import Control.Exception (evaluate)
 import Test.Hspec
 import Test.QuickCheck
 
@@ -16,6 +17,12 @@ spec = do
 
   it "parses a unop assignment" $ do
     simpleParse "e = -1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+
+  it "interprets this tricky case right" $ do
+    simpleParse "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
+    simpleParse "a+++ ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
+    evaluate (simpleParse "a+++++b") `shouldThrow` anyException
+    evaluate (simpleParse "a++ +++b") `shouldThrow` anyException
 
   it "parses a unop assignment without spaces" $ do
     simpleParse "e=-1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))

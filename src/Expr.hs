@@ -11,6 +11,7 @@ data Expr = Num JSNum
           | Str String
           | BinOp String Expr Expr
           | UnOp String Expr
+          | PostOp String Expr
           | ReadVar String
           | Assign String String Expr
           | Cond Expr Expr Expr
@@ -44,6 +45,7 @@ showExpr expr = case expr of
   BinOp op e1 e2 ->
     parens (showExpr e1) ++ op ++ parens (showExpr e2)
   UnOp op e -> op ++ parens (showExpr e)
+  PostOp op e -> parens (showExpr e) ++ op
   ReadVar v -> v
   Assign v op e -> v ++ op ++ showExpr e
   Cond test ifTrue ifFalse ->
@@ -60,7 +62,8 @@ arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
                     ReadVar <$> arbVar ]
 arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
-                    UnOp <$> arbUnary <*> arbExpr (n-1),
+                    UnOp <$> arbUnary <*> subtree,
+                    PostOp <$> arbPostfix <*> subtree,
                     Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
                     Cond <$> subtree <*> subtree <*> subtree ]
   where subtree = arbExpr (n `div` 2)
@@ -70,6 +73,9 @@ arbOp = elements (binaryOps jsLang)
 
 arbUnary :: Gen String
 arbUnary = elements (unaryOps jsLang)
+
+arbPostfix :: Gen String
+arbPostfix = elements (postfixOps jsLang)
 
 arbNum :: Gen JSNum
 arbNum = arbitrary >>= return . JSNum . getNonNegative

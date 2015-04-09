@@ -6,4 +6,5 @@ import Expr
 
 main :: IO ()
 main = do
-  quickCheck prop_showExpr
+  putStrLn $ show $ simpleParse "a+++++b"
+  -- quickCheck prop_showExpr
