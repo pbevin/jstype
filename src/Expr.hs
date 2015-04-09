@@ -1,4 +1,4 @@
-module Expr (Expr(..), JSNum(..), showExpr) where
+module Expr (Expr(..), JSNum(..), Lang(..), jsLang, showExpr) where
 
 import Control.Applicative
 import Test.QuickCheck
@@ -11,15 +11,33 @@ data Expr = Num JSNum
           | Str String
           | BinOp String Expr Expr
           | UnOp String Expr
+          | ReadVar String
+          | Assign String String Expr
+          | Cond Expr Expr Expr
   deriving (Show, Eq)
+
+data Lang = Lang {
+  assignOps :: [String]
+}
+
+jsLang :: Lang
+jsLang = Lang {
+  assignOps = [ "=", "+=", "-=", "*=", "/=", "%=",
+                "<<=", ">>=", ">>>=", "&=", "^=", "|="]
+}
 
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
-  Num (JSNum n) -> show $ roundTo 6 n
+  Num (JSNum n) -> show n
   Str s -> show s
-  BinOp op e1 e2 -> parens (showExpr e1) ++ op ++ parens (showExpr e2)
+  BinOp op e1 e2 ->
+    parens (showExpr e1) ++ op ++ parens (showExpr e2)
   UnOp op e -> op ++ parens (showExpr e)
+  ReadVar v -> v
+  Assign v op e -> v ++ op ++ showExpr e
+  Cond test ifTrue ifFalse ->
+    parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
 
 parens s = "(" ++ s ++ ")"
 
@@ -28,24 +46,46 @@ instance Arbitrary Expr where
   arbitrary = sized arbExpr
   shrink = shrinkExpr
 
-arbExpr 0 = oneof [ Num <$> arbNum, Str <$> arbitrary ]
+arbExpr 0 = oneof [ Num <$> arbNum,
+                    Str <$> arbitrary,
+                    ReadVar <$> arbVar ]
 arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
-                    UnOp <$> arbUnary <*> arbExpr (n-1) ]
+                    UnOp <$> arbUnary <*> arbExpr (n-1),
+                    Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
+                    Cond <$> subtree <*> subtree <*> subtree ]
   where subtree = arbExpr (n `div` 2)
-
-shrinkExpr (Num n) = [ Num (JSNum 1) ]
-shrinkExpr (Str s) = [ Str "a" ]
-shrinkExpr (BinOp op e1 e2) = [e1, e2]
-shrinkExpr (UnOp op e) = [e]
-
 
 arbOp :: Gen String
 arbOp = elements [ "+", "-", "*", "/" ]
+
+arbUnary :: Gen String
 arbUnary = elements [ "+", "-", "!" ]
 
-
 arbNum :: Gen JSNum
-arbNum = arbitrary >>= return . JSNum . roundTo 2
+arbNum = arbitrary >>= return . JSNum . getNonNegative
 
-roundTo :: Int -> Double -> Double
-roundTo n f = (fromInteger $ round $ f * (10^n)) / (10.0^^n)
+arbAssignOp :: Gen String
+arbAssignOp = elements [ "=", "+=", "-=", "*=", "/=", "%=" ]
+
+arbVar :: Gen String
+arbVar = do
+  x <- elements ['a'..'z']
+  xs <- listOf $ elements $ ['a'..'z'] ++ ['0'..'9'] ++ ['A'..'Z'] ++ ['_']
+  return (x:xs)
+
+
+
+shrinkExpr (BinOp op e1 e2) = [e1, e2] ++ [BinOp op e1' e2' | e1' <- shrinkExpr e1, e2' <- shrinkExpr e2]
+shrinkExpr (UnOp op e) = [e] ++ [UnOp op e' | e' <- shrinkExpr e]
+shrinkExpr (Assign v@[ch] op e) = [Assign v op e' | e' <- shrinkExpr e] ++ [e]
+shrinkExpr (Assign v@(ch:_) op e) = [Assign [ch] op e]
+shrinkExpr (Num (JSNum n))
+  | n == 0 = []
+  | otherwise = [Num (JSNum 0)]
+shrinkExpr (Cond a b c) = [a, b, c] ++
+  [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]
+shrinkExpr (ReadVar [ch]) = []
+shrinkExpr (ReadVar (ch:_)) = [ReadVar [ch]]
+shrinkExpr (Str "") = []
+shrinkExpr (Str _) = [Str ""]
+shrinkExpr _ = []
