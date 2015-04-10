@@ -108,14 +108,18 @@ showExpr expr = case expr of
     v ++ op ++ showExpr e
   Cond test ifTrue ifFalse ->
     parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
-  FunCall f x ->
-    parens (showExpr f) ++ parens (intercalate "," $ map showExpr x)
+  FunCall f x -> fun ++ params
+    where fun = case f of
+                  ReadVar v -> v
+                  _ -> parens (showExpr f)
+          params = parens (intercalate "," $ map showExpr x)
   FunDef Nothing params body ->
     "function" ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
   FunDef (Just name) params body ->
     "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
 
-mapshow sep xs = intercalate sep $ map show xs
+mapshow :: String -> [Statement] -> String
+mapshow sep xs = intercalate sep $ map showStatement xs
 parens s = "(" ++ s ++ ")"
 braces s = "{" ++ s ++ "}"
 
@@ -135,11 +139,12 @@ instance Arbitrary Expr where
   shrink = shrinkExpr
 
 arbProg :: Int -> Gen Program
-arbProg n = Program <$> shortListOf 3 (arbStmt $ n `div` 3)
+arbProg n = Program <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
 arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
-                    WhileStatement <$> arbExpr (n `div` 2) <*> arbStmt (n `div` 2) ]
+                    WhileStatement <$> arbExpr half <*> arbStmt half ]
+  where half = n `div` 2
 
 
 
@@ -148,16 +153,19 @@ arbExpr :: Int -> Gen Expr
 arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
                     ReadVar <$> arbVar ]
-arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
-                    UnOp <$> arbUnary <*> subtree,
-                    PostOp <$> arbPostfix <*> subtree,
-                    Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
-                    FunCall <$> subtree3 <*> shortListOf 2 subtree3,
+arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
+                    UnOp <$> arbUnary <*> subexpr,
+                    PostOp <$> arbPostfix <*> subexpr,
+                    Assign <$> arbVar <*> arbAssignOp <*> resize (n-1) arbitrary,
+                    FunCall <$> subexpr <*> shortListOf half arbitrary,
                     FunDef Nothing <$> listOf arbVar <*> pure [],
-                    FunDef <$> (liftA Just arbVar) <*> listOf arbVar <*> pure [],
-                    Cond <$> subtree <*> subtree <*> subtree ]
-  where subtree = arbExpr (n `div` 2)
-        subtree3 = arbExpr (n `div` 3)
+                    FunDef <$>
+                      (Just <$> arbVar) <*>
+                      listOf arbVar <*>
+                      shortListOf n arbitrary,
+                    Cond <$> subexpr <*> subexpr <*> subexpr ]
+  where subexpr = arbExpr half
+        half = n `div` 2
 
 arbOp :: Gen String
 arbOp = elements (binaryOps jsLang)
@@ -174,7 +182,7 @@ arbNum = arbitrary >>= return . JSNum . getNonNegative
 arbAssignOp :: Gen String
 arbAssignOp = elements $ assignOps jsLang
 
-arbVar :: Gen String
+arbVar :: Gen Ident
 arbVar = do
   x <- elements ['a'..'z']
   xs <- listOf $ elements $ ['a'..'z'] ++ ['0'..'9'] ++ ['A'..'Z'] ++ ['_']
@@ -182,9 +190,10 @@ arbVar = do
 
 
 shortListOf :: Int -> Gen a -> Gen [a]
-shortListOf max a = do
+shortListOf n a = do
+  let max = round (sqrt $ fromIntegral n)
   len <- choose(0, max)
-  vectorOf len a
+  vectorOf len $ resize max a
 
 
 shrinkProg :: Program -> [Program]
@@ -233,5 +242,7 @@ shrinkExpr expr = case expr of
       [FunCall f' xs | f' <- shrinkExpr f] ++
       [FunCall f xs' | xs' <- shrinkList shrinkExpr xs]
 
-  FunDef name (p:ps) body ->
-    [ FunDef name ps body ]
+  FunDef name params body ->
+    case params of
+      []          -> []
+      (_:params') -> [ FunDef name params' body ]

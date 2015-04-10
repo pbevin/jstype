@@ -56,7 +56,7 @@ statementList :: Parser [Statement]
 statementList = statement `sepBy` char ';'
 
 statement :: Parser Statement
-statement = choice [try block, whileStmt, exprStmt]
+statement = choice [try block, whileStmt, exprStmt, emptyStmt]
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
@@ -67,6 +67,9 @@ whileStmt = try $ lexeme "while" >>
 
 exprStmt :: Parser Statement
 exprStmt = ExpressionStatement <$> expr
+
+emptyStmt :: Parser Statement
+emptyStmt = char ';' >> return EmptyStatement
 
 
 
@@ -100,15 +103,15 @@ expr = foldl (flip ($)) simple [
 
 memberExpr :: Parser Expr -> Parser Expr
 memberExpr p = do
-  try functionExpr <|> p
+  functionExpr <|> p
 
 functionExpr :: Parser Expr
 functionExpr = do
-  lexeme "function"
+  try $ lexeme "function"
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  braces (return () <?> "function body")
-  return $ FunDef name params []
+  stmts <- braces statementList <?> "function body"
+  return $ FunDef name params stmts
 
 callExpr :: Parser Expr -> Parser Expr
 callExpr p = do
@@ -198,4 +201,3 @@ assignOp = choice $ map op $ assignOps jsLang
 
 prop_showProg prog = simpleParse (showProg prog) == prog
 prop_showExpr expr = parseExpr (showExpr expr) == expr
-
