@@ -38,7 +38,14 @@ spec = do
 
   it "parses a function call" $ do
     simpleParse "f()" `shouldBe` FunCall (ReadVar "f") []
-    simpleParse "f(x)" `shouldBe` FunCall (ReadVar "f") [(ReadVar "x")]
-    simpleParse "f(x,y)" `shouldBe` FunCall (ReadVar "f") [(ReadVar "x"), (ReadVar "y")]
+
+  it "parses a function call with an argument" $ do
+    simpleParse "f(x)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x"]
+
+  it "parses a function call with two arguments" $ do
+    simpleParse "f(x,y)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x", ReadVar "y"]
+
+  it "parses a chained function call" $ do
+    simpleParse "f()()" `shouldBe` FunCall (FunCall (ReadVar "f") []) []
 
   it "is the inverse of showExpr" $ property prop_showExpr

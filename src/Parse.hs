@@ -63,12 +63,11 @@ expr = foldl (flip ($)) simple [
 callExpr :: Parser Expr -> Parser Expr
 callExpr p = do
   fun <- p
-  try (call fun) <|> return fun
-    where call fun = do
-            lexeme "("
-            args <- expr `sepBy` (lexeme ",")
-            lexeme ")"
-            return $ FunCall fun args
+  applications <- many (parens argumentList)
+  return $ foldl FunCall fun applications
+
+argumentList :: Parser [Expr]
+argumentList = expr `sepBy` (lexeme ",")
 
 postfixExpr :: Parser Expr -> Parser Expr
 postfixExpr p = do
