@@ -36,4 +36,9 @@ spec = do
     simpleParse "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))
     simpleParse "(1)&&(2)" `shouldBe` BinOp "&&" (Num (JSNum 1)) (Num (JSNum 2))
 
+  it "parses a function call" $ do
+    simpleParse "f()" `shouldBe` FunCall (ReadVar "f") []
+    simpleParse "f(x)" `shouldBe` FunCall (ReadVar "f") [(ReadVar "x")]
+    simpleParse "f(x,y)" `shouldBe` FunCall (ReadVar "f") [(ReadVar "x"), (ReadVar "y")]
+
   it "is the inverse of showExpr" $ property prop_showExpr

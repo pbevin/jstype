@@ -44,6 +44,7 @@ resOp = do
 
 expr :: Parser Expr
 expr = foldl (flip ($)) simple [
+  callExpr,
   postfixExpr,
   unaryExpr,
   binOps ["*", "/", "%"],
@@ -59,12 +60,43 @@ expr = foldl (flip ($)) simple [
   condExpr,
   assignExpr ]
 
-assignExpr :: Parser Expr -> Parser Expr
-assignExpr p = try(assign) <|> p
-  where assign = do v <- identifier
-                    op <- lexeme "=" <|> assignOp
-                    e <- expr
-                    return $ Assign v op e
+callExpr :: Parser Expr -> Parser Expr
+callExpr p = do
+  fun <- p
+  try (call fun) <|> return fun
+    where call fun = do
+            lexeme "("
+            args <- expr `sepBy` (lexeme ",")
+            lexeme ")"
+            return $ FunCall fun args
+
+postfixExpr :: Parser Expr -> Parser Expr
+postfixExpr p = do
+  e <- p
+  try (postfix e) <|> return e
+    where postfix e = do
+            op <- choice $ map (try . lexeme) $ postfixOps jsLang
+            whiteSpace
+            return $ PostOp op e
+
+unaryExpr :: Parser Expr -> Parser Expr
+unaryExpr p = try(unop) <|> p
+  where unop = do
+          op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
+          whiteSpace
+          e <- p
+          return $ UnOp op e
+
+binOps :: [String] -> Parser Expr -> Parser Expr
+binOps ops p = do
+  e1 <- p
+  try (binop e1) <|> return e1
+    where binop e1 = do
+            op <- resOp
+            whiteSpace
+            if op `elem` ops
+              then p >>= return . BinOp op e1
+              else fail "no"
 
 condExpr :: Parser Expr -> Parser Expr
 condExpr p = do
@@ -77,33 +109,12 @@ condExpr p = do
             ifFalse <- expr
             return $ Cond test ifTrue ifFalse
 
-unaryExpr :: Parser Expr -> Parser Expr
-unaryExpr p = try(unop) <|> p
-  where unop = do
-          op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
-          whiteSpace
-          e <- p
-          return $ UnOp op e
-
-postfixExpr :: Parser Expr -> Parser Expr
-postfixExpr p = do
-  e <- p
-  try (postfix e) <|> return e
-    where postfix e = do
-            op <- choice $ map (try . lexeme) $ postfixOps jsLang
-            whiteSpace
-            return $ PostOp op e
-
-binOps :: [String] -> Parser Expr -> Parser Expr
-binOps ops p = do
-  e1 <- p
-  try (binop e1) <|> return e1
-    where binop e1 = do
-            op <- resOp
-            whiteSpace
-            if op `elem` ops
-              then p >>= return . BinOp op e1
-              else fail "no"
+assignExpr :: Parser Expr -> Parser Expr
+assignExpr p = try(assign) <|> p
+  where assign = do v <- identifier
+                    op <- lexeme "=" <|> assignOp
+                    e <- expr
+                    return $ Assign v op e
 
 simple :: Parser Expr
 simple = parens expr <|> var <|> num <|> str

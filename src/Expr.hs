@@ -1,7 +1,9 @@
 module Expr (Expr(..), JSNum(..), Lang(..), jsLang, showExpr) where
 
 import Control.Applicative
+import Control.Monad
 import Test.QuickCheck
+import Data.List
 
 newtype JSNum = JSNum Double deriving Show
 instance Eq JSNum where
@@ -15,6 +17,7 @@ data Expr = Num JSNum
           | ReadVar String
           | Assign String String Expr
           | Cond Expr Expr Expr
+          | FunCall Expr [Expr]
   deriving (Show, Eq)
 
 data Lang = Lang {
@@ -50,6 +53,7 @@ showExpr expr = case expr of
   Assign v op e -> v ++ op ++ showExpr e
   Cond test ifTrue ifFalse ->
     parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
+  FunCall f x -> parens (showExpr f) ++ parens (intercalate "," $ map showExpr x)
 
 parens s = "(" ++ s ++ ")"
 
@@ -65,8 +69,10 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
                     UnOp <$> arbUnary <*> subtree,
                     PostOp <$> arbPostfix <*> subtree,
                     Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
+                    FunCall <$> subtree3 <*> shortListOf 2 subtree3,
                     Cond <$> subtree <*> subtree <*> subtree ]
   where subtree = arbExpr (n `div` 2)
+        subtree3 = arbExpr (n `div` 3)
 
 arbOp :: Gen String
 arbOp = elements (binaryOps jsLang)
@@ -90,6 +96,11 @@ arbVar = do
   return (x:xs)
 
 
+shortListOf :: Int -> Gen a -> Gen [a]
+shortListOf max a = do
+  len <- choose(0, max)
+  vectorOf len a
+
 
 shrinkExpr (BinOp op e1 e2) = [e1, e2] ++ [BinOp op e1' e2' | e1' <- shrinkExpr e1, e2' <- shrinkExpr e2]
 shrinkExpr (UnOp op e) = [e] ++ [UnOp op e' | e' <- shrinkExpr e]
@@ -100,8 +111,12 @@ shrinkExpr (Num (JSNum n))
   | otherwise = [Num (JSNum 0)]
 shrinkExpr (Cond a b c) = [a, b, c] ++
   [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]
+shrinkExpr (FunCall f xs) =
+  [f] ++ xs ++
+    [FunCall f' xs | f' <- shrinkExpr f] ++
+    [FunCall f xs' | xs' <- shrinkList shrinkExpr xs]
 shrinkExpr (ReadVar [ch]) = []
 shrinkExpr (ReadVar (ch:_)) = [ReadVar [ch]]
 shrinkExpr (Str "") = []
 shrinkExpr (Str _) = [Str ""]
-shrinkExpr _ = []
+
