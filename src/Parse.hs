@@ -52,17 +52,18 @@ comma = lexeme ","
 prog :: Parser Program
 prog = Program <$> statementList
 
-statementList :: Parser [Statement] 
+statementList :: Parser [Statement]
 statementList = statement `sepBy` char ';'
 
 statement :: Parser Statement
-statement = try block <|> whileStmt <|> exprStmt
+statement = choice [try block, whileStmt, exprStmt]
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
 
 whileStmt ::Parser Statement
-whileStmt = lexeme "while" >> WhileStatement <$> expr <*> statement
+whileStmt = try $ lexeme "while" >>
+  WhileStatement <$> parens expr <*> statement
 
 exprStmt :: Parser Statement
 exprStmt = ExpressionStatement <$> expr
