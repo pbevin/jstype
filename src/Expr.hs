@@ -71,7 +71,9 @@ showExpr expr = case expr of
   FunCall f x ->
     parens (showExpr f) ++ parens (intercalate "," $ map showExpr x)
   FunDef Nothing params body ->
-    "function" ++ parens (mapshow "," params) ++ braces (mapshow ";" body)
+    "function" ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
+  FunDef (Just name) params body ->
+    "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
 
 mapshow sep xs = intercalate sep $ map show xs
 parens s = "(" ++ s ++ ")"
@@ -90,7 +92,8 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
                     PostOp <$> arbPostfix <*> subtree,
                     Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
                     FunCall <$> subtree3 <*> shortListOf 2 subtree3,
-                    pure $ FunDef Nothing [] [],
+                    FunDef Nothing <$> listOf arbVar <*> pure [],
+                    FunDef <$> (liftA Just arbVar) <*> listOf arbVar <*> pure [],
                     Cond <$> subtree <*> subtree <*> subtree ]
   where subtree = arbExpr (n `div` 2)
         subtree3 = arbExpr (n `div` 3)
@@ -123,21 +126,38 @@ shortListOf max a = do
   vectorOf len a
 
 
-shrinkExpr (BinOp op e1 e2) = [e1, e2] ++ [BinOp op e1' e2' | e1' <- shrinkExpr e1, e2' <- shrinkExpr e2]
-shrinkExpr (UnOp op e) = [e] ++ [UnOp op e' | e' <- shrinkExpr e]
-shrinkExpr (Assign v@[ch] op e) = [Assign v op e' | e' <- shrinkExpr e] ++ [e]
-shrinkExpr (Assign v@(ch:_) op e) = [Assign [ch] op e]
-shrinkExpr (Num (JSNum n))
-  | n == 0 = []
-  | otherwise = [Num (JSNum 0)]
-shrinkExpr (Cond a b c) = [a, b, c] ++
-  [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]
-shrinkExpr (FunCall f xs) =
-  [f] ++ xs ++
-    [FunCall f' xs | f' <- shrinkExpr f] ++
-    [FunCall f xs' | xs' <- shrinkList shrinkExpr xs]
-shrinkExpr (ReadVar [ch]) = []
-shrinkExpr (ReadVar (ch:_)) = [ReadVar [ch]]
-shrinkExpr (Str "") = []
-shrinkExpr (Str _) = [Str ""]
+shrinkExpr :: Expr -> [Expr]
+shrinkExpr expr = case expr of
+  Str "" -> []
+  Str _ -> [Str ""]
+  ReadVar [ch] -> []
+  ReadVar (ch:_) -> [ReadVar [ch]]
+  Num (JSNum n)
+    | n == 0 -> []
+    | otherwise -> [Num (JSNum 0)]
 
+  BinOp op e1 e2 ->
+    [e1, e2] ++ [BinOp op e1' e2' | e1' <- shrinkExpr e1, e2' <- shrinkExpr e2]
+
+  UnOp op e ->
+    [e] ++ [UnOp op e' | e' <- shrinkExpr e]
+
+  PostOp op e ->
+    [e] ++ [PostOp op e' | e' <- shrinkExpr e]
+
+  Assign v@[ch] op e ->
+    [Assign v op e' | e' <- shrinkExpr e] ++ [e]
+
+  Assign v@(ch:_) op e ->
+    [Assign [ch] op e]
+
+  Cond a b c ->
+    [a, b, c] ++ [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]
+
+  FunCall f xs ->
+    [f] ++ xs ++
+      [FunCall f' xs | f' <- shrinkExpr f] ++
+      [FunCall f xs' | xs' <- shrinkList shrinkExpr xs]
+
+  FunDef name (p:ps) body ->
+    [ FunDef name ps body ]

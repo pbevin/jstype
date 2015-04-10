@@ -43,6 +43,7 @@ resOp = do
   whiteSpace
   return op
 
+comma = lexeme ","
 
 expr :: Parser Expr
 expr = foldl (flip ($)) simple [
@@ -70,10 +71,10 @@ memberExpr p = do
 functionExpr :: Parser Expr
 functionExpr = do
   lexeme "function"
-  return () <?> "function name"
-  parens (return () <?> "parameter list")
+  name <- optionMaybe identifier <?> "function name"
+  params <- parens (identifier `sepBy` comma) <?> "parameter list"
   braces (return () <?> "function body")
-  return $ FunDef Nothing [] []
+  return $ FunDef name params []
 
 callExpr :: Parser Expr -> Parser Expr
 callExpr p = do
@@ -82,7 +83,7 @@ callExpr p = do
   return $ foldl FunCall fun applications
 
 argumentList :: Parser [Expr]
-argumentList = expr `sepBy` (lexeme ",")
+argumentList = expr `sepBy` comma
 
 postfixExpr :: Parser Expr -> Parser Expr
 postfixExpr p = do
