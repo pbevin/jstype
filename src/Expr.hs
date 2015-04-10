@@ -21,13 +21,37 @@ newtype Program = Program [Statement] deriving (Show, Eq)
 type Ident = String
 type Operator = String
 type ParameterList = [Ident]
+type VarDeclaration = [(Ident, Expr)]
 
-data Statement = ExpressionStatement Expr
+data ForHeader = For3 Expr Expr Expr
+               | For3Var Ident Expr Expr Expr
+               | ForIn LHS Expr
+               | ForInVar Ident LHS Expr
+  deriving (Show, Eq)
+
+data Statement = Block [Statement]
+               | Var [VarDeclaration]
+               | EmptyStatement
+               | ExpressionStatement Expr
+               | IfStatement
                | WhileStatement Expr Statement
-               | Block [Statement]
+               | DoWhileStatement Expr Statement
+               | For ForHeader Statement
+               -- | ForStatement ... (4 cases)
+               | ContinueStatement
+               | BreakStatement
+               | ReturnStatement
+               -- | WithStatement
+               | IdentifierStatement Ident Statement
+               | SwitchStatement
+               | ThrowStatement
+               | TryStatement
+               | DebuggerStatement
   deriving (Show, Eq)
 
 type FunBody = [Statement]
+
+type LHS = Expr -- XXX
 
 data Expr = Num JSNum
           | Str String
