@@ -9,15 +9,27 @@ newtype JSNum = JSNum Double deriving Show
 instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
 
+
+type Ident = String
+type Operator = String
+type ParameterList = [Ident]
+
+data SourceElement = Statement
+  deriving (Show, Eq)
+type FunBody = [SourceElement]
+data Statement = ExpressionStatement Expr
+  deriving (Show, Eq)
+
 data Expr = Num JSNum
           | Str String
-          | BinOp String Expr Expr
-          | UnOp String Expr
-          | PostOp String Expr
-          | ReadVar String
-          | Assign String String Expr
+          | BinOp Operator Expr Expr
+          | UnOp Operator Expr
+          | PostOp Operator Expr
+          | ReadVar Ident
+          | Assign Ident String Expr
           | Cond Expr Expr Expr
           | FunCall Expr [Expr]
+          | FunDef (Maybe Ident) ParameterList FunBody
   deriving (Show, Eq)
 
 data Lang = Lang {
@@ -45,17 +57,25 @@ showExpr :: Expr -> String
 showExpr expr = case expr of
   Num (JSNum n) -> show n
   Str s -> show s
+  ReadVar v -> v
   BinOp op e1 e2 ->
     parens (showExpr e1) ++ op ++ parens (showExpr e2)
-  UnOp op e -> op ++ parens (showExpr e)
-  PostOp op e -> parens (showExpr e) ++ op
-  ReadVar v -> v
-  Assign v op e -> v ++ op ++ showExpr e
+  UnOp op e ->
+    op ++ parens (showExpr e)
+  PostOp op e ->
+    parens (showExpr e) ++ op
+  Assign v op e ->
+    v ++ op ++ showExpr e
   Cond test ifTrue ifFalse ->
     parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
-  FunCall f x -> parens (showExpr f) ++ parens (intercalate "," $ map showExpr x)
+  FunCall f x ->
+    parens (showExpr f) ++ parens (intercalate "," $ map showExpr x)
+  FunDef Nothing params body ->
+    "function" ++ parens (mapshow "," params) ++ braces (mapshow ";" body)
 
+mapshow sep xs = intercalate sep $ map show xs
 parens s = "(" ++ s ++ ")"
+braces s = "{" ++ s ++ "}"
 
 
 instance Arbitrary Expr where
@@ -70,6 +90,7 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subtree <*> subtree,
                     PostOp <$> arbPostfix <*> subtree,
                     Assign <$> arbVar <*> arbAssignOp <*> arbExpr (n-1),
                     FunCall <$> subtree3 <*> shortListOf 2 subtree3,
+                    pure $ FunDef Nothing [] [],
                     Cond <$> subtree <*> subtree <*> subtree ]
   where subtree = arbExpr (n `div` 2)
         subtree3 = arbExpr (n `div` 3)

@@ -22,6 +22,8 @@ simpleParse str = case parseJS str of
 
 lexer = T.makeTokenParser javaStyle
 parens = T.parens lexer
+braces = T.braces lexer
+brackets = T.brackets lexer
 identifier = T.identifier lexer
 integer = T.integer lexer
 float = T.float lexer
@@ -44,6 +46,7 @@ resOp = do
 
 expr :: Parser Expr
 expr = foldl (flip ($)) simple [
+  memberExpr,
   callExpr,
   postfixExpr,
   unaryExpr,
@@ -59,6 +62,18 @@ expr = foldl (flip ($)) simple [
   binOps [ "||" ],
   condExpr,
   assignExpr ]
+
+memberExpr :: Parser Expr -> Parser Expr
+memberExpr p = do
+  try functionExpr <|> p
+
+functionExpr :: Parser Expr
+functionExpr = do
+  lexeme "function"
+  return () <?> "function name"
+  parens (return () <?> "parameter list")
+  braces (return () <?> "function body")
+  return $ FunDef Nothing [] []
 
 callExpr :: Parser Expr -> Parser Expr
 callExpr p = do
