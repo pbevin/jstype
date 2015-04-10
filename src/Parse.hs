@@ -1,4 +1,4 @@
-module Parse (parseJS, simpleParse, prop_showExpr, allOps) where
+module Parse (parseJS, simpleParse, parseExpr, prop_showExpr, prop_showProg) where
 
 import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
@@ -11,14 +11,18 @@ import Expr
 
 import Debug.Trace
 
-parseJS :: String -> Either ParseError Expr
-parseJS str = parse (expr <* eof) "" str
+parseJS :: String -> Either ParseError Program
+parseJS str = parse (prog <* eof) "" str
 
-simpleParse :: String -> Expr
+simpleParse :: String -> Program
 simpleParse str = case parseJS str of
-  Right expr -> expr
+  Right prog -> prog
   Left err   -> error (show err)
 
+parseExpr :: String -> Expr
+parseExpr str = case parse (expr <* eof) "" str of
+  Right expr -> expr
+  Left err   -> error (show err)
 
 lexer = T.makeTokenParser javaStyle
 parens = T.parens lexer
@@ -44,6 +48,35 @@ resOp = do
   return op
 
 comma = lexeme ","
+
+prog :: Parser Program
+prog = Program <$> statementList
+
+statementList :: Parser [Statement] 
+statementList = statement `sepBy` char ';'
+
+statement :: Parser Statement
+statement = try block <|> whileStmt <|> exprStmt
+
+block :: Parser Statement
+block = Block <$> braces (statementList)
+
+whileStmt ::Parser Statement
+whileStmt = lexeme "while" >> WhileStatement <$> expr <*> statement
+
+exprStmt :: Parser Statement
+exprStmt = ExpressionStatement <$> expr
+
+
+
+
+
+
+
+
+
+
+
 
 expr :: Parser Expr
 expr = foldl (flip ($)) simple [
@@ -162,5 +195,6 @@ assignOp = choice $ map op $ assignOps jsLang
 
 
 
-prop_showExpr expr = simpleParse (showExpr expr) == expr
+prop_showProg prog = simpleParse (showProg prog) == prog
+prop_showExpr expr = parseExpr (showExpr expr) == expr
 

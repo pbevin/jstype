@@ -9,43 +9,47 @@ import Parse
 
 spec = do
   it "parses a number" $ do
-    simpleParse "1" `shouldBe` Num (JSNum 1)
+    parseExpr "1" `shouldBe` Num (JSNum 1)
 
   it "parses a negative number" $ do
-    simpleParse "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
+    parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
 
   it "parses a unary operator" $ do
-    simpleParse "++u" `shouldBe` UnOp "++" (ReadVar "u")
+    parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
   it "parses a unop assignment" $ do
-    simpleParse "e = -1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+    parseExpr "e = -1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
 
   it "parses a plus-equals" $ do
-    simpleParse "a += b" `shouldBe` Assign "a" "+=" (ReadVar "b")
+    parseExpr "a += b" `shouldBe` Assign "a" "+=" (ReadVar "b")
 
   it "interprets this tricky case right" $ do
-    simpleParse "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
-    simpleParse "a+++ ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
-    evaluate (simpleParse "a+++++b") `shouldThrow` anyException
-    evaluate (simpleParse "a++ +++b") `shouldThrow` anyException
+    parseExpr "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
+    parseExpr "a+++ ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
+    evaluate (parseExpr "a+++++b") `shouldThrow` anyException
+    evaluate (parseExpr "a++ +++b") `shouldThrow` anyException
 
   it "parses a unop assignment without spaces" $ do
-    simpleParse "e=-1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+    parseExpr "e=-1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
 
   it "parses a binop" $ do
-    simpleParse "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))
-    simpleParse "(1)&&(2)" `shouldBe` BinOp "&&" (Num (JSNum 1)) (Num (JSNum 2))
+    parseExpr "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))
+    parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (Num (JSNum 1)) (Num (JSNum 2))
 
   it "parses a function call" $ do
-    simpleParse "f()" `shouldBe` FunCall (ReadVar "f") []
+    parseExpr "f()" `shouldBe` FunCall (ReadVar "f") []
 
   it "parses a function call with an argument" $ do
-    simpleParse "f(x)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x"]
+    parseExpr "f(x)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x"]
 
   it "parses a function call with two arguments" $ do
-    simpleParse "f(x,y)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x", ReadVar "y"]
+    parseExpr "f(x,y)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x", ReadVar "y"]
 
   it "parses a chained function call" $ do
-    simpleParse "f()()" `shouldBe` FunCall (FunCall (ReadVar "f") []) []
+    parseExpr "f()()" `shouldBe` FunCall (FunCall (ReadVar "f") []) []
 
-  it "is the inverse of showExpr" $ property prop_showExpr
+  it "parses a while statement" $ do
+    simpleParse "while (a) { }" `shouldBe` Program [WhileStatement (ReadVar "a") (Block [])]
+
+  it "is the inverse of showProg" $
+    property prop_showProg

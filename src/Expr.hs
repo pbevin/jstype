@@ -1,4 +1,11 @@
-module Expr (Expr(..), JSNum(..), Lang(..), jsLang, showExpr) where
+module Expr (Program (..),
+             Statement (..),
+             Expr(..),
+             JSNum(..),
+             Lang(..),
+             jsLang,
+             showProg,
+             showExpr) where
 
 import Control.Applicative
 import Control.Monad
@@ -9,16 +16,18 @@ newtype JSNum = JSNum Double deriving Show
 instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
 
+newtype Program = Program [Statement] deriving (Show, Eq)
 
 type Ident = String
 type Operator = String
 type ParameterList = [Ident]
 
-data SourceElement = Statement
-  deriving (Show, Eq)
-type FunBody = [SourceElement]
 data Statement = ExpressionStatement Expr
+               | WhileStatement Expr Statement
+               | Block [Statement]
   deriving (Show, Eq)
+
+type FunBody = [Statement]
 
 data Expr = Num JSNum
           | Str String
@@ -52,6 +61,13 @@ jsLang = Lang {
   postfixOps = [ "++", "--" ]
 }
 
+showProg :: Program -> String
+showProg (Program stmts) = intercalate ";" $ map showStatement stmts
+
+showStatement :: Statement -> String
+showStatement stmt = case stmt of
+  ExpressionStatement expr -> showExpr expr
+  WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
@@ -80,10 +96,31 @@ parens s = "(" ++ s ++ ")"
 braces s = "{" ++ s ++ "}"
 
 
+
+
+instance Arbitrary Program where
+  arbitrary = sized arbProg
+  shrink = shrinkProg
+
+instance Arbitrary Statement where
+  arbitrary = sized arbStmt
+  shrink = shrinkStmt
+
 instance Arbitrary Expr where
   arbitrary = sized arbExpr
   shrink = shrinkExpr
 
+arbProg :: Int -> Gen Program
+arbProg n = Program <$> shortListOf 3 (arbStmt $ n `div` 3)
+
+arbStmt :: Int -> Gen Statement
+arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
+                    WhileStatement <$> arbExpr (n `div` 2) <*> arbStmt (n `div` 2) ]
+
+
+
+
+arbExpr :: Int -> Gen Expr
 arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
                     ReadVar <$> arbVar ]
@@ -124,6 +161,19 @@ shortListOf :: Int -> Gen a -> Gen [a]
 shortListOf max a = do
   len <- choose(0, max)
   vectorOf len a
+
+
+shrinkProg :: Program -> [Program]
+shrinkProg (Program stmts) = [Program p | p <- recursivelyShrink stmts]
+
+-- recursivelyShrink :: [a] -> [a]
+-- recursivelyShrink xs = concat $ map (map shrink) $ shrinkList shrink xs
+
+shrinkStmt :: Statement -> [Statement]
+shrinkStmt expr = case expr of
+  ExpressionStatement e -> [ExpressionStatement e | e <- shrink e]
+  WhileStatement e s ->
+    [ExpressionStatement e, s] ++ [WhileStatement e' s' | e' <- shrink e, s' <- shrink s]
 
 
 shrinkExpr :: Expr -> [Expr]
