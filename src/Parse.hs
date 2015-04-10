@@ -1,4 +1,4 @@
-module Parse (parseJS, simpleParse, prop_showExpr) where
+module Parse (parseJS, simpleParse, prop_showExpr, allOps) where
 
 import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
@@ -6,6 +6,7 @@ import Text.Parsec
 import Text.Parsec.String
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (javaStyle)
+import Data.List
 import Expr
 
 import Debug.Trace
@@ -28,12 +29,17 @@ reserved = T.reserved lexer
 symbol = T.symbol lexer
 whiteSpace = T.whiteSpace lexer
 
+allOps = sortBy reverseLength $ nub allJsOps
+  where allJsOps = (assignOps jsLang) ++ (unaryOps jsLang) ++ (binaryOps jsLang) ++ (postfixOps jsLang)
+
+reverseLength :: String -> String -> Ordering
+reverseLength a b = compare (length b) (length a)
+
 lexeme str = string str <* whiteSpace
-resOp name = do
-  string name
-  notFollowedBy (oneOf "-+=&|^<>")
+resOp = do
+  op <- choice (map (try . string) allOps)
   whiteSpace
-  return name
+  return op
 
 
 expr :: Parser Expr
@@ -42,7 +48,7 @@ expr = foldl (flip ($)) simple [
   unaryExpr,
   binOps ["*", "/", "%"],
   binOps ["+", "-"],
-  binOps [ ">>", ">>>", "<<" ],
+  binOps [ ">>>", ">>", "<<" ],
   binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
   binOps [ "===", "!==", "==", "!=" ],
   binOps [ "&" ],
@@ -74,27 +80,30 @@ condExpr p = do
 unaryExpr :: Parser Expr -> Parser Expr
 unaryExpr p = try(unop) <|> p
   where unop = do
-          op <- choice $ map (try . resOp) $ unaryOps jsLang
+          op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
+          whiteSpace
           e <- p
           return $ UnOp op e
 
 postfixExpr :: Parser Expr -> Parser Expr
-postfixExpr p = try postfix <|> p
-  where postfix = do
-          e <- p
-          op <- choice $ map (try . lexeme) $ postfixOps jsLang
-          return $ PostOp op e
+postfixExpr p = do
+  e <- p
+  try (postfix e) <|> return e
+    where postfix e = do
+            op <- choice $ map (try . lexeme) $ postfixOps jsLang
+            whiteSpace
+            return $ PostOp op e
 
 binOps :: [String] -> Parser Expr -> Parser Expr
 binOps ops p = do
   e1 <- p
-  choice $ [ bin p e1 op | op <- ops ] ++ [ return e1 ]
-
-bin :: Parser Expr -> Expr -> String -> Parser Expr
-bin p e1 op = do
-  try (resOp op)
-  e2 <- p
-  return $ BinOp op e1 e2
+  try (binop e1) <|> return e1
+    where binop e1 = do
+            op <- resOp
+            whiteSpace
+            if op `elem` ops
+              then p >>= return . BinOp op e1
+              else fail "no"
 
 simple :: Parser Expr
 simple = parens expr <|> var <|> num <|> str

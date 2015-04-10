@@ -10,6 +10,8 @@ import Parse
 spec = do
   it "parses a number" $ do
     simpleParse "1" `shouldBe` Num (JSNum 1)
+
+  it "parses a negative number" $ do
     simpleParse "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
 
   it "parses a unary operator" $ do
@@ -17,6 +19,9 @@ spec = do
 
   it "parses a unop assignment" $ do
     simpleParse "e = -1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+
+  it "parses a plus-equals" $ do
+    simpleParse "a += b" `shouldBe` Assign "a" "+=" (ReadVar "b")
 
   it "interprets this tricky case right" $ do
     simpleParse "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
