@@ -31,7 +31,6 @@ data ForHeader = For3 Expr Expr Expr
 
 data Statement = Block [Statement]
                | Var [VarDeclaration]
-               | EmptyStatement
                | ExpressionStatement Expr
                | IfStatement
                | WhileStatement Expr Statement
@@ -40,7 +39,7 @@ data Statement = Block [Statement]
                -- | ForStatement ... (4 cases)
                | ContinueStatement
                | BreakStatement
-               | ReturnStatement
+               | ReturnStatement Expr
                -- | WithStatement
                | IdentifierStatement Ident Statement
                | SwitchStatement
@@ -94,7 +93,7 @@ showStatement :: Statement -> String
 showStatement stmt = case stmt of
   ExpressionStatement expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
-  EmptyStatement -> ";"
+  ReturnStatement expr -> "return " ++ showExpr expr
   DebuggerStatement -> "debugger"
 
 showExpr :: Expr -> String
@@ -148,7 +147,7 @@ arbProg n = Program <$> shortListOf n arbitrary
 arbStmt :: Int -> Gen Statement
 arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
                     WhileStatement <$> arbExpr half <*> arbStmt half,
-                    pure EmptyStatement,
+                    ReturnStatement <$> arbitrary,
                     pure DebuggerStatement ]
   where half = n `div` 2
 

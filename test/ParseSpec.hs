@@ -6,6 +6,7 @@ import Test.QuickCheck
 
 import Expr
 import Parse
+import Eval
 
 spec = do
   it "parses a number" $ do
@@ -13,6 +14,10 @@ spec = do
 
   it "parses a negative number" $ do
     parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
+
+  it "parses strings" $ do
+    parseExpr "'single quoted'" `shouldBe` Str "single quoted"
+    parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"
 
   it "parses a unary operator" $ do
     parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
@@ -53,6 +58,23 @@ spec = do
 
   it "parses a while statement" $ do
     simpleParse "while (a) { }" `shouldBe` Program [WhileStatement (ReadVar "a") (Block [])]
+
+  it "ignores comments at the start of the file" $ do
+    simpleParse "" `shouldBe` Program []
+    simpleParse "// this is a comment\n" `shouldBe` Program []
+    simpleParse "// a\n//b\n2\n" `shouldBe` Program [ExpressionStatement (Num 2)]
+
+  it "ignores white space before and after semicolons" $ do
+    simpleParse "1 ; 2" `shouldBe` simpleParse "1;2"
+    simpleParse "1; 2" `shouldBe` simpleParse "1;2"
+    simpleParse "1 ;2" `shouldBe` simpleParse "1;2"
+
+  it "parses a semicolon-terminated statement in a function" $ do
+    simpleParse "function b() { return 3 }" `shouldBe` simpleParse "function b() { return 3; }"
+
+  it "treats semicolons as optional" $ do
+    simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
+    evaluate (simpleParse "a() b()") `shouldThrow` anyException
 
   it "is the inverse of showProg" $
     property prop_showProg

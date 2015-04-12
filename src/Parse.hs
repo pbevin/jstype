@@ -2,7 +2,7 @@ module Parse (parseJS, simpleParse, parseExpr, prop_showExpr, prop_showProg) whe
 
 import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
-import Text.Parsec
+import Text.Parsec hiding (newline)
 import Text.Parsec.String
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (javaStyle)
@@ -12,7 +12,7 @@ import Expr
 import Debug.Trace
 
 parseJS :: String -> Either ParseError Program
-parseJS str = parse (prog <* eof) "" str
+parseJS str = parse (whiteSpace >> prog <* eof) "" str
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of
@@ -44,6 +44,8 @@ reserved = T.reserved lexer
 symbol = T.symbol lexer
 whiteSpace = T.whiteSpace lexer
 
+newline = whiteSpace >> char '\n' >> whiteSpace
+
 allOps = sortBy reverseLength $ nub allJsOps
   where allJsOps = (assignOps jsLang) ++ (unaryOps jsLang) ++ (binaryOps jsLang) ++ (postfixOps jsLang)
 
@@ -56,33 +58,37 @@ resOp = do
   whiteSpace
   return op
 
-comma = lexeme ","
+comma = lexeme "," >> return ()
+semicolon = lexeme ";" >> return ()
 
 prog :: Parser Program
 prog = Program <$> statementList
 
 statementList :: Parser [Statement]
-statementList = statement `sepBy` char ';'
+statementList = many (statement <* optional terminator)
+
+terminator = semicolon
+-- terminator = choice [ semicolon, newline ]
 
 statement :: Parser Statement
-statement = choice [ try block,
-                     whileStmt,
-                     exprStmt,
-                     emptyStmt,
+statement = choice [ try block <?> "block",
+                     whileStmt <?> "while",
+                     returnStmt <?> "return",
+                     exprStmt <?> "expression",
                      debuggerStmt ]
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
 
-whileStmt ::Parser Statement
+returnStmt :: Parser Statement
+returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr
+
+whileStmt :: Parser Statement
 whileStmt = try $ lexeme "while" >>
   WhileStatement <$> parens expr <*> statement
 
 exprStmt :: Parser Statement
 exprStmt = ExpressionStatement <$> expr
-
-emptyStmt :: Parser Statement
-emptyStmt = char ';' >> return EmptyStatement
 
 debuggerStmt :: Parser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement
@@ -188,7 +194,15 @@ var :: Parser Expr
 var = identifier >>= return . ReadVar
 
 str :: Parser Expr
-str = T.stringLiteral lexer >>= return . Str
+str = (T.stringLiteral lexer <|> singleQuotedString) >>= return . Str
+
+singleQuotedString :: Parser String
+singleQuotedString = do
+  char '\''
+  str <- many (noneOf "'")
+  char '\''
+  whiteSpace
+  return str
 
 num :: Parser Expr
 num = do
