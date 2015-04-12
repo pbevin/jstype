@@ -66,6 +66,7 @@ data Expr = Num JSNum
   deriving (Show, Eq)
 
 data Lang = Lang {
+  reservedWords :: [String],
   assignOps :: [String],
   unaryOps :: [String],
   binaryOps :: [String],
@@ -74,6 +75,7 @@ data Lang = Lang {
 
 jsLang :: Lang
 jsLang = Lang {
+  reservedWords  = [ "var", "let", "while", "in", "if", "debugger" ],
   assignOps = [ "=", "+=", "-=", "*=", "/=", "%=",
                 "<<=", ">>=", ">>>=", "&=", "^=", "|="],
   unaryOps  = [ "delete", "void", "typeof",
@@ -92,6 +94,8 @@ showStatement :: Statement -> String
 showStatement stmt = case stmt of
   ExpressionStatement expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
+  EmptyStatement -> ";"
+  DebuggerStatement -> "debugger"
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
@@ -143,7 +147,9 @@ arbProg n = Program <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
 arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
-                    WhileStatement <$> arbExpr half <*> arbStmt half ]
+                    WhileStatement <$> arbExpr half <*> arbStmt half,
+                    pure EmptyStatement,
+                    pure DebuggerStatement ]
   where half = n `div` 2
 
 
@@ -152,16 +158,16 @@ arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
 arbExpr :: Int -> Gen Expr
 arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
-                    ReadVar <$> arbVar ]
+                    ReadVar <$> arbIdent ]
 arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     UnOp <$> arbUnary <*> subexpr,
                     PostOp <$> arbPostfix <*> subexpr,
-                    Assign <$> arbVar <*> arbAssignOp <*> resize (n-1) arbitrary,
+                    Assign <$> arbIdent <*> arbAssignOp <*> resize (n-1) arbitrary,
                     FunCall <$> subexpr <*> shortListOf half arbitrary,
-                    FunDef Nothing <$> listOf arbVar <*> pure [],
+                    FunDef Nothing <$> listOf arbIdent <*> pure [],
                     FunDef <$>
-                      (Just <$> arbVar) <*>
-                      listOf arbVar <*>
+                      (Just <$> arbIdent) <*>
+                      listOf arbIdent <*>
                       shortListOf n arbitrary,
                     Cond <$> subexpr <*> subexpr <*> subexpr ]
   where subexpr = arbExpr half
@@ -182,16 +188,19 @@ arbNum = arbitrary >>= return . JSNum . getNonNegative
 arbAssignOp :: Gen String
 arbAssignOp = elements $ assignOps jsLang
 
-arbVar :: Gen Ident
-arbVar = do
+arbIdent :: Gen Ident
+arbIdent = arbVarName `suchThat` notReserved
+  where notReserved name = not $ name `elem` reservedWords jsLang
+
+arbVarName :: Gen Ident
+arbVarName = do
   x <- elements ['a'..'z']
   xs <- listOf $ elements $ ['a'..'z'] ++ ['0'..'9'] ++ ['A'..'Z'] ++ ['_']
   return (x:xs)
 
-
 shortListOf :: Int -> Gen a -> Gen [a]
 shortListOf n a = do
-  let max = round (sqrt $ fromIntegral n)
+  let max = floor (sqrt $ fromIntegral n)
   len <- choose(0, max)
   vectorOf len $ resize max a
 
@@ -199,14 +208,13 @@ shortListOf n a = do
 shrinkProg :: Program -> [Program]
 shrinkProg (Program stmts) = [Program p | p <- recursivelyShrink stmts]
 
--- recursivelyShrink :: [a] -> [a]
--- recursivelyShrink xs = concat $ map (map shrink) $ shrinkList shrink xs
-
 shrinkStmt :: Statement -> [Statement]
 shrinkStmt expr = case expr of
   ExpressionStatement e -> [ExpressionStatement e | e <- shrink e]
   WhileStatement e s ->
     [ExpressionStatement e, s] ++ [WhileStatement e' s' | e' <- shrink e, s' <- shrink s]
+
+  _ -> []
 
 
 shrinkExpr :: Expr -> [Expr]

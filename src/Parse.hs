@@ -24,7 +24,14 @@ parseExpr str = case parse (expr <* eof) "" str of
   Right expr -> expr
   Left err   -> error (show err)
 
-lexer = T.makeTokenParser javaStyle
+
+
+
+
+javascript :: T.LanguageDef st
+javascript = javaStyle { T.reservedNames = reservedWords jsLang }
+
+lexer = T.makeTokenParser javascript
 parens = T.parens lexer
 braces = T.braces lexer
 brackets = T.brackets lexer
@@ -56,7 +63,11 @@ statementList :: Parser [Statement]
 statementList = statement `sepBy` char ';'
 
 statement :: Parser Statement
-statement = choice [try block, whileStmt, exprStmt, emptyStmt]
+statement = choice [ try block,
+                     whileStmt,
+                     exprStmt,
+                     emptyStmt,
+                     debuggerStmt ]
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
@@ -71,6 +82,8 @@ exprStmt = ExpressionStatement <$> expr
 emptyStmt :: Parser Statement
 emptyStmt = char ';' >> return EmptyStatement
 
+debuggerStmt :: Parser Statement
+debuggerStmt = lexeme "debugger" >> return DebuggerStatement
 
 
 
