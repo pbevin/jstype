@@ -36,6 +36,9 @@ spec = do
     parseExpr "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))
     parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (Num (JSNum 1)) (Num (JSNum 2))
 
+  it "parses a chained binop" $ do
+    parseExpr "a+b+c" `shouldBe` BinOp "+" (BinOp "+" (ReadVar "a") (ReadVar "b")) (ReadVar "c")
+
   it "parses a function call" $ do
     parseExpr "f()" `shouldBe` FunCall (ReadVar "f") []
 

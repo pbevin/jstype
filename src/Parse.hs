@@ -29,7 +29,9 @@ parseExpr str = case parse (expr <* eof) "" str of
 
 
 javascript :: T.LanguageDef st
-javascript = javaStyle { T.reservedNames = reservedWords jsLang }
+javascript = javaStyle
+              { T.reservedNames = reservedWords jsLang
+              , T.caseSensitive = True }
 
 lexer = T.makeTokenParser javascript
 parens = T.parens lexer
@@ -153,15 +155,13 @@ unaryExpr p = try(unop) <|> p
           return $ UnOp op e
 
 binOps :: [String] -> Parser Expr -> Parser Expr
-binOps ops p = do
-  e1 <- p
-  try (binop e1) <|> return e1
-    where binop e1 = do
-            op <- resOp
-            whiteSpace
-            if op `elem` ops
-              then p >>= return . BinOp op e1
-              else fail "no"
+binOps ops p = p `chainl1` bin ops
+  where bin ops = try $ do
+          op <- resOp
+          whiteSpace
+          if op `elem` ops
+          then return $ BinOp op
+          else unexpected ("one of " ++ show ops)
 
 condExpr :: Parser Expr -> Parser Expr
 condExpr p = do
