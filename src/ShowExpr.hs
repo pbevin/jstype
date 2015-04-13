@@ -8,11 +8,18 @@ showProg (Program stmts) = intercalate ";" $ map showStatement stmts
 
 showStatement :: Statement -> String
 showStatement stmt = case stmt of
-  ExpressionStatement expr -> showExpr expr
+  ExprStmt expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
   ReturnStatement expr -> "return " ++ showExpr expr
+  EmptyStatement -> ";"
   DebuggerStatement -> "debugger"
   VarDecl decls -> "var " ++ showVarDecls decls
+
+  IfStatement test ifTrue Nothing ->
+    "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " }"
+
+  IfStatement test ifTrue (Just ifFalse) ->
+    "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " } else { " ++ showStatement ifFalse ++ " }"
 
 showExpr :: Expr -> String
 showExpr expr = case expr of

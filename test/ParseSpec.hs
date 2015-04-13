@@ -4,6 +4,7 @@ import Control.Exception (evaluate)
 import Test.Hspec
 import Test.QuickCheck
 
+import GenExpr
 import Expr
 import Parse
 import Eval
@@ -82,7 +83,7 @@ spec = do
   it "ignores comments at the start of the file" $ do
     simpleParse "" `shouldBe` Program []
     simpleParse "// this is a comment\n" `shouldBe` Program []
-    simpleParse "// a\n//b\n2\n" `shouldBe` Program [ExpressionStatement (Num 2)]
+    simpleParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt (Num 2)]
 
   it "ignores white space before and after semicolons" $ do
     simpleParse "1 ; 2" `shouldBe` simpleParse "1;2"

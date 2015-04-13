@@ -78,16 +78,18 @@ terminator = semicolon
 statement :: Parser Statement
 statement = choice [ block <?> "block",
                      varDecl <?> "var declaration",
+                     ifStmt <?> "if",
                      whileStmt <?> "while",
                      returnStmt <?> "return",
                      exprStmt <?> "expression",
+                     emptyStmt,
                      debuggerStmt ]
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
 
 varDecl :: Parser Statement
-varDecl = try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma
+varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
 
 varAssign :: Parser (String, Maybe Expr)
 varAssign = do
@@ -101,12 +103,26 @@ varAssign = do
 returnStmt :: Parser Statement
 returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr
 
+ifStmt :: Parser Statement
+ifStmt = try $ do
+  lexeme "if"
+  test <- parens expr
+  ifTrue <- braces statement
+  ifFalse <- try elseClause <|> return Nothing
+  return $ IfStatement test ifTrue ifFalse
+
+elseClause :: Parser (Maybe Statement)
+elseClause = try (lexeme "else" >> Just <$> braces statement)
+
 whileStmt :: Parser Statement
 whileStmt = try $ lexeme "while" >>
   WhileStatement <$> parens expr <*> statement
 
 exprStmt :: Parser Statement
-exprStmt = ExpressionStatement <$> expr
+exprStmt = ExprStmt <$> expr
+
+emptyStmt :: Parser Statement
+emptyStmt = semicolon >> return EmptyStatement
 
 debuggerStmt :: Parser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement
