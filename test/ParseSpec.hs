@@ -15,6 +15,15 @@ spec = do
   it "parses a negative number" $ do
     parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
 
+  it "parses a variable" $ do
+    parseExpr "a" `shouldBe` (ReadVar "a")
+    parseExpr "_a123" `shouldBe` (ReadVar "_a123")
+    parseExpr "$" `shouldBe` (ReadVar "$")
+    parseExpr "$12" `shouldBe` (ReadVar "$12")
+    parseExpr "$12$" `shouldBe` (ReadVar "$12$")
+    parseExpr "$err" `shouldBe` (ReadVar "$err")
+    parseExpr "XYZ" `shouldBe` (ReadVar "XYZ")
+
   it "parses strings" $ do
     parseExpr "'single quoted'" `shouldBe` Str "single quoted"
     parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"

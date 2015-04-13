@@ -27,11 +27,15 @@ parseExpr str = case parse (expr <* eof) "" str of
 
 
 
+identStart  = (['a'..'z'] ++ ['A'..'Z'] ++ "$_")
+identLetter = identStart ++ ['0'..'9']
 
 
 javascript :: T.LanguageDef st
 javascript = javaStyle
               { T.reservedNames = reservedWords jsLang
+              , T.identStart = oneOf identStart
+              , T.identLetter = oneOf identLetter
               , T.caseSensitive = True }
 
 lexer = T.makeTokenParser javascript
@@ -85,12 +89,14 @@ block = Block <$> braces (statementList)
 varDecl :: Parser Statement
 varDecl = try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma
 
-varAssign :: Parser (String, Expr)
+varAssign :: Parser (String, Maybe Expr)
 varAssign = do
   id <- identifier
-  lexeme "="
-  e <- expr
-  return (id, e)
+  try (assignment id) <|> return (id, Nothing)
+    where assignment id = do
+            lexeme "="
+            e <- expr
+            return (id, Just e)
 
 returnStmt :: Parser Statement
 returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr

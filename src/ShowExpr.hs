@@ -54,9 +54,9 @@ showExpr expr = case expr of
     "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
 
 
-showVarDecls :: [(String, Expr)] -> String
+showVarDecls :: [(String, Maybe Expr)] -> String
 showVarDecls = intercalate "," . map showDecl
-  where showDecl (var, expr) = var ++ " = " ++ showExpr expr
+  where showDecl (var, expr) = var ++ maybe "" (\e -> " = " ++ showExpr e) expr
 
 
 

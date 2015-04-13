@@ -18,7 +18,7 @@ newtype Program = Program [Statement] deriving (Show, Eq)
 type Ident = String
 type Operator = String
 type ParameterList = [Ident]
-type VarDeclaration = (Ident, Expr)
+type VarDeclaration = (Ident, Maybe Expr)
 
 data ForHeader = For3 Expr Expr Expr
                | For3Var Ident Expr Expr Expr
@@ -107,9 +107,18 @@ arbStmt :: Int -> Gen Statement
 arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
                     WhileStatement <$> arbExpr half <*> arbStmt half,
                     ReturnStatement <$> arbitrary,
-                    -- VarDecl <$> shortListOf half arbitrary,
+                    VarDecl <$> shortListOf1 n (sized arbVarDecl),
                     pure DebuggerStatement ]
   where half = n `div` 2
+
+
+arbVarDecl :: Int -> Gen (Ident, Maybe Expr)
+arbVarDecl n = do
+  id <- arbIdent
+  expr <- oneof [pure Nothing, Just <$> arbExpr n]
+  return (id, expr)
+
+
 
 
 
@@ -166,6 +175,12 @@ shortListOf :: Int -> Gen a -> Gen [a]
 shortListOf n a = do
   let max = floor (sqrt $ fromIntegral n :: Double)
   len <- choose(0, max)
+  vectorOf len $ resize max a
+
+shortListOf1 :: Int -> Gen a -> Gen [a]
+shortListOf1 n a = do
+  let max = floor (sqrt $ fromIntegral n :: Double)
+  len <- choose(1, max)
   vectorOf len $ resize max a
 
 
