@@ -3,14 +3,11 @@ module Expr (Program (..),
              Expr(..),
              JSNum(..),
              Lang(..),
-             jsLang,
-             showProg,
-             showExpr) where
+             jsLang) where
 
 import Control.Applicative
 import Control.Monad
 import Test.QuickCheck
-import Data.List
 
 newtype JSNum = JSNum Double deriving Show
 instance Eq JSNum where
@@ -88,59 +85,6 @@ jsLang = Lang {
   postfixOps = [ "++", "--" ]
 }
 
-showProg :: Program -> String
-showProg (Program stmts) = intercalate ";" $ map showStatement stmts
-
-showStatement :: Statement -> String
-showStatement stmt = case stmt of
-  ExpressionStatement expr -> showExpr expr
-  WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
-  ReturnStatement expr -> "return " ++ showExpr expr
-  DebuggerStatement -> "debugger"
-
-showExpr :: Expr -> String
-showExpr expr = case expr of
-  Num (JSNum n) -> show n
-  Str s -> show s
-  ReadVar v -> v
-
-  MemberDot e id ->
-    showExpr e ++ "." ++ id
-
-  BinOp op e1 e2 ->
-    parens (showExpr e1) ++ op ++ parens (showExpr e2)
-
-  UnOp op e ->
-    op ++ parens (showExpr e)
-
-  PostOp op e ->
-    parens (showExpr e) ++ op
-
-  Assign v op e ->
-    v ++ op ++ showExpr e
-
-  Cond test ifTrue ifFalse ->
-    parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
-
-  FunCall f x -> fun ++ params
-    where fun = case f of
-                  ReadVar v -> v
-                  _ -> parens (showExpr f)
-          params = parens (intercalate "," $ map showExpr x)
-
-  FunDef Nothing params body ->
-    "function" ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
-
-  FunDef (Just name) params body ->
-    "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
-
-
-
-mapshow :: String -> [Statement] -> String
-mapshow sep xs = intercalate sep $ map showStatement xs
-parens s = "(" ++ s ++ ")"
-braces s = "{" ++ s ++ "}"
-
 
 
 
@@ -178,7 +122,8 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     PostOp <$> arbPostfix <*> subexpr,
                     Assign <$> arbIdent <*> arbAssignOp <*> resize (n-1) arbitrary,
                     FunCall <$> subexpr <*> shortListOf half arbitrary,
-                    MemberDot <$> arbitrary <*> arbitrary,
+                    MemberDot <$> arbitrary <*> arbIdent,
+                    MemberGet <$> subexpr <*> subexpr,
                     FunDef Nothing <$> listOf arbIdent <*> pure [],
                     FunDef <$>
                       (Just <$> arbIdent) <*>
@@ -256,6 +201,12 @@ shrinkExpr expr = case expr of
 
   Assign v@(ch:_) op e ->
     [Assign [ch] op e]
+
+  MemberDot e id ->
+    [e] ++ [MemberDot e' id | e' <- shrink e]
+
+  MemberGet a x ->
+    [a, x] ++ [MemberGet a' x' | a' <- shrink a, x' <- shrink x]
 
   Cond a b c ->
     [a, b, c] ++ [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]

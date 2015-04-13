@@ -44,6 +44,13 @@ spec = do
   it "parses a chained binop" $ do
     parseExpr "a+b+c" `shouldBe` BinOp "+" (BinOp "+" (ReadVar "a") (ReadVar "b")) (ReadVar "c")
 
+  it "parses a ." $ do
+    parseExpr "a.b" `shouldBe` MemberDot (ReadVar "a") "b"
+    parseExpr "-a.b" `shouldBe` UnOp "-" (MemberDot (ReadVar "a") "b")
+
+  it "parses a []" $ do
+    parseExpr "a[\"b\"]" `shouldBe` MemberGet (ReadVar "a") (Str "b")
+
   it "parses a function call" $ do
     parseExpr "f()" `shouldBe` FunCall (ReadVar "f") []
 

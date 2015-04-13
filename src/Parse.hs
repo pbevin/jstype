@@ -7,6 +7,7 @@ import Text.Parsec.String
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (javaStyle)
 import Data.List
+import ShowExpr
 import Expr
 
 import Debug.Trace
@@ -125,14 +126,19 @@ expr = foldl (flip ($)) simple [
 memberExpr :: Parser Expr -> Parser Expr
 memberExpr p = do
   base <- (functionExpr <|> p)
-  extras <- many (dotExt) -- <|> arrayExt)
-  return $ foldl ($) base extras
+  extras <- many (dotExt <|> arrayExt)
+  return $ foldl (flip ($)) base extras
 
 dotExt :: Parser (Expr -> Expr)
 dotExt = try $ do
   char '.'
   id <- identifier
-  return $ \e -> MemberDot e id
+  return (\e -> MemberDot e id)
+
+arrayExt :: Parser (Expr -> Expr)
+arrayExt = try $ do
+  x <- brackets expr
+  return (\a -> MemberGet a x)
 
 
 functionExpr :: Parser Expr
