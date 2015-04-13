@@ -15,35 +15,35 @@ showStatement stmt = case stmt of
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
-  Num (JSNum n) -> show n
   Str s -> show s
   ReadVar v -> v
 
+  Num (JSNum n)
+    | isInteger n -> show (round n)
+    | otherwise   -> show n
+
   MemberDot e id ->
-    parens (showExpr e) ++ "." ++ id
+    maybeParens e ++ "." ++ id
 
   MemberGet a x ->
-    parens (showExpr a) ++ brackets (showExpr x)
+    maybeParens a ++ brackets (showExpr x)
 
   BinOp op e1 e2 ->
-    parens (showExpr e1) ++ op ++ parens (showExpr e2)
+    maybeParens e1 ++ " " ++ op ++ " " ++ maybeParens e2
 
-  UnOp op e ->
-    op ++ parens (showExpr e)
+  UnOp op e -> op ++ maybeParens e
 
   PostOp op e ->
-    parens (showExpr e) ++ op
+    maybeParens e ++ op
 
   Assign v op e ->
     v ++ op ++ showExpr e
 
   Cond test ifTrue ifFalse ->
-    parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
+    maybeParens test ++ " ? " ++ showExpr ifTrue ++ " : " ++ showExpr ifFalse
 
   FunCall f x -> fun ++ params
-    where fun = case f of
-                  ReadVar v -> v
-                  _ -> parens (showExpr f)
+    where fun = maybeParens f
           params = parens (intercalate "," $ map showExpr x)
 
   FunDef Nothing params body ->
@@ -60,3 +60,12 @@ mapshow sep xs = intercalate sep $ map showStatement xs
 parens s = "(" ++ s ++ ")"
 braces s = "{" ++ s ++ "}"
 brackets s = "[" ++ s ++ "]"
+
+isInteger :: RealFrac a => a -> Bool
+isInteger x = x == fromIntegral (round x)
+
+maybeParens :: Expr -> String
+maybeParens e = case e of
+  Num _ -> showExpr e
+  ReadVar _ -> showExpr e
+  _ -> parens (showExpr e)
