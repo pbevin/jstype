@@ -23,10 +23,14 @@ spec = do
     parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
   it "parses a unop assignment" $ do
-    parseExpr "e = -1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+    parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num (JSNum 1)))
 
   it "parses a plus-equals" $ do
-    parseExpr "a += b" `shouldBe` Assign "a" "+=" (ReadVar "b")
+    parseExpr "a += b" `shouldBe` Assign (ReadVar "a") "+=" (ReadVar "b")
+
+  it "parses lvars" $ do
+    parseExpr "a.b = 1" `shouldBe` Assign (MemberDot (ReadVar "a") "b") "=" (Num 1)
+    parseExpr "a[i] = 1" `shouldBe` Assign (MemberGet (ReadVar "a") (ReadVar "i")) "=" (Num 1)
 
   it "interprets this tricky case right" $ do
     parseExpr "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
@@ -35,7 +39,7 @@ spec = do
     evaluate (parseExpr "a++ +++b") `shouldThrow` anyException
 
   it "parses a unop assignment without spaces" $ do
-    parseExpr "e=-1" `shouldBe` Assign "e" "=" (UnOp "-" (Num (JSNum 1)))
+    parseExpr "e=-1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num (JSNum 1)))
 
   it "parses a binop" $ do
     parseExpr "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))

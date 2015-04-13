@@ -116,23 +116,23 @@ debuggerStmt = lexeme "debugger" >> return DebuggerStatement
 
 
 expr :: Parser Expr
-expr = foldl (flip ($)) simple [
-  memberExpr,
-  callExpr,
-  postfixExpr,
-  unaryExpr,
-  binOps ["*", "/", "%"],
-  binOps ["+", "-"],
-  binOps [ ">>>", ">>", "<<" ],
-  binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
-  binOps [ "===", "!==", "==", "!=" ],
-  binOps [ "&" ],
-  binOps [ "^" ],
-  binOps [ "|" ],
-  binOps [ "&&" ],
-  binOps [ "||" ],
+expr = foldr ($) simple [
+  assignExpr,
   condExpr,
-  assignExpr ]
+  binOps [ "||" ],
+  binOps [ "&&" ],
+  binOps [ "|" ],
+  binOps [ "^" ],
+  binOps [ "&" ],
+  binOps [ "===", "!==", "==", "!=" ],
+  binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
+  binOps [ ">>>", ">>", "<<" ],
+  binOps ["+", "-"],
+  binOps ["*", "/", "%"],
+  unaryExpr,
+  postfixExpr,
+  callExpr,
+  memberExpr ]
 
 memberExpr :: Parser Expr -> Parser Expr
 memberExpr p = do
@@ -207,11 +207,14 @@ condExpr p = do
             return $ Cond test ifTrue ifFalse
 
 assignExpr :: Parser Expr -> Parser Expr
-assignExpr p = try(assign) <|> p
-  where assign = do v <- identifier
+assignExpr p = try(lookAhead identifier >> assign) <|> p
+  where assign = do lhs <- lhsExpr
                     op <- lexeme "=" <|> assignOp
-                    e <- expr
-                    return $ Assign v op e
+                    rhs <- expr
+                    return $ Assign lhs op rhs
+
+lhsExpr :: Parser Expr
+lhsExpr = memberExpr simple
 
 simple :: Parser Expr
 simple = parens expr <|> var <|> num <|> str

@@ -55,7 +55,7 @@ data Expr = Num JSNum
           | UnOp Operator Expr
           | PostOp Operator Expr
           | ReadVar Ident
-          | Assign Ident String Expr
+          | Assign Expr String Expr
           | Cond Expr Expr Expr
           | MemberDot Expr Ident  -- e.g., point.x
           | MemberGet Expr Expr   -- e.g., point["x"]
@@ -121,7 +121,10 @@ arbExpr 0 = oneof [ Num <$> arbNum,
 arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     UnOp <$> arbUnary <*> subexpr,
                     PostOp <$> arbPostfix <*> subexpr,
-                    Assign <$> arbIdent <*> arbAssignOp <*> resize (n-1) arbitrary,
+                    Assign <$> (ReadVar <$> arbIdent) <*> arbAssignOp <*> resize (n-1) arbitrary,
+                    Assign <$> (MemberDot <$> (ReadVar <$> arbIdent) <*> arbIdent)
+                           <*> arbAssignOp
+                           <*> resize (n-1) arbitrary,
                     FunCall <$> subexpr <*> shortListOf half arbitrary,
                     MemberDot <$> arbitrary <*> arbIdent,
                     MemberGet <$> subexpr <*> subexpr,
@@ -161,7 +164,7 @@ arbVarName = do
 
 shortListOf :: Int -> Gen a -> Gen [a]
 shortListOf n a = do
-  let max = floor (sqrt $ fromIntegral n)
+  let max = floor (sqrt $ fromIntegral n :: Double)
   len <- choose(0, max)
   vectorOf len $ resize max a
 
@@ -197,11 +200,8 @@ shrinkExpr expr = case expr of
   PostOp op e ->
     [e] ++ [PostOp op e' | e' <- shrinkExpr e]
 
-  Assign v@[ch] op e ->
-    [Assign v op e' | e' <- shrinkExpr e] ++ [e]
-
-  Assign v@(ch:_) op e ->
-    [Assign [ch] op e]
+  Assign lhs op rhs ->
+    [Assign lhs' op rhs' | lhs' <- shrinkExpr lhs, rhs' <- shrinkExpr rhs] ++ [rhs]
 
   MemberDot e id ->
     [e] ++ [MemberDot e' id | e' <- shrink e]

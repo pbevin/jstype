@@ -37,8 +37,8 @@ showExpr expr = case expr of
   PostOp op e ->
     maybeParens e ++ op
 
-  Assign v op e ->
-    v ++ op ++ showExpr e
+  Assign lhs op rhs ->
+    showExpr lhs ++ op ++ showExpr rhs
 
   Cond test ifTrue ifFalse ->
     maybeParens test ++ " ? " ++ showExpr ifTrue ++ " : " ++ showExpr ifFalse
