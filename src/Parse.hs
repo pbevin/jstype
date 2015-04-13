@@ -72,7 +72,8 @@ terminator = semicolon
 -- terminator = choice [ semicolon, newline ]
 
 statement :: Parser Statement
-statement = choice [ try block <?> "block",
+statement = choice [ block <?> "block",
+                     varDecl <?> "var declaration",
                      whileStmt <?> "while",
                      returnStmt <?> "return",
                      exprStmt <?> "expression",
@@ -80,6 +81,16 @@ statement = choice [ try block <?> "block",
 
 block :: Parser Statement
 block = Block <$> braces (statementList)
+
+varDecl :: Parser Statement
+varDecl = try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma
+
+varAssign :: Parser (String, Expr)
+varAssign = do
+  id <- identifier
+  lexeme "="
+  e <- expr
+  return (id, e)
 
 returnStmt :: Parser Statement
 returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr

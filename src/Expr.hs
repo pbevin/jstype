@@ -18,7 +18,7 @@ newtype Program = Program [Statement] deriving (Show, Eq)
 type Ident = String
 type Operator = String
 type ParameterList = [Ident]
-type VarDeclaration = [(Ident, Expr)]
+type VarDeclaration = (Ident, Expr)
 
 data ForHeader = For3 Expr Expr Expr
                | For3Var Ident Expr Expr Expr
@@ -27,7 +27,7 @@ data ForHeader = For3 Expr Expr Expr
   deriving (Show, Eq)
 
 data Statement = Block [Statement]
-               | Var [VarDeclaration]
+               | VarDecl [VarDeclaration]
                | ExpressionStatement Expr
                | IfStatement
                | WhileStatement Expr Statement
@@ -107,6 +107,7 @@ arbStmt :: Int -> Gen Statement
 arbStmt n = oneof [ ExpressionStatement <$> arbExpr n,
                     WhileStatement <$> arbExpr half <*> arbStmt half,
                     ReturnStatement <$> arbitrary,
+                    -- VarDecl <$> shortListOf half arbitrary,
                     pure DebuggerStatement ]
   where half = n `div` 2
 

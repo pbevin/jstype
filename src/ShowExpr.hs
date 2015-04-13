@@ -12,6 +12,7 @@ showStatement stmt = case stmt of
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
   ReturnStatement expr -> "return " ++ showExpr expr
   DebuggerStatement -> "debugger"
+  VarDecl decls -> "var " ++ showVarDecls decls
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
@@ -53,6 +54,11 @@ showExpr expr = case expr of
     "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
 
 
+showVarDecls :: [(String, Expr)] -> String
+showVarDecls = intercalate "," . map showDecl
+  where showDecl (var, expr) = var ++ " = " ++ showExpr expr
+
+
 
 mapshow :: String -> [Statement] -> String
 mapshow sep xs = intercalate sep $ map showStatement xs
@@ -62,7 +68,7 @@ braces s = "{" ++ s ++ "}"
 brackets s = "[" ++ s ++ "]"
 
 isInteger :: RealFrac a => a -> Bool
-isInteger x = x == fromIntegral (round x)
+isInteger x = x == fromIntegral (round x :: Integer)
 
 maybeParens :: Expr -> String
 maybeParens e = case e of
