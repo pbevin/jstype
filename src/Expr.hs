@@ -60,6 +60,8 @@ data Expr = Num JSNum
           | ReadVar Ident
           | Assign Ident String Expr
           | Cond Expr Expr Expr
+          | MemberDot Expr Ident  -- e.g., point.x
+          | MemberGet Expr Expr   -- e.g., point["x"]
           | FunCall Expr [Expr]
           | FunDef (Maybe Ident) ParameterList FunBody
   deriving (Show, Eq)
@@ -101,25 +103,38 @@ showExpr expr = case expr of
   Num (JSNum n) -> show n
   Str s -> show s
   ReadVar v -> v
+
+  MemberDot e id ->
+    showExpr e ++ "." ++ id
+
   BinOp op e1 e2 ->
     parens (showExpr e1) ++ op ++ parens (showExpr e2)
+
   UnOp op e ->
     op ++ parens (showExpr e)
+
   PostOp op e ->
     parens (showExpr e) ++ op
+
   Assign v op e ->
     v ++ op ++ showExpr e
+
   Cond test ifTrue ifFalse ->
     parens (showExpr test) ++ " ? " ++ (showExpr ifTrue) ++ " : " ++ (showExpr ifFalse)
+
   FunCall f x -> fun ++ params
     where fun = case f of
                   ReadVar v -> v
                   _ -> parens (showExpr f)
           params = parens (intercalate "," $ map showExpr x)
+
   FunDef Nothing params body ->
     "function" ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
+
   FunDef (Just name) params body ->
     "function " ++ name ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
+
+
 
 mapshow :: String -> [Statement] -> String
 mapshow sep xs = intercalate sep $ map showStatement xs
@@ -163,6 +178,7 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     PostOp <$> arbPostfix <*> subexpr,
                     Assign <$> arbIdent <*> arbAssignOp <*> resize (n-1) arbitrary,
                     FunCall <$> subexpr <*> shortListOf half arbitrary,
+                    MemberDot <$> arbitrary <*> arbitrary,
                     FunDef Nothing <$> listOf arbIdent <*> pure [],
                     FunDef <$>
                       (Just <$> arbIdent) <*>

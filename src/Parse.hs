@@ -124,7 +124,16 @@ expr = foldl (flip ($)) simple [
 
 memberExpr :: Parser Expr -> Parser Expr
 memberExpr p = do
-  functionExpr <|> p
+  base <- (functionExpr <|> p)
+  extras <- many (dotExt) -- <|> arrayExt)
+  return $ foldl ($) base extras
+
+dotExt :: Parser (Expr -> Expr)
+dotExt = try $ do
+  char '.'
+  id <- identifier
+  return $ \e -> MemberDot e id
+
 
 functionExpr :: Parser Expr
 functionExpr = do
