@@ -104,8 +104,8 @@ returnStmt :: Parser Statement
 returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr
 
 ifStmt :: Parser Statement
-ifStmt = try $ do
-  lexeme "if"
+ifStmt = do
+  try $ lexeme "if"
   test <- parens expr
   ifTrue <- braces statement
   ifFalse <- try elseClause <|> return Nothing

@@ -22,12 +22,16 @@ arbProg :: Int -> Gen Program
 arbProg n = Program <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
-arbStmt n = oneof [ ExprStmt <$> arbExpr n,
+arbStmt 0 = ReturnStatement <$> resize 0 arbitrary
+
+arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
                     WhileStatement <$> arbExpr half <*> arbStmt half,
-                    ReturnStatement <$> arbitrary,
+                    ReturnStatement <$> resize (n-1) arbitrary,
                     VarDecl <$> shortListOf1 n (sized arbVarDecl),
                     IfStatement <$> subexpr <*> substmt <*> pure Nothing,
                     IfStatement <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
+                    Block <$> resize (n-1) arbitrary,
+                    pure EmptyStatement,
                     pure DebuggerStatement ]
   where half = n `div` 2
         third = n `div` 3

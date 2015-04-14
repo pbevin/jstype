@@ -14,6 +14,7 @@ showStatement stmt = case stmt of
   EmptyStatement -> ";"
   DebuggerStatement -> "debugger"
   VarDecl decls -> "var " ++ showVarDecls decls
+  Block statements -> braces $ intercalate "; " $ map showStatement statements
 
   IfStatement test ifTrue Nothing ->
     "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " }"
