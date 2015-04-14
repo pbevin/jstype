@@ -80,6 +80,15 @@ spec = do
   it "parses a while statement" $ do
     simpleParse "while (a) { }" `shouldBe` Program [WhileStatement (ReadVar "a") (Block [])]
 
+  it "parses a var declaration" $ do
+    simpleParse "var a;" `shouldBe` Program [VarDecl [("a", Nothing)]]
+    simpleParse "var a, b;" `shouldBe` Program [VarDecl [("a", Nothing),
+                                                         ("b", Nothing)]]
+    simpleParse "var a = 1, b;" `shouldBe` Program [VarDecl [("a", Just $ Num 1),
+                                                             ("b", Nothing)]]
+    simpleParse "var a = 1, b = a;" `shouldBe` Program [VarDecl [("a", Just $ Num 1),
+                                                                 ("b", (Just $ ReadVar "a"))]]
+
   it "ignores comments at the start of the file" $ do
     simpleParse "" `shouldBe` Program []
     simpleParse "// this is a comment\n" `shouldBe` Program []

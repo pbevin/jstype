@@ -94,7 +94,7 @@ varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "vari
 varAssign :: Parser (String, Maybe Expr)
 varAssign = do
   id <- identifier
-  try (assignment id) <|> return (id, Nothing)
+  assignment id <|> return (id, Nothing)
     where assignment id = do
             lexeme "="
             e <- expr
