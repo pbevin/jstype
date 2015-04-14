@@ -106,5 +106,8 @@ spec = do
     simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
     -- XXX evaluate (simpleParse "a() b()") `shouldThrow` anyException
 
+  it "is the inverse of showExpr" $
+    property prop_showExpr
+
   it "is the inverse of showProg" $
     property prop_showProg

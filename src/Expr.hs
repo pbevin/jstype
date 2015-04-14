@@ -52,6 +52,7 @@ data Expr = Num JSNum
           | BinOp Operator Expr Expr
           | UnOp Operator Expr
           | PostOp Operator Expr
+          | NewExpr Expr [Expr]
           | ReadVar Ident
           | Assign Expr String Expr
           | Cond Expr Expr Expr

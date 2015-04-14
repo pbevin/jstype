@@ -157,7 +157,11 @@ expr = foldr ($) simple [
   memberExpr ]
 
 memberExpr :: Parser Expr -> Parser Expr
-memberExpr p = do
+memberExpr p = (try (lexeme "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
+           <|> baseMemberExpr p
+
+baseMemberExpr :: Parser Expr -> Parser Expr
+baseMemberExpr p = do
   base <- (functionExpr <|> p)
   extras <- many (dotExt <|> arrayExt)
   return $ foldl (flip ($)) base extras

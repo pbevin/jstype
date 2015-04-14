@@ -51,8 +51,9 @@ arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
                     ReadVar <$> arbIdent ]
 arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
-                    UnOp <$> arbUnary <*> subexpr,
+                    UnOp <$> arbUnary <*> resize (n-1) arbitrary,
                     PostOp <$> arbPostfix <*> subexpr,
+                    NewExpr <$> subexpr <*> shortListOf half arbitrary,
                     Assign <$> (ReadVar <$> arbIdent) <*> arbAssignOp <*> resize (n-1) arbitrary,
                     Assign <$> (MemberDot <$> (ReadVar <$> arbIdent) <*> arbIdent)
                            <*> arbAssignOp
@@ -65,9 +66,11 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                       (Just <$> arbIdent) <*>
                       listOf arbIdent <*>
                       shortListOf n arbitrary,
-                    Cond <$> subexpr <*> subexpr <*> subexpr ]
-  where subexpr = arbExpr half
-        half = n `div` 2
+                    Cond <$> subexpr3 <*> subexpr3 <*> subexpr3 ]
+  where subexpr = resize half arbitrary
+        subexpr3 = resize third arbitrary
+        half = (n-1) `div` 2
+        third = (n-1) `div` 3
 
 arbOp :: Gen String
 arbOp = elements (binaryOps jsLang)

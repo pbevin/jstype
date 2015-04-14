@@ -30,6 +30,9 @@ showExpr expr = case expr of
     | isInteger n -> show (round n)
     | otherwise   -> show n
 
+  NewExpr cls args ->
+    "new " ++ maybeParens cls ++ argList args
+
   MemberDot e id ->
     maybeParens e ++ "." ++ id
 
@@ -50,9 +53,7 @@ showExpr expr = case expr of
   Cond test ifTrue ifFalse ->
     maybeParens test ++ " ? " ++ showExpr ifTrue ++ " : " ++ showExpr ifFalse
 
-  FunCall f x -> fun ++ params
-    where fun = maybeParens f
-          params = parens (intercalate "," $ map showExpr x)
+  FunCall fun args -> maybeParens fun ++ argList args
 
   FunDef Nothing params body ->
     "function" ++ parens (intercalate "," params) ++ braces (mapshow ";" body)
@@ -65,6 +66,8 @@ showVarDecls :: [(String, Maybe Expr)] -> String
 showVarDecls = intercalate "," . map showDecl
   where showDecl (var, expr) = var ++ maybe "" (\e -> " = " ++ showExpr e) expr
 
+argList :: [Expr] -> String
+argList args = parens (intercalate "," $ map showExpr args)
 
 
 mapshow :: String -> [Statement] -> String
