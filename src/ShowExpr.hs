@@ -25,6 +25,7 @@ showExpr :: Expr -> String
 showExpr expr = case expr of
   Str s -> show s
   ReadVar v -> v
+  This -> "this"
 
   Num (JSNum n)
     | isInteger n -> show (round n)

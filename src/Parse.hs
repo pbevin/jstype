@@ -243,7 +243,10 @@ lhsExpr :: Parser Expr
 lhsExpr = memberExpr simple
 
 simple :: Parser Expr
-simple = parens expr <|> var <|> num <|> str
+simple = parens expr <|> this <|> var <|> num <|> str
+
+this :: Parser Expr
+this = try $ lexeme "this" >> return This
 
 var :: Parser Expr
 var = identifier >>= return . ReadVar

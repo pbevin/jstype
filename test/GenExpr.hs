@@ -53,6 +53,7 @@ arbExpr 0 = oneof [ Num <$> arbNum,
 arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     UnOp <$> arbUnary <*> resize (n-1) arbitrary,
                     PostOp <$> arbPostfix <*> subexpr,
+                    pure This,
                     NewExpr <$> subexpr <*> shortListOf half arbitrary,
                     Assign <$> (ReadVar <$> arbIdent) <*> arbAssignOp <*> resize (n-1) arbitrary,
                     Assign <$> (MemberDot <$> (ReadVar <$> arbIdent) <*> arbIdent)
