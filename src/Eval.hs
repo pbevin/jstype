@@ -15,8 +15,8 @@ instance Fractional JSNum where
   (JSNum a) / (JSNum b) = JSNum (a / b)
   fromRational r = JSNum $ fromRational r
 
-jsEval :: String -> Maybe String
-jsEval input = case parseJS input of
+jsEval :: String -> String -> Maybe String
+jsEval filename input = case parseJS' filename input of
   Left err -> error (show err)
   Right ast -> Just $ evalProg ast
 

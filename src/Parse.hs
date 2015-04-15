@@ -1,4 +1,4 @@
-module Parse (parseJS, simpleParse, parseExpr, prop_showExpr, prop_showProg) where
+module Parse (parseJS, parseJS', simpleParse, parseExpr, prop_showExpr, prop_showProg) where
 
 import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
@@ -13,7 +13,11 @@ import Expr
 import Debug.Trace
 
 parseJS :: String -> Either ParseError Program
-parseJS str = parse (whiteSpace >> prog <* eof) "" str
+-- parseJS str = parse (whiteSpace >> prog <* eof) "" str
+parseJS str = parseJS' str ""
+
+parseJS' :: String -> String -> Either ParseError Program
+parseJS' str filename = parse (whiteSpace >> prog <* eof) filename str
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of

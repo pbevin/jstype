@@ -18,6 +18,6 @@ main = do
 runFile :: String -> IO ()
 runFile filename = do
   input <- readFile filename
-  case jsEval input of
+  case jsEval input filename of
     Just output -> putStr output
     Nothing -> return ()
