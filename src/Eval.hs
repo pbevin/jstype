@@ -8,11 +8,12 @@ instance Num JSNum where
   (JSNum a) - (JSNum b) = JSNum (a - b)
   (JSNum a) * (JSNum b) = JSNum (a * b)
   fromInteger n = JSNum $ fromInteger n
+  abs (JSNum a) = JSNum $ abs a
+  signum (JSNum a) = JSNum $ signum a
 
 instance Fractional JSNum where
   (JSNum a) / (JSNum b) = JSNum (a / b)
   fromRational r = JSNum $ fromRational r
-
 
 jsEval :: String -> Maybe String
 jsEval input = case parseJS input of
