@@ -23,7 +23,7 @@
 #
 # and, you'll have to watch "config/Guardfile" instead of "Guardfile"
 
-guard :haskell, all_on_start: true, all_on_pass: true, focus_on_fail: false do
+guard :haskell, all_on_start: true do
   watch(%r{test/.+Spec\.l?hs$})
   watch(%r{src/.+\.l?hs$})
   watch(%r{\.cabal$})

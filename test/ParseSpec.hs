@@ -102,6 +102,9 @@ spec = do
   it "parses a semicolon-terminated statement in a function" $ do
     simpleParse "function b() { return 3 }" `shouldBe` simpleParse "function b() { return 3; }"
 
+  it "is OK with a semicolon in an if" $ do
+    simpleParse "if (1) { return; }" `shouldBe` Program [IfStatement (Num 1) (ReturnStatement Nothing) Nothing]
+
   it "treats semicolons as optional" $ do
     simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
     -- XXX evaluate (simpleParse "a() b()") `shouldThrow` anyException

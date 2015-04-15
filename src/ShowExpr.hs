@@ -10,7 +10,8 @@ showStatement :: Statement -> String
 showStatement stmt = case stmt of
   ExprStmt expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
-  ReturnStatement expr -> "return " ++ showExpr expr
+  ReturnStatement Nothing -> "return"
+  ReturnStatement (Just expr) -> "return " ++ showExpr expr
   EmptyStatement -> ";"
   DebuggerStatement -> "debugger"
   VarDecl decls -> "var " ++ showVarDecls decls

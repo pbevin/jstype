@@ -105,7 +105,7 @@ varAssign = do
             return (id, Just e)
 
 returnStmt :: Parser Statement
-returnStmt = try $ lexeme "return" >> ReturnStatement <$> expr
+returnStmt = try $ lexeme "return" >> ReturnStatement <$> (optionMaybe expr)
 
 ifStmt :: Parser Statement
 ifStmt = do

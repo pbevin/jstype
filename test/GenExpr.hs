@@ -124,13 +124,13 @@ shrinkStmt expr = case expr of
     [ExprStmt e | e <- shrink e]
 
   WhileStatement e s ->
-    [ExprStmt e, s] ++ [WhileStatement e' s' | e' <- shrink e, s' <- shrink s]
+    [ExprStmt e, s] ++ [WhileStatement e' s' | (e', s') <- shrink (e, s)]
 
   ReturnStatement e ->
-    [ReturnStatement e' | e' <- shrinkExpr e]
+    [ReturnStatement e' | e' <- shrink e]
 
   IfStatement a b Nothing ->
-    [IfStatement a' b' Nothing | a' <- shrink a, b' <- shrink b]
+    [IfStatement a' b' Nothing | (a', b') <- shrink (a, b)]
 
   IfStatement a b c ->
     [IfStatement a' b' c' | (a', b', c') <- shrink (a, b, c)]
@@ -151,30 +151,30 @@ shrinkExpr expr = case expr of
     | otherwise -> [Num (JSNum 0)]
 
   BinOp op e1 e2 ->
-    [e1, e2] ++ [BinOp op e1' e2' | e1' <- shrinkExpr e1, e2' <- shrinkExpr e2]
+    [e1, e2] ++ [BinOp op e1' e2' | (e1', e2') <- shrink (e1, e2)]
 
   UnOp op e ->
-    [e] ++ [UnOp op e' | e' <- shrinkExpr e]
+    [e] ++ [UnOp op e' | e' <- shrink e]
 
   PostOp op e ->
-    [e] ++ [PostOp op e' | e' <- shrinkExpr e]
+    [e] ++ [PostOp op e' | e' <- shrink e]
 
   Assign lhs op rhs ->
-    [Assign lhs' op rhs' | lhs' <- shrinkExpr lhs, rhs' <- shrinkExpr rhs] ++ [rhs]
+    [Assign lhs' op rhs' | (lhs', rhs') <- shrink (lhs, rhs)] ++ [rhs]
 
   MemberDot e id ->
     [e] ++ [MemberDot e' id | e' <- shrink e]
 
   MemberGet a x ->
-    [a, x] ++ [MemberGet a' x' | a' <- shrink a, x' <- shrink x]
+    [a, x] ++ [MemberGet a' x' | (a', x') <- shrink (a, x)]
 
   Cond a b c ->
-    [a, b, c] ++ [Cond a' b' c' | a' <- shrinkExpr a, b' <- shrinkExpr b, c' <- shrinkExpr c]
+    [a, b, c] ++ [Cond a' b' c' | (a', b', c') <- shrink (a, b, c)]
 
   FunCall f xs ->
     [f] ++ xs ++
-      [FunCall f' xs | f' <- shrinkExpr f] ++
-      [FunCall f xs' | xs' <- shrinkList shrinkExpr xs]
+      [FunCall f' xs | f' <- shrink f] ++
+      [FunCall f xs' | xs' <- shrinkList shrink xs]
 
   FunDef name params body ->
     [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
