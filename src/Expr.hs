@@ -37,7 +37,7 @@ data Statement = Block [Statement]
                -- | WithStatement
                | IdentifierStatement Ident Statement
                | SwitchStatement
-               | ThrowStatement
+               | ThrowStatement Expr
                | TryStatement
                | EmptyStatement
                | DebuggerStatement

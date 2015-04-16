@@ -88,8 +88,9 @@ statement = choice [ block <?> "block",
                      returnStmt <?> "return",
                      breakStmt <?> "break",
                      continueStmt <?> "continue",
-                     emptyStmt,
-                     debuggerStmt ]
+                     throwStmt <?> "throw",
+                     emptyStmt <?> ";",
+                     debuggerStmt <?> "debugger" ]
 
 block :: Parser Statement
 block = do
@@ -142,6 +143,9 @@ breakStmt = lexeme "break" >> return BreakStatement
 
 continueStmt :: Parser Statement
 continueStmt = lexeme "continue" >> return ContinueStatement
+
+throwStmt :: Parser Statement
+throwStmt = lexeme "throw" >> ThrowStatement <$> expr
 
 debuggerStmt :: Parser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement

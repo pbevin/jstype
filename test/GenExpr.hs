@@ -31,6 +31,9 @@ arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
                     IfStatement <$> subexpr <*> substmt <*> pure Nothing,
                     IfStatement <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
                     Block <$> two (resize half arbitrary),
+                    ThrowStatement <$> arbitrary,
+                    pure ContinueStatement,
+                    pure BreakStatement,
                     pure EmptyStatement,
                     pure DebuggerStatement ]
   where half = n `div` 2

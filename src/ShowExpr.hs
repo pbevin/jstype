@@ -17,6 +17,7 @@ showStatement stmt = case stmt of
   BreakStatement -> "break"
   ContinueStatement -> "continue"
   VarDecl decls -> "var " ++ showVarDecls decls
+  ThrowStatement expr -> "throw " ++ showExpr expr
 
   Block statements ->
     braces $ intercalate "; " $ map showStatement statements
