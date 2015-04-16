@@ -42,6 +42,9 @@ showExpr expr = case expr of
   NewExpr cls args ->
     "new " ++ maybeParens cls ++ argList args
 
+  ArrayLiteral exprs ->
+    brackets (intercalate "," $ map showExpr exprs)
+
   MemberDot e id ->
     maybeParens e ++ "." ++ id
 

@@ -58,10 +58,12 @@ two = vectorOf 2
 arbExpr :: Int -> Gen Expr
 arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
-                    ReadVar <$> arbIdent ]
+                    ReadVar <$> arbIdent,
+                    ArrayLiteral <$> pure [] ]
 arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     UnOp <$> arbUnary <*> resize (n-1) arbitrary,
                     PostOp <$> arbPostfix <*> subexpr,
+                    ArrayLiteral <$> shortListOf (n-1) arbitrary,
                     pure This,
                     NewExpr <$> subexpr <*> shortListOf half arbitrary,
                     Assign <$> (ReadVar <$> arbIdent) <*> arbAssignOp <*> resize (n-1) arbitrary,
@@ -158,6 +160,9 @@ shrinkExpr expr = case expr of
   BinOp op e1 e2 ->
     [e1, e2] ++ [BinOp op e1' e2' | (e1', e2') <- shrink (e1, e2)]
 
+  ArrayLiteral exprs ->
+    [ArrayLiteral exprs' | exprs' <- shrink exprs] ++ exprs
+
   UnOp op e ->
     [e] ++ [UnOp op e' | e' <- shrink e]
 
@@ -178,7 +183,7 @@ shrinkExpr expr = case expr of
 
   FunCall f xs ->
     [f] ++ xs ++
-      [FunCall f' xs | f' <- shrink f] ++
+      [FunCall f' xs | f' <- shrink f] ++ -- XXX
       [FunCall f xs' | xs' <- shrinkList shrink xs]
 
   FunDef name params body ->

@@ -50,6 +50,7 @@ type LHS = Expr -- XXX
 data Expr = Num JSNum
           | Str String
           | This
+          | ArrayLiteral [Expr]
           | BinOp Operator Expr Expr
           | UnOp Operator Expr
           | PostOp Operator Expr

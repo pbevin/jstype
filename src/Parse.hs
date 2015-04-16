@@ -266,7 +266,7 @@ lhsExpr :: Parser Expr
 lhsExpr = memberExpr simple
 
 simple :: Parser Expr
-simple = parens expr <|> this <|> var <|> num <|> str
+simple = parens expr <|> arrayLiteral <|> this <|> var <|> num <|> str
 
 this :: Parser Expr
 this = try $ lexeme "this" >> return This
@@ -276,6 +276,9 @@ var = identifier >>= return . ReadVar
 
 str :: Parser Expr
 str = (T.stringLiteral lexer <|> singleQuotedString) >>= return . Str
+
+arrayLiteral :: Parser Expr
+arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
 
 singleQuotedString :: Parser String
 singleQuotedString = do
