@@ -17,17 +17,16 @@ showStatement stmt = case stmt of
   BreakStatement -> "break"
   ContinueStatement -> "continue"
   VarDecl decls -> "var " ++ showVarDecls decls
-  Block statements -> braces $ intercalate "; " $ map showStatement statements
 
-  IfStatement test ifTrue Nothing ->
-    "if (" ++ showExpr test ++ ") " ++ showStatement ifTrue
+  Block statements ->
+    braces $ intercalate "; " $ map showStatement statements
 
-  IfStatement test ifTrue (Just ifFalse) ->
-    case ifTrue of
-      IfStatement _ _ Nothing -> -- ambiguity case
-        "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " } else " ++ showStatement ifFalse
-      _ ->
-        "if (" ++ showExpr test ++ ") " ++ showStatement ifTrue ++ " else " ++ showStatement ifFalse
+  IfStatement test ifTrue ifFalse ->
+    "if " ++ parens(showExpr test) ++ " " ++ braces (showStatement ifTrue) ++
+      case ifFalse of
+        Nothing -> ""
+        Just stmt -> " else " ++ braces (showStatement stmt)
+
 
 showExpr :: Expr -> String
 showExpr expr = case expr of

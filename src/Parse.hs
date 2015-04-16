@@ -92,7 +92,11 @@ statement = choice [ block <?> "block",
                      debuggerStmt ]
 
 block :: Parser Statement
-block = Block <$> braces (statementList)
+block = do
+  stmts <- braces statementList
+  return $ case stmts of
+    [single] -> single
+    _ -> Block stmts
 
 varDecl :: Parser Statement
 varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
@@ -118,9 +122,7 @@ ifStmt = do
   test <- parens expr
   ifTrue <- statement
   ifFalse <- try elseClause <|> return Nothing
-  return $ case ifTrue of
-    Block [singleStmt] -> IfStatement test singleStmt ifFalse
-    _ -> IfStatement test ifTrue ifFalse
+  return $ IfStatement test ifTrue ifFalse
 
 elseClause :: Parser (Maybe Statement)
 elseClause = try (lexeme "else" >> Just <$> statement)

@@ -35,6 +35,6 @@ spec = do
                         (Just BreakStatement)
 
     showProg (Program [a]) `shouldBe`
-      "if (a) if (b) continue else break"
+      "if (a) {if (b) {continue} else {break}}"
     showProg (Program [b]) `shouldBe`
-      "if (a) { if (b) continue } else break"
+      "if (a) {if (b) {continue}} else {break}"
