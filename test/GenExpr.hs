@@ -22,15 +22,15 @@ arbProg :: Int -> Gen Program
 arbProg n = Program <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
-arbStmt 0 = ReturnStatement <$> resize 0 arbitrary
+arbStmt 0 = Return <$> resize 0 arbitrary
 
 arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
                     WhileStatement <$> arbExpr half <*> arbStmt half,
-                    ReturnStatement <$> resize (n-1) arbitrary,
+                    Return <$> resize (n-1) arbitrary,
                     VarDecl <$> shortListOf1 n (sized arbVarDecl),
                     IfStatement <$> subexpr <*> substmt <*> pure Nothing,
                     IfStatement <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
-                    Block <$> resize (n-1) arbitrary,
+                    Block <$> two (resize half arbitrary),
                     pure EmptyStatement,
                     pure DebuggerStatement ]
   where half = n `div` 2
@@ -46,6 +46,8 @@ arbVarDecl n = do
   return (id, expr)
 
 
+two :: Gen a -> Gen [a]
+two = vectorOf 2
 
 
 
@@ -126,8 +128,8 @@ shrinkStmt expr = case expr of
   WhileStatement e s ->
     [ExprStmt e, s] ++ [WhileStatement e' s' | (e', s') <- shrink (e, s)]
 
-  ReturnStatement e ->
-    [ReturnStatement e' | e' <- shrink e]
+  Return e ->
+    [Return e' | e' <- shrink e]
 
   IfStatement a b Nothing ->
     [IfStatement a' b' Nothing | (a', b') <- shrink (a, b)]

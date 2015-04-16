@@ -10,18 +10,24 @@ showStatement :: Statement -> String
 showStatement stmt = case stmt of
   ExprStmt expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
-  ReturnStatement Nothing -> "return"
-  ReturnStatement (Just expr) -> "return " ++ showExpr expr
+  Return Nothing -> "return"
+  Return (Just expr) -> "return " ++ showExpr expr
   EmptyStatement -> ";"
   DebuggerStatement -> "debugger"
+  BreakStatement -> "break"
+  ContinueStatement -> "continue"
   VarDecl decls -> "var " ++ showVarDecls decls
   Block statements -> braces $ intercalate "; " $ map showStatement statements
 
   IfStatement test ifTrue Nothing ->
-    "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " }"
+    "if (" ++ showExpr test ++ ") " ++ showStatement ifTrue
 
   IfStatement test ifTrue (Just ifFalse) ->
-    "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " } else { " ++ showStatement ifFalse ++ " }"
+    case ifTrue of
+      IfStatement _ _ Nothing -> -- ambiguity case
+        "if (" ++ showExpr test ++ ") { " ++ showStatement ifTrue ++ " } else " ++ showStatement ifFalse
+      _ ->
+        "if (" ++ showExpr test ++ ") " ++ showStatement ifTrue ++ " else " ++ showStatement ifFalse
 
 showExpr :: Expr -> String
 showExpr expr = case expr of

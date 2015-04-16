@@ -81,11 +81,13 @@ terminator = semicolon
 
 statement :: Parser Statement
 statement = choice [ block <?> "block",
+                     exprStmt <?> "expression",
                      varDecl <?> "var declaration",
                      ifStmt <?> "if",
                      whileStmt <?> "while",
                      returnStmt <?> "return",
-                     exprStmt <?> "expression",
+                     breakStmt <?> "break",
+                     continueStmt <?> "continue",
                      emptyStmt,
                      debuggerStmt ]
 
@@ -105,18 +107,23 @@ varAssign = do
             return (id, Just e)
 
 returnStmt :: Parser Statement
-returnStmt = try $ lexeme "return" >> ReturnStatement <$> (optionMaybe expr)
+returnStmt = do
+  try (lexeme "return")
+  expr <- optionMaybe $ expr
+  return $ Return expr
 
 ifStmt :: Parser Statement
 ifStmt = do
   try $ lexeme "if"
   test <- parens expr
-  ifTrue <- braces statement
+  ifTrue <- statement
   ifFalse <- try elseClause <|> return Nothing
-  return $ IfStatement test ifTrue ifFalse
+  return $ case ifTrue of
+    Block [singleStmt] -> IfStatement test singleStmt ifFalse
+    _ -> IfStatement test ifTrue ifFalse
 
 elseClause :: Parser (Maybe Statement)
-elseClause = try (lexeme "else" >> Just <$> braces statement)
+elseClause = try (lexeme "else" >> Just <$> statement)
 
 whileStmt :: Parser Statement
 whileStmt = try $ lexeme "while" >>
@@ -127,6 +134,12 @@ exprStmt = ExprStmt <$> expr
 
 emptyStmt :: Parser Statement
 emptyStmt = semicolon >> return EmptyStatement
+
+breakStmt :: Parser Statement
+breakStmt = lexeme "break" >> return BreakStatement
+
+continueStmt :: Parser Statement
+continueStmt = lexeme "continue" >> return ContinueStatement
 
 debuggerStmt :: Parser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement
@@ -158,7 +171,7 @@ expr = foldr ($) simple [
   unaryExpr,
   postfixExpr,
   callExpr,
-  memberExpr ]
+  memberExpr ] <?> "expr"
 
 memberExpr :: Parser Expr -> Parser Expr
 memberExpr p = (try (lexeme "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
@@ -209,7 +222,7 @@ postfixExpr p = do
             return $ PostOp op e
 
 unaryExpr :: Parser Expr -> Parser Expr
-unaryExpr p = try(unop) <|> p
+unaryExpr p = (try(unop) <|> p) <?> "unary expr"
   where unop = do
           op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
           whiteSpace

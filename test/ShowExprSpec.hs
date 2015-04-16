@@ -21,3 +21,20 @@ spec = do
   it "shows a function call" $ do
     showExpr (FunCall (ReadVar "f") [ReadVar "x"]) `shouldBe` "f(x)"
     showExpr (FunCall (BinOp "||" (ReadVar "f") (ReadVar "g")) [ReadVar "x"]) `shouldBe` "(f || g)(x)"
+
+  it "shows ambiguous if-then-else statements correctly" $ do
+    let a = IfStatement (ReadVar "a")
+                        (IfStatement (ReadVar "b")
+                                     ContinueStatement
+                                     (Just BreakStatement))
+                        Nothing
+    let b = IfStatement (ReadVar "a")
+                        (IfStatement (ReadVar "b")
+                                     ContinueStatement
+                                     Nothing)
+                        (Just BreakStatement)
+
+    showProg (Program [a]) `shouldBe`
+      "if (a) if (b) continue else break"
+    showProg (Program [b]) `shouldBe`
+      "if (a) { if (b) continue } else break"

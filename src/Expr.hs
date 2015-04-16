@@ -33,7 +33,7 @@ data Statement = Block [Statement]
                -- | ForStatement ... (4 cases)
                | ContinueStatement
                | BreakStatement
-               | ReturnStatement (Maybe Expr)
+               | Return (Maybe Expr)
                -- | WithStatement
                | IdentifierStatement Ident Statement
                | SwitchStatement
