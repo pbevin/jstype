@@ -269,6 +269,7 @@ simple :: Parser Expr
 simple = parens expr
      <|> arrayLiteral
      <|> objectLiteral
+     <|> regexLiteral
      <|> this
      <|> var
      <|> num
@@ -288,6 +289,38 @@ arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
 
 objectLiteral :: Parser Expr
 objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
+
+regexLiteral :: Parser Expr
+regexLiteral = do
+  try (char '/')
+  first <- regexFirstChar
+  rest <- many regexChar
+  char '/'
+  flags <- many (oneOf identLetter)
+
+  return $ RegularExpression (first ++ concat rest) flags
+
+regexFirstChar = (tostr $ noneOf "*\\/[\n")
+             <|> regexBackslash
+             <|> regexClass
+
+regexChar      = (tostr $ noneOf "\\/\n")
+             <|> regexBackslash
+             <|> regexClass
+regexBackslash = do
+  b <- char '\\'
+  c <- noneOf "\n"
+  return [b,c]
+
+regexClass = do
+  xs <- brackets (many $ tostr (noneOf "\n\\]") <|> regexBackslash)
+  return $ "[" ++ concat xs ++ "]"
+
+
+tostr :: Parser Char -> Parser String
+tostr p = do
+  c <- p
+  return [c]
 
 propertyAssignment :: Parser (PropertyName, Expr)
 propertyAssignment = do
