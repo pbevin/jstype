@@ -266,7 +266,13 @@ lhsExpr :: Parser Expr
 lhsExpr = memberExpr simple
 
 simple :: Parser Expr
-simple = parens expr <|> arrayLiteral <|> this <|> var <|> num <|> str
+simple = parens expr
+     <|> arrayLiteral
+     <|> objectLiteral
+     <|> this
+     <|> var
+     <|> num
+     <|> str
 
 this :: Parser Expr
 this = try $ lexeme "this" >> return This
@@ -275,10 +281,26 @@ var :: Parser Expr
 var = identifier >>= return . ReadVar
 
 str :: Parser Expr
-str = (T.stringLiteral lexer <|> singleQuotedString) >>= return . Str
+str = Str <$> quotedString
 
 arrayLiteral :: Parser Expr
 arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
+
+objectLiteral :: Parser Expr
+objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
+
+propertyAssignment :: Parser (PropertyName, Expr)
+propertyAssignment = do
+  name <- (IdentProp <$> identifier
+            <|> StringProp <$> quotedString
+            <|> NumProp <$> numericLiteral)
+  lexeme ":"
+  val <- expr
+  return (name, val)
+
+
+quotedString :: Parser String
+quotedString = T.stringLiteral lexer <|> singleQuotedString
 
 singleQuotedString :: Parser String
 singleQuotedString = do
@@ -289,11 +311,14 @@ singleQuotedString = do
   return str
 
 num :: Parser Expr
-num = do
+num = Num <$> numericLiteral
+
+numericLiteral :: Parser JSNum
+numericLiteral = do
   val <- T.naturalOrFloat lexer
-  case val of
-    Left int -> return $ Num $ JSNum $ fromIntegral int
-    Right dbl -> return $ Num $ JSNum dbl
+  return $ case val of
+    Left int -> JSNum $ fromIntegral int
+    Right dbl -> JSNum dbl
 
 
 assignOp :: Parser String

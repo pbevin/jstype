@@ -38,3 +38,11 @@ spec = do
       "if (a) {if (b) {continue} else {break}}"
     showProg (Program [b]) `shouldBe`
       "if (a) {if (b) {continue}} else {break}"
+
+  it "parenthesizes {} when needed" $ do
+    -- {} could mean a block in some cases.
+    let empty = ObjectLiteral []
+    showProg (Program [ExprStmt empty]) `shouldBe`
+      "({})"
+    showProg (Program [VarDecl [("a", Just $ empty)]]) `shouldBe`
+      "var a = {}"

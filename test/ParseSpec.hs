@@ -29,6 +29,10 @@ spec = do
     parseExpr "'single quoted'" `shouldBe` Str "single quoted"
     parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"
 
+  it "parses array literals" $ do
+    parseExpr "{}" `shouldBe` ObjectLiteral []
+    parseExpr "{a: 1}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1)]
+
   it "parses a unary operator" $ do
     parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
@@ -116,6 +120,7 @@ spec = do
                                         ContinueStatement
                                         (Just BreakStatement))
                            Nothing]
+
   it "is the inverse of showExpr" $
     property prop_showExpr
 

@@ -89,7 +89,14 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
         third = (n-1) `div` 3
 
 arbPropertyName :: Int -> Gen PropertyName
-arbPropertyName n = oneof [ IdentProp <$> arbIdent, StringProp <$> arbitrary, NumProp <$> (JSNum <$> arbitrary) ]
+arbPropertyName n = oneof [ IdentProp <$> arbIdent,
+                            StringProp <$> arbitrary,
+                            NumProp <$> arbIndex ]
+
+arbIndex :: Gen JSNum
+arbIndex = do
+  d <- (arbitrary :: Gen (Positive Integer))
+  return $ JSNum $ fromIntegral $ getPositive $ d
 
 arbOp :: Gen String
 arbOp = elements (binaryOps jsLang)
@@ -169,6 +176,9 @@ shrinkExpr expr = case expr of
 
   ArrayLiteral exprs ->
     [ArrayLiteral exprs' | exprs' <- shrink exprs] ++ exprs
+
+  ObjectLiteral assigns ->
+    [ObjectLiteral a' | a' <- shrink assigns] ++ map snd assigns
 
   UnOp op e ->
     [e] ++ [UnOp op e' | e' <- shrink e]

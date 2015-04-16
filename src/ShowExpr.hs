@@ -8,7 +8,6 @@ showProg (Program stmts) = intercalate ";" $ map showStatement stmts
 
 showStatement :: Statement -> String
 showStatement stmt = case stmt of
-  ExprStmt expr -> showExpr expr
   WhileStatement expr stmt -> "while" ++ parens (showExpr expr) ++ showStatement stmt
   Return Nothing -> "return"
   Return (Just expr) -> "return " ++ showExpr expr
@@ -18,6 +17,12 @@ showStatement stmt = case stmt of
   ContinueStatement -> "continue"
   VarDecl decls -> "var " ++ showVarDecls decls
   ThrowStatement expr -> "throw " ++ showExpr expr
+
+  ExprStmt expr -> parenObjectLiterals(showExpr expr)
+    where parenObjectLiterals str =
+            if head str == '{'
+            then parens str
+            else str
 
   Block statements ->
     braces $ intercalate "; " $ map showStatement statements
@@ -86,7 +91,7 @@ showAssignment (n, v) = showPropertyName n ++ ": " ++ showExpr v
 
 showPropertyName (IdentProp p) = p
 showPropertyName (StringProp p) = show p
-showPropertyName (NumProp n) = show n
+showPropertyName (NumProp (JSNum n)) = show n
 
 argList :: [Expr] -> String
 argList args = parens (intercalate "," $ map showExpr args)
