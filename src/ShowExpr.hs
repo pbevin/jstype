@@ -45,6 +45,9 @@ showExpr expr = case expr of
   ArrayLiteral exprs ->
     brackets (intercalate "," $ map showExpr exprs)
 
+  ObjectLiteral assignments ->
+    braces (intercalate "," $ map showAssignment assignments)
+
   MemberDot e id ->
     maybeParens e ++ "." ++ id
 
@@ -77,6 +80,13 @@ showExpr expr = case expr of
 showVarDecls :: [(String, Maybe Expr)] -> String
 showVarDecls = intercalate "," . map showDecl
   where showDecl (var, expr) = var ++ maybe "" (\e -> " = " ++ showExpr e) expr
+
+showAssignment :: (PropertyName, Expr) -> String
+showAssignment (n, v) = showPropertyName n ++ ": " ++ showExpr v
+
+showPropertyName (IdentProp p) = p
+showPropertyName (StringProp p) = show p
+showPropertyName (NumProp n) = show n
 
 argList :: [Expr] -> String
 argList args = parens (intercalate "," $ map showExpr args)

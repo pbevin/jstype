@@ -1,6 +1,7 @@
 module Expr (Program (..),
              Statement (..),
              Expr(..),
+             PropertyName (..),
              JSNum(..),
              Lang(..),
              Ident,
@@ -46,11 +47,16 @@ data Statement = Block [Statement]
 type FunBody = [Statement]
 
 type LHS = Expr -- XXX
+data PropertyName = IdentProp String
+                  | StringProp String
+                  | NumProp JSNum
+                  deriving (Show, Eq)
 
 data Expr = Num JSNum
           | Str String
           | This
           | ArrayLiteral [Expr]
+          | ObjectLiteral [(PropertyName, Expr)]
           | BinOp Operator Expr Expr
           | UnOp Operator Expr
           | PostOp Operator Expr

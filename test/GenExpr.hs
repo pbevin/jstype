@@ -18,6 +18,10 @@ instance Arbitrary Expr where
   arbitrary = sized arbExpr
   shrink = shrinkExpr
 
+instance Arbitrary PropertyName where
+  arbitrary = sized arbPropertyName
+  shrink = shrinkPropertyName
+
 arbProg :: Int -> Gen Program
 arbProg n = Program <$> shortListOf n arbitrary
 
@@ -54,7 +58,6 @@ two = vectorOf 2
 
 
 
-
 arbExpr :: Int -> Gen Expr
 arbExpr 0 = oneof [ Num <$> arbNum,
                     Str <$> arbitrary,
@@ -64,6 +67,7 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     UnOp <$> arbUnary <*> resize (n-1) arbitrary,
                     PostOp <$> arbPostfix <*> subexpr,
                     ArrayLiteral <$> shortListOf (n-1) arbitrary,
+                    ObjectLiteral <$> shortListOf (n-1) arbitrary,
                     pure This,
                     NewExpr <$> subexpr <*> shortListOf half arbitrary,
                     Assign <$> (ReadVar <$> arbIdent) <*> arbAssignOp <*> resize (n-1) arbitrary,
@@ -83,6 +87,9 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
         subexpr3 = resize third arbitrary
         half = (n-1) `div` 2
         third = (n-1) `div` 3
+
+arbPropertyName :: Int -> Gen PropertyName
+arbPropertyName n = oneof [ IdentProp <$> arbIdent, StringProp <$> arbitrary, NumProp <$> (JSNum <$> arbitrary) ]
 
 arbOp :: Gen String
 arbOp = elements (binaryOps jsLang)
@@ -189,3 +196,6 @@ shrinkExpr expr = case expr of
   FunDef name params body ->
     [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
       [ FunDef name params body' | body' <- shrinkList shrinkStmt body ]
+
+shrinkPropertyName :: PropertyName -> [PropertyName]
+shrinkPropertyName _ = []
