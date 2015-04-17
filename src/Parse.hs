@@ -256,11 +256,19 @@ condExpr p = do
             return $ Cond test ifTrue ifFalse
 
 assignExpr :: Parser Expr -> Parser Expr
-assignExpr p = try(lookAhead identifier >> assign) <|> p
-  where assign = do lhs <- lhsExpr
-                    op <- lexeme "=" <|> assignOp
-                    rhs <- expr
-                    return $ Assign lhs op rhs
+assignExpr p = do
+  expr <- p
+  if isLHS expr
+  then (assignment expr <|> return expr)
+  else return expr
+
+assignment lhs = do
+  op <- lexeme "=" <|> assignOp
+  rhs <- expr
+  return $ Assign lhs op rhs
+
+isLHS :: Expr -> Bool
+isLHS e = True -- XXX
 
 lhsExpr :: Parser Expr
 lhsExpr = memberExpr simple
