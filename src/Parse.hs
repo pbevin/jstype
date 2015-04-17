@@ -134,13 +134,14 @@ whileStmt = try $ lexeme "while" >>
   WhileStatement <$> parens expr <*> statement
 
 forStmt :: Parser Statement
-forStmt = try $ lexeme "for" >>
+forStmt = (try $ lexeme "for") >>
   For <$> forHeader <*> statement
 
-forHeader = parens $
-  For3 <$> optionMaybe expr <*>
-    (lexeme ";" >> optionMaybe expr) <*>
-    (lexeme ";" >> optionMaybe expr)
+forHeader = parens $ (forin <|> for3)
+forin = ForIn <$> expr <*> (lexeme "in" >> expr)
+for3 = For3 <$> optionMaybe expr <*>
+                (lexeme ";" >> optionMaybe expr) <*>
+                (lexeme ";" >> optionMaybe expr)
 
 exprStmt :: Parser Statement
 exprStmt = ExprStmt <$> expr
@@ -180,7 +181,7 @@ expr = foldr ($) simple [
   binOps [ "^" ],
   binOps [ "&" ],
   binOps [ "===", "!==", "==", "!=" ],
-  binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
+  binOps [ ">=", "<=", ">", "<", "instanceof" ],
   binOps [ ">>>", ">>", "<<" ],
   binOps ["+", "-"],
   binOps ["*", "/", "%"],

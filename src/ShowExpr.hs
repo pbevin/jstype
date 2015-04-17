@@ -1,7 +1,24 @@
-module ShowExpr (showProg, showExpr) where
+module ShowExpr (Code, code, showProg, showExpr, showHeader) where
 
 import Data.List
 import Expr
+
+
+class Code a where
+  code :: a -> String
+
+instance Code Program where
+  code = showProg
+
+instance Code Statement where
+  code = showStatement
+
+instance Code Expr where
+  code = showExpr
+
+instance Code ForHeader where
+  code = showHeader
+
 
 showProg :: Program -> String
 showProg (Program stmts) = intercalate ";" $ map showStatement stmts
@@ -36,11 +53,14 @@ showStatement stmt = case stmt of
   For header stmt ->
     "for " ++ (showHeader header) ++ showStatement stmt
 
-showHeader header = case header of
-  For3 a b c -> parens $
+showHeader header = parens $ case header of
+  For3 a b c ->
     intercalate ";" [ maybe "" showExpr a,
                       maybe "" showExpr b,
                       maybe "" showExpr c ]
+
+  ForIn a b -> showExpr a ++ " in " ++ showExpr b
+
 
 showExpr :: Expr -> String
 showExpr expr = case expr of
@@ -123,4 +143,5 @@ maybeParens :: Expr -> String
 maybeParens e = case e of
   Num _ -> showExpr e
   ReadVar _ -> showExpr e
+  This -> showExpr e
   _ -> parens (showExpr e)

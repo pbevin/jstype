@@ -94,7 +94,8 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
         third = (n-1) `div` 3
 
 arbForHeader :: Gen ForHeader
-arbForHeader = oneof [ For3 <$> arbitrary <*> arbitrary <*> arbitrary ]
+arbForHeader = oneof [ For3 <$> arbitrary <*> arbitrary <*> arbitrary,
+                       ForIn <$> (ReadVar <$> arbIdent) <*> arbitrary ]
 
 arbPropertyName :: Int -> Gen PropertyName
 arbPropertyName n = oneof [ IdentProp <$> arbIdent,
@@ -166,6 +167,9 @@ shrinkStmt expr = case expr of
 
   EmptyStatement -> []
 
+  For header stmt ->
+    [For h' s' | (h', s') <- shrink (header, stmt)]
+
   _ -> [EmptyStatement]
 
 
@@ -180,28 +184,28 @@ shrinkExpr expr = case expr of
     | otherwise -> [Num (JSNum 0)]
 
   BinOp op e1 e2 ->
-    [e1, e2] ++ [BinOp op e1' e2' | (e1', e2') <- shrink (e1, e2)]
+    shrink e1 ++ shrink e2 ++ [BinOp op e1' e2' | (e1', e2') <- shrinkPair (e1, e2)]
 
   ArrayLiteral exprs ->
-    [ArrayLiteral exprs' | exprs' <- shrink exprs] ++ exprs
+    [ArrayLiteral exprs' | exprs' <- shrinkList shrink exprs] ++ exprs
 
   ObjectLiteral assigns ->
-    [ObjectLiteral a' | a' <- shrink assigns] ++ map snd assigns
+    [ObjectLiteral a' | a' <- shrinkList shrink assigns] ++ map snd assigns
 
   UnOp op e ->
-    [e] ++ [UnOp op e' | e' <- shrink e]
+    shrink e ++ [UnOp op e' | e' <- shrink e]
 
   PostOp op e ->
-    [e] ++ [PostOp op e' | e' <- shrink e]
+    shrink e ++ [PostOp op e' | e' <- shrink e]
 
   Assign lhs op rhs ->
-    [Assign lhs' op rhs' | (lhs', rhs') <- shrink (lhs, rhs)] ++ [rhs]
+    [Assign lhs' op rhs' | (lhs', rhs') <- shrinkPair (lhs, rhs)] ++ shrink rhs
 
   MemberDot e id ->
-    [e] ++ [MemberDot e' id | e' <- shrink e]
+    shrink e ++ [MemberDot e' id | e' <- shrink e]
 
   MemberGet a x ->
-    [a, x] ++ [MemberGet a' x' | (a', x') <- shrink (a, x)]
+    shrink a ++ shrink x ++ [MemberGet a' x' | (a', x') <- shrinkPair (a, x)]
 
   Cond a b c ->
     [a, b, c] ++ [Cond a' b' c' | (a', b', c') <- shrink (a, b, c)]
@@ -215,9 +219,13 @@ shrinkExpr expr = case expr of
     [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
       [ FunDef name params body' | body' <- shrinkList shrinkStmt body ]
 
+shrinkPair :: (Arbitrary a, Arbitrary b) => (a, b) -> [(a, b)]
+shrinkPair (a, b) = [(a', b') | a' <- shrink a, b' <- shrink b]
+
 shrinkForHeader :: ForHeader -> [ForHeader]
 shrinkForHeader header = case header of
   For3 a b c -> [For3 a' b' c' | (a', b', c') <- shrink (a,b,c)]
+  ForIn a b -> [ForIn a' b' | (a', b') <- shrink (a,b)]
 
 shrinkPropertyName :: PropertyName -> [PropertyName]
 shrinkPropertyName _ = []
