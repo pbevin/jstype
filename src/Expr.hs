@@ -1,6 +1,7 @@
 module Expr (Program (..),
              Statement (..),
              Expr(..),
+             ForHeader(..),
              PropertyName (..),
              JSNum(..),
              Lang(..),
@@ -18,8 +19,8 @@ type Operator = String
 type ParameterList = [Ident]
 type VarDeclaration = (Ident, Maybe Expr)
 
-data ForHeader = For3 Expr Expr Expr
-               | For3Var Ident Expr Expr Expr
+data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
+               | For3Var Ident Expr (Maybe Expr) (Maybe Expr)
                | ForIn LHS Expr
                | ForInVar Ident LHS Expr
   deriving (Show, Eq)

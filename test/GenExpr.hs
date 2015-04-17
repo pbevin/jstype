@@ -18,6 +18,10 @@ instance Arbitrary Expr where
   arbitrary = sized arbExpr
   shrink = shrinkExpr
 
+instance Arbitrary ForHeader where
+  arbitrary = arbForHeader
+  shrink = shrinkForHeader
+
 instance Arbitrary PropertyName where
   arbitrary = sized arbPropertyName
   shrink = shrinkPropertyName
@@ -34,6 +38,7 @@ arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
                     VarDecl <$> shortListOf1 n (sized arbVarDecl),
                     IfStatement <$> subexpr <*> substmt <*> pure Nothing,
                     IfStatement <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
+                    For <$> arbitrary <*> arbitrary,
                     Block <$> two (resize half arbitrary),
                     ThrowStatement <$> arbitrary,
                     pure ContinueStatement,
@@ -87,6 +92,9 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
         subexpr3 = resize third arbitrary
         half = (n-1) `div` 2
         third = (n-1) `div` 3
+
+arbForHeader :: Gen ForHeader
+arbForHeader = oneof [ For3 <$> arbitrary <*> arbitrary <*> arbitrary ]
 
 arbPropertyName :: Int -> Gen PropertyName
 arbPropertyName n = oneof [ IdentProp <$> arbIdent,
@@ -206,6 +214,10 @@ shrinkExpr expr = case expr of
   FunDef name params body ->
     [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
       [ FunDef name params body' | body' <- shrinkList shrinkStmt body ]
+
+shrinkForHeader :: ForHeader -> [ForHeader]
+shrinkForHeader header = case header of
+  For3 a b c -> [For3 a' b' c' | (a', b', c') <- shrink (a,b,c)]
 
 shrinkPropertyName :: PropertyName -> [PropertyName]
 shrinkPropertyName _ = []

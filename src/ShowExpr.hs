@@ -33,6 +33,14 @@ showStatement stmt = case stmt of
         Nothing -> ""
         Just stmt -> " else " ++ braces (showStatement stmt)
 
+  For header stmt ->
+    "for " ++ (showHeader header) ++ showStatement stmt
+
+showHeader header = case header of
+  For3 a b c -> parens $
+    intercalate ";" [ maybe "" showExpr a,
+                      maybe "" showExpr b,
+                      maybe "" showExpr c ]
 
 showExpr :: Expr -> String
 showExpr expr = case expr of

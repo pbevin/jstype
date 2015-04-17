@@ -84,6 +84,7 @@ statement = choice [ block <?> "block",
                      exprStmt <?> "expression",
                      varDecl <?> "var declaration",
                      ifStmt <?> "if",
+                     forStmt <?> "for",
                      whileStmt <?> "while",
                      returnStmt <?> "return",
                      breakStmt <?> "break",
@@ -131,6 +132,15 @@ elseClause = try (lexeme "else" >> Just <$> statement)
 whileStmt :: Parser Statement
 whileStmt = try $ lexeme "while" >>
   WhileStatement <$> parens expr <*> statement
+
+forStmt :: Parser Statement
+forStmt = try $ lexeme "for" >>
+  For <$> forHeader <*> statement
+
+forHeader = parens $
+  For3 <$> optionMaybe expr <*>
+    (lexeme ";" >> optionMaybe expr) <*>
+    (lexeme ";" >> optionMaybe expr)
 
 exprStmt :: Parser Statement
 exprStmt = ExprStmt <$> expr
