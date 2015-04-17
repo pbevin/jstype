@@ -62,7 +62,11 @@ showExpr expr = case expr of
   BinOp op e1 e2 ->
     maybeParens e1 ++ " " ++ op ++ " " ++ maybeParens e2
 
-  UnOp op e -> op ++ maybeParens e
+  UnOp op e -> case op of
+    "delete" -> op ++ parens (showExpr e)
+    "void"   -> op ++ parens (showExpr e)
+    "typeof" -> op ++ parens (showExpr e)
+    _        -> op ++ maybeParens e
 
   PostOp op e ->
     maybeParens e ++ op
