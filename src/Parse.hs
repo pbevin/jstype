@@ -387,5 +387,5 @@ assignOp = choice $ map op $ assignOps jsLang
 
 
 
-prop_showProg prog = simpleParse (showProg prog) == prog
-prop_showExpr expr = parseExpr (showExpr expr) == expr
+prop_showProg prog = counterexample (ppcode prog) $ simpleParse (ppcode prog) == prog
+prop_showExpr expr = counterexample (ppcode expr) $ parseExpr (ppcode expr) == expr

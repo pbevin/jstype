@@ -149,10 +149,27 @@ showExpr expr = case expr of
     "function " ++ name ++ pparens (intercalate "," params) ++ bbraces (mapshow ";" body)
 
 ppExpr n expr = case expr of
-  Assign lhs op rhs -> parensIf (n>0) (ppdoc (n+1) lhs <+> text op <+> ppdoc (n+1) rhs)
+  Assign lhs op rhs ->
+    parensIf (n>0) (ppdoc (n+1) lhs <+> text op <+> ppdoc (n+1) rhs)
+
+  FunDef name params body ->
+    ppheader <+> lbrace $$ ppbody $$ rbrace
+      where ppheader = text "function"
+                   <+> maybe empty text name
+                    <> parens (commaList $ map text params)
+            ppbody = nest 2 $ vcat $ map (ppdoc $ n+1) body
+
+    --text "function" <+> maybe empty text name <> parens (commaList $ map text params) <+> lbrace $$ (nest 2 $ vcat $ map (ppdoc $ n+1) body) $$ rbrace
+
+
+  NewExpr cls args ->
+    text "new" <+> ppdoc (n+1) cls <> parens (commaList $ map (ppdoc $ n+1) args)
 
   _ -> text (code expr)
 
+commaList :: [Doc] -> Doc
+commaList [] = empty
+commaList params = (foldl1 (\d e -> d <> comma $$ e) params)
 
 parensIf :: Bool -> Doc -> Doc
 parensIf False = id
