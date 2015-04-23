@@ -1,4 +1,4 @@
-module Parse (parseJS, parseJS', simpleParse, parseExpr, prop_showExpr, prop_showProg) where
+module Parse (parseJS, parseJS', simpleParse, parseExpr, prop_showExpr, prop_showProg, disprove, disprove') where
 
 import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
@@ -90,6 +90,7 @@ statement = choice [ block <?> "block",
                      breakStmt <?> "break",
                      continueStmt <?> "continue",
                      throwStmt <?> "throw",
+                     tryStmt <?> "try",
                      emptyStmt <?> ";",
                      debuggerStmt <?> "debugger" ]
 
@@ -99,6 +100,8 @@ block = do
   return $ case stmts of
     [single] -> single
     _ -> Block stmts
+
+realblock = Block <$> braces statementList
 
 varDecl :: Parser Statement
 varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
@@ -137,7 +140,7 @@ forStmt :: Parser Statement
 forStmt = (try $ lexeme "for") >>
   For <$> forHeader <*> statement
 
-forHeader = parens $ (forin <|> for3)
+forHeader = parens $ (try forin <|> for3)
 forin = ForIn <$> expr <*> (lexeme "in" >> expr)
 for3 = For3 <$> optionMaybe expr <*>
                 (lexeme ";" >> optionMaybe expr) <*>
@@ -156,7 +159,18 @@ continueStmt :: Parser Statement
 continueStmt = lexeme "continue" >> return ContinueStatement
 
 throwStmt :: Parser Statement
-throwStmt = lexeme "throw" >> ThrowStatement <$> expr
+throwStmt = try (lexeme "throw") >> ThrowStatement <$> expr
+
+tryStmt :: Parser Statement
+tryStmt = try (lexeme "try") >> TryStatement <$> realblock
+             <*> optionMaybe catch <*> optionMaybe finally
+    where catch = try (lexeme "catch") >>
+                     Catch <$> parens identifier <*> realblock
+          finally = try (lexeme "finally") >>
+                     Finally <$> realblock
+
+
+
 
 debuggerStmt :: Parser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement
@@ -389,3 +403,15 @@ assignOp = choice $ map op $ assignOps jsLang
 
 prop_showProg prog = counterexample (ppcode prog) $ simpleParse (ppcode prog) == prog
 prop_showExpr expr = counterexample (ppcode expr) $ parseExpr (ppcode expr) == expr
+
+disprove :: Program -> IO ()
+disprove p = do
+  putStrLn $ show p
+  putStrLn $ ppcode p
+  putStrLn $ show (simpleParse $ ppcode p)
+
+disprove' :: Expr -> IO ()
+disprove' e = do
+  putStrLn $ show e
+  putStrLn $ ppcode e
+  putStrLn $ show (parseExpr $ ppcode e)

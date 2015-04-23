@@ -52,6 +52,10 @@ showStatement stmt = case stmt of
   ContinueStatement -> "continue"
   VarDecl decls -> "var " ++ showVarDecls decls
   ThrowStatement expr -> "throw " ++ showExpr expr
+  TryStatement block catch finally ->
+    "try " ++ showStatement block
+           ++ maybe "" showCatch catch
+           ++ maybe "" showFinally finally
 
   ExprStmt expr -> parenObjectLiterals(showExpr expr)
     where parenObjectLiterals str =
@@ -95,6 +99,9 @@ ppHeader n header = case header of
 
   _ -> text (code header)
 
+
+showCatch (Catch ident block) = " catch (" ++ ident ++ ") " ++ showStatement block
+showFinally (Finally block) = " finally " ++ showStatement block
 
 
 showExpr :: Expr -> String

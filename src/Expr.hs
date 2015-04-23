@@ -2,6 +2,8 @@ module Expr (Program (..),
              Statement (..),
              Expr(..),
              ForHeader(..),
+             Catch (..),
+             Finally (..),
              PropertyName (..),
              JSNum(..),
              Lang(..),
@@ -40,10 +42,13 @@ data Statement = Block [Statement]
                | IdentifierStatement Ident Statement
                | SwitchStatement
                | ThrowStatement Expr
-               | TryStatement
+               | TryStatement Statement (Maybe Catch) (Maybe Finally)
                | EmptyStatement
                | DebuggerStatement
   deriving (Show, Eq)
+
+data Catch = Catch Ident Statement deriving (Show, Eq)
+data Finally = Finally Statement deriving (Show, Eq)
 
 type FunBody = [Statement]
 

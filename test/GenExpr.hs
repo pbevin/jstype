@@ -41,6 +41,8 @@ arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
                     For <$> arbitrary <*> arbitrary,
                     Block <$> two (resize half arbitrary),
                     ThrowStatement <$> arbitrary,
+                    TryStatement <$> (block half) <*> (Just <$> Catch "e" <$> block half) <*> pure Nothing,
+                    TryStatement <$> (block half) <*> pure Nothing <*> (Just <$> Finally <$> block half),
                     pure ContinueStatement,
                     pure BreakStatement,
                     pure EmptyStatement,
@@ -49,6 +51,7 @@ arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
         third = n `div` 3
         subexpr = resize half arbitrary
         substmt = resize half arbitrary
+        block n = Block <$> shortListOf n arbitrary
 
 
 arbVarDecl :: Int -> Gen (Ident, Maybe Expr)
@@ -218,6 +221,9 @@ shrinkExpr expr = case expr of
   FunDef name params body ->
     [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
       [ FunDef name params body' | body' <- shrinkList shrinkStmt body ]
+
+  NewExpr f args ->
+    args ++ [NewExpr f' args' | (f', args') <- shrink (f, args)]
 
 shrinkPair :: (Arbitrary a, Arbitrary b) => (a, b) -> [(a, b)]
 shrinkPair (a, b) = [(a', b') | a' <- shrink a, b' <- shrink b]
