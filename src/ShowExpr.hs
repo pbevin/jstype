@@ -81,8 +81,15 @@ ppStatement n stmt = case stmt of
            nest 2 $ ppdoc n stmt ]
 
   IfStatement test ifTrue ifFalse ->
-    vcat [ text "if" <+> parens (ppdoc 0 test),
-           nest 2 $ ppdoc (n+1) ifTrue ]
+    case ifFalse of
+      Just ifFalse' ->
+        vcat [ ifPart, block ifTrue, text "} else {", block ifFalse' ]
+      Nothing ->
+        vcat [ ifPart, block ifTrue, text "}" ]
+
+      where
+        ifPart = text "if" <+> parens (ppdoc 0 test) <+> text "{"
+        block stmt = nest 2 $ ppdoc (n+1) stmt
 
   _ -> text (code stmt)
 
