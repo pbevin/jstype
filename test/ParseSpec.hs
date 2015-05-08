@@ -121,6 +121,9 @@ spec = do
       simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
       -- XXX evaluate (simpleParse "a() b()") `shouldThrow` anyException
 
+    it "does not let a return statement break onto a newline" $ do
+      simpleParse "return\n3\n" `shouldBe` Program [Return Nothing, ExprStmt (Num 3)]
+
     it "resolves the if-then-else ambiguity" $ do
       simpleParse "if (a) if (b) continue else break" `shouldBe`
         Program [IfStatement (ReadVar "a")

@@ -7,6 +7,7 @@ import Text.Parsec.String
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (javaStyle)
 import Data.List
+import Data.Char
 import ShowExpr
 import Expr
 
@@ -53,7 +54,11 @@ reserved = T.reserved lexer
 symbol = T.symbol lexer
 whiteSpace = T.whiteSpace lexer
 
-newline = whiteSpace >> char '\n' >> whiteSpace
+spaceNotNewline :: Char -> Bool
+spaceNotNewline ch = isSpace ch && ch /= '\n'
+
+noNewline :: Parser ()
+noNewline = satisfy spaceNotNewline >> return ()
 
 allOps = sortBy reverseLength $ nub allJsOps
   where allJsOps = (assignOps jsLang) ++ (unaryOps jsLang) ++ (binaryOps jsLang) ++ (postfixOps jsLang)
@@ -77,7 +82,6 @@ statementList :: Parser [Statement]
 statementList = many (statement <* optional terminator)
 
 terminator = semicolon
--- terminator = choice [ semicolon, newline ]
 
 statement :: Parser Statement
 statement = choice [ block <?> "block",
@@ -117,9 +121,8 @@ varAssign = do
 
 returnStmt :: Parser Statement
 returnStmt = do
-  try (lexeme "return")
-  expr <- optionMaybe $ expr
-  return $ Return expr
+  try (reserved "return")
+  Return <$> optionMaybe (noNewline >> expr)
 
 ifStmt :: Parser Statement
 ifStmt = do
