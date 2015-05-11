@@ -19,6 +19,7 @@ data JSVal = VNum JSNum
            | VUndef
            | VMap (M.Map Ident JSVal)
            | VNative ([JSVal] -> JSRuntime JSVal)
+           | VFun [Ident] [Statement]
            | JSVoid
            | JSErrorObj JSVal
            deriving Show
@@ -145,6 +146,11 @@ runExprStmt expr = case expr of
     then JSErrorObj <$> (runExprStmt $ head args)
     else error "Can only new Error() so far"
 
+  FunDef (Just name) params body -> do
+    let fun = VFun params body
+    putVar name fun
+    return fun
+
   _              -> error ("Unimplemented expr: " ++ show expr)
 
 lookupVar :: Ident -> JSRuntime JSVal
@@ -173,6 +179,15 @@ updateVar f x = do
 
 funCall :: JSVal -> [JSVal] -> JSRuntime JSVal
 funCall (VNative f) args = f args
+funCall (VFun params body) args = do
+  env <- get
+  forM_ (zip params args) $ \(x,v) -> do
+    putVar x v
+  mapM_ runStmt body
+  put $ env
+  return VUndef
+funCall other args = error $ "Can't call: " ++ show other
+
 
 assignOp :: String -> (JSVal -> JSVal -> JSVal)
 assignOp "=" = const id
@@ -198,8 +213,10 @@ jsConsoleLog :: [JSVal] -> JSRuntime JSVal
 jsConsoleLog [n] = tell (showVal n ++ "\n") >> return n
 
 showVal :: JSVal -> String
+showVal (VStr s) = s
 showVal (VNum (JSNum n)) = show (round n :: Integer)
 showVal VUndef = "(undefined)"
+showVal other = show other
 
 evalBinOp :: String -> JSVal -> JSVal -> JSVal
 evalBinOp op (VNum v1) (VNum v2) = case op of

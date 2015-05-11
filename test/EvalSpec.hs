@@ -34,3 +34,6 @@ spec = do
 
   it "runs loops" $ do
     runJS "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldBe` Right "45\n"
+
+  it "can call a function" $ do
+    runJS "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldBe` Right "hi\n"
