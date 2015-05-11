@@ -157,6 +157,10 @@ spec = do
       simpleParse "for (x in xs) return" `shouldBe`
         Program [For (ForIn (ReadVar "x") (ReadVar "xs")) $ Return Nothing]
 
+    it "parses a for..var..in statement" $ do
+      simpleParse "for (var x in xs) return" `shouldBe`
+        Program [For (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return Nothing]
+
     it "parses a new object" $ do
       simpleParse "new X()" `shouldBe`
         Program [ ExprStmt $ NewExpr (ReadVar "X") [] ]

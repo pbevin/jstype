@@ -24,7 +24,7 @@ type VarDeclaration = (Ident, Maybe Expr)
 data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
                | For3Var Ident Expr (Maybe Expr) (Maybe Expr)
                | ForIn LHS Expr
-               | ForInVar Ident LHS Expr
+               | ForInVar VarDeclaration Expr
   deriving (Show, Eq)
 
 data Statement = Block [Statement]

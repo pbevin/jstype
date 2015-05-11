@@ -92,6 +92,9 @@ disableInKeyword, enableInKeyword :: JSParser ()
 disableInKeyword = putState False
 enableInKeyword  = putState True
 
+withoutInKeyword :: JSParser a -> JSParser a
+withoutInKeyword p = disableInKeyword *> p <* enableInKeyword
+
 removeIn :: [String] -> JSParser [String]
 removeIn ops = do
   inKeywordEnabled <- getState
@@ -146,10 +149,11 @@ block = do
 
 realblock = Block <$> braces statementList
 
+
 varDecl :: JSParser Statement
 varDecl = (try $ keyword "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
 
-varAssign :: JSParser (String, Maybe Expr)
+varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
 varAssign = do
   id <- identifier
   assignment id <|> return (id, Nothing)
@@ -157,6 +161,8 @@ varAssign = do
             lexeme "="
             e <- assignmentExpr
             return (id, Just e)
+
+varAssignNoIn = withoutInKeyword varAssign
 
 returnStmt :: JSParser Statement
 returnStmt = do
@@ -195,7 +201,11 @@ forStmt :: JSParser Statement
 forStmt = (try $ keyword "for") >>
   For <$> forHeader <*> statement
 
-forHeader = parens $ (try forin <|> for3)
+forHeader :: JSParser ForHeader
+forHeader = parens $ (forinvar <|> try forin <|> for3)
+
+forinvar, forin, for3 :: JSParser ForHeader
+forinvar = keyword "var" >> ForInVar <$> varAssignNoIn <*> (keyword "in" >> expr)
 forin = ForIn <$> exprNoIn <*> (keyword "in" >> expr)
 for3 = For3 <$> optionMaybe exprNoIn <*>
                 (lexeme ";" >> optionMaybe expr) <*>
@@ -263,7 +273,7 @@ assignmentExpr = foldr ($) simple [
   callExpr,
   memberExpr ] <?> "expr"
 
-exprNoIn = disableInKeyword *> expr <* enableInKeyword
+exprNoIn = withoutInKeyword expr
 
 memberExpr :: JSParser Expr -> JSParser Expr
 memberExpr p = (try (keyword "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
