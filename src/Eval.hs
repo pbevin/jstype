@@ -16,6 +16,7 @@ import Debug.Trace
 data JSVal = VNum JSNum
            | VStr String
            | VBool Bool
+           | VRef Ident
            | VUndef
            | VMap (M.Map Ident JSVal)
            | VNative ([JSVal] -> JSRuntime JSVal)
@@ -89,7 +90,7 @@ runStmt s = case s of
   ExprStmt e -> void $ runExprStmt e
 
   VarDecl assignments ->
-    forM_ assignments $ \(x, e) -> case e of 
+    forM_ assignments $ \(x, e) -> case e of
       Nothing -> putVar x VUndef
       Just e  -> do { v <- runExprStmt e; putVar x v }
 
@@ -121,22 +122,26 @@ runExprStmt :: Expr -> JSRuntime JSVal
 runExprStmt expr = case expr of
   Num n          -> return $ VNum n
   Str s          -> return $ VStr s
-  ReadVar x      -> lookupVar x
+  ReadVar x      -> return $ VRef x
+
   MemberDot e x  -> do
-    VMap m <- runExprStmt e
+    lref <- runExprStmt e
+    VMap m <- getValue lref
     return $ maybe VUndef id $ M.lookup x m
 
   FunCall f args -> do
-    f' <- runExprStmt f
-    args' <- mapM runExprStmt args
+    f' <- runExprStmt f >>= getValue
+    args' <- mapM (\a -> runExprStmt a >>= getValue) args
     funCall f' args'
 
-  Assign (ReadVar x) op e -> do
-    v <- runExprStmt e
-    updateVar (opAssign op v) x
+  Assign lhs op e -> do
+    lref <- runExprStmt lhs
+    rref <- runExprStmt e
+    updateRef (assignOp op) lref rref
 
   BinOp op e1 e2 -> do
-    evalBinOp op <$> runExprStmt e1 <*> runExprStmt e2
+    evalBinOp op <$> (runExprStmt e1 >>= getValue)
+                 <*> (runExprStmt e2 >>= getValue)
 
   PostOp op (ReadVar x) -> do
     updateVar (+1) x
@@ -153,18 +158,31 @@ runExprStmt expr = case expr of
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
-lookupVar :: Ident -> JSRuntime JSVal
-lookupVar x = do
-  env <- get
-  case M.lookup x env of
-    Nothing -> return $ VNum 0 -- XXX
-    Just x  -> return x
-
 putVar :: Ident -> JSVal -> JSRuntime ()
 putVar x v = do
   env <- get
   put (M.insert x v env)
   return ()
+
+
+updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
+updateRef f lref rref = do
+  lval <- getValue lref
+  rval <- getValue rref
+  let r = f lval rval
+  putValue lref r
+
+getValue :: JSVal -> JSRuntime JSVal
+getValue (VRef x) = get >>= return . maybe VUndef id . M.lookup x
+getValue other = return other
+
+putValue :: JSVal -> JSVal -> JSRuntime JSVal
+putValue (VRef id) val = do
+  env <- get
+  put $ M.insert id val env
+  return val
+putValue _ _ = throwError "ReferenceError"
+
 
 updateVar :: (JSVal -> JSVal) -> Ident -> JSRuntime JSVal
 updateVar f x = do
@@ -196,9 +214,6 @@ assignOp "-=" = (-)
 assignOp "*=" = (*)
 assignOp "/=" = (/)
 assignOp other = error $ "No assignOp for " ++ show other
-
-opAssign :: String -> (JSVal -> JSVal -> JSVal)
-opAssign op = flip (assignOp op)
 
 isTruthy :: JSVal -> Bool
 isTruthy (VNum 0)      = False
