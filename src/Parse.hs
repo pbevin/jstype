@@ -404,6 +404,7 @@ regexLiteral = do
   rest <- many regexChar
   char '/'
   flags <- many (oneOf identLetter)
+  whiteSpace
 
   return $ RegularExpression (first ++ concat rest) flags
 
