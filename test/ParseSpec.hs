@@ -149,5 +149,12 @@ spec = do
       simpleParse "for (x in xs) return" `shouldBe`
         Program [For (ForIn (ReadVar "x") (ReadVar "xs")) $ Return Nothing]
 
+    it "parses a new object" $ do
+      simpleParse "new X()" `shouldBe`
+        Program [ ExprStmt $ NewExpr (ReadVar "X") [] ]
+
+    it "doesn't get confused by variables starting with 'new'" $ do
+      simpleParse "newx" `shouldBe` Program [ ExprStmt $ ReadVar "newx" ]
+
     -- it "is the inverse of showProg" $
     --   property prop_showProg

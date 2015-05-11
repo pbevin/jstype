@@ -73,7 +73,12 @@ allOps = sortBy reverseLength $ nub allJsOps
 reverseLength :: String -> String -> Ordering
 reverseLength a b = compare (length b) (length a)
 
+lexeme :: String -> JSParser String
 lexeme str = string str <* whiteSpace
+
+keyword :: String -> JSParser ()
+keyword str = reserved str >> whiteSpace
+
 resOp = do
   op <- choice (map (try . string) allOps)
   whiteSpace
@@ -141,7 +146,7 @@ block = do
 realblock = Block <$> braces statementList
 
 varDecl :: JSParser Statement
-varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
+varDecl = (try $ keyword "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
 
 varAssign :: JSParser (String, Maybe Expr)
 varAssign = do
@@ -155,7 +160,7 @@ varAssign = do
 returnStmt :: JSParser Statement
 returnStmt = do
   pos1 <- getPosition
-  try (reserved "return")
+  try (keyword "return")
   pos2 <- getPosition
 
   Return <$> if sameLine pos1 pos2
@@ -164,25 +169,25 @@ returnStmt = do
 
 ifStmt :: JSParser Statement
 ifStmt = do
-  try $ lexeme "if"
+  try $ keyword "if"
   test <- parens expr
   ifTrue <- statement
   ifFalse <- try elseClause <|> return Nothing
   return $ IfStatement test ifTrue ifFalse
 
 elseClause :: JSParser (Maybe Statement)
-elseClause = try (lexeme "else" >> Just <$> statement)
+elseClause = try (keyword "else" >> Just <$> statement)
 
 whileStmt :: JSParser Statement
-whileStmt = try $ lexeme "while" >>
+whileStmt = try $ keyword "while" >>
   WhileStatement <$> parens expr <*> statement
 
 forStmt :: JSParser Statement
-forStmt = (try $ lexeme "for") >>
+forStmt = (try $ keyword "for") >>
   For <$> forHeader <*> statement
 
 forHeader = parens $ (try forin <|> for3)
-forin = ForIn <$> exprNoIn <*> (lexeme "in" >> expr)
+forin = ForIn <$> exprNoIn <*> (keyword "in" >> expr)
 for3 = For3 <$> optionMaybe exprNoIn <*>
                 (lexeme ";" >> optionMaybe expr) <*>
                 (lexeme ";" >> optionMaybe expr)
@@ -194,27 +199,27 @@ emptyStmt :: JSParser Statement
 emptyStmt = semicolon >> return EmptyStatement
 
 breakStmt :: JSParser Statement
-breakStmt = lexeme "break" >> return BreakStatement
+breakStmt = keyword "break" >> return BreakStatement
 
 continueStmt :: JSParser Statement
-continueStmt = lexeme "continue" >> return ContinueStatement
+continueStmt = keyword "continue" >> return ContinueStatement
 
 throwStmt :: JSParser Statement
-throwStmt = try (lexeme "throw") >> ThrowStatement <$> expr
+throwStmt = try (keyword "throw") >> ThrowStatement <$> expr
 
 tryStmt :: JSParser Statement
-tryStmt = try (lexeme "try") >> TryStatement <$> realblock
+tryStmt = try (keyword "try") >> TryStatement <$> realblock
              <*> optionMaybe catch <*> optionMaybe finally
-    where catch = try (lexeme "catch") >>
+    where catch = try (keyword "catch") >>
                      Catch <$> parens identifier <*> realblock
-          finally = try (lexeme "finally") >>
+          finally = try (keyword "finally") >>
                      Finally <$> realblock
 
 
 
 
 debuggerStmt :: JSParser Statement
-debuggerStmt = lexeme "debugger" >> return DebuggerStatement
+debuggerStmt = keyword "debugger" >> return DebuggerStatement
 
 
 
@@ -248,7 +253,7 @@ expr = foldr ($) simple [
 exprNoIn = disableInKeyword *> expr <* enableInKeyword
 
 memberExpr :: JSParser Expr -> JSParser Expr
-memberExpr p = (try (lexeme "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
+memberExpr p = (try (keyword "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
            <|> baseMemberExpr p
 
 baseMemberExpr :: JSParser Expr -> JSParser Expr
@@ -271,7 +276,7 @@ arrayExt = try $ do
 
 functionExpr :: JSParser Expr
 functionExpr = do
-  try $ lexeme "function"
+  try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
   stmts <- braces statementList <?> "function body"
@@ -357,7 +362,7 @@ simple = parens expr
      <|> str
 
 this :: JSParser Expr
-this = try $ lexeme "this" >> return This
+this = try $ keyword "this" >> return This
 
 var :: JSParser Expr
 var = identifier >>= return . ReadVar
