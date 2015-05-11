@@ -310,7 +310,7 @@ unaryExpr p = (try(unop) <|> p) <?> "unary expr"
   where unop = do
           op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
           whiteSpace
-          e <- p
+          e <- unaryExpr p
           return $ UnOp op e
 
 binOps :: [String] -> JSParser Expr -> JSParser Expr

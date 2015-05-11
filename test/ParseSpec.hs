@@ -91,6 +91,9 @@ spec = do
     it "parses an 'in' expression" $ do
       parseExpr "x in xs" `shouldBe` BinOp "in" (ReadVar "x") (ReadVar "xs")
 
+    it "parses a double-bang" $ do
+      parseExpr "!!x" `shouldBe` UnOp "!" (UnOp "!" (ReadVar "x"))
+
     -- it "is the inverse of showExpr" $
     --   property prop_showExpr
 
