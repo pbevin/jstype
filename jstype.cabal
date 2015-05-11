@@ -16,14 +16,14 @@ executable repl
   hs-source-dirs: src, test, .
   main-is: Main.hs
   default-language: Haskell2010
-  build-depends: base, parsec, mtl, containers, QuickCheck, regex-pcre-builtin, readline, pretty
+  build-depends: base, parsec, mtl >= 2.2.1, containers, QuickCheck, regex-pcre-builtin, readline, pretty
   ghc-options:
 
 executable test
   hs-source-dirs: src, test, .
   main-is: Imports.hs
   default-language: Haskell2010
-  build-depends: base, parsec, mtl, containers, QuickCheck, regex-pcre-builtin, hspec, pretty
+  build-depends: base, parsec, mtl >= 2.2.1, containers, QuickCheck, regex-pcre-builtin, hspec, pretty
   ghc-options:
 
 test-suite spec
@@ -31,5 +31,5 @@ test-suite spec
   hs-source-dirs: src, test
   main-is: Spec.hs
   default-language: Haskell2010
-  build-depends: base, parsec, mtl, containers, QuickCheck, regex-pcre-builtin, hspec, pretty
+  build-depends: base, parsec, mtl >= 2.2.1, containers, QuickCheck, regex-pcre-builtin, hspec, pretty
   ghc-options:

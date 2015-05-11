@@ -1,5 +1,7 @@
 module Main where
 
+import System.Exit
+import System.IO
 import System.Environment
 import Test.QuickCheck
 import Parse
@@ -18,6 +20,6 @@ main = do
 runFile :: String -> IO ()
 runFile filename = do
   input <- readFile filename
-  case jsEval input filename of
-    Just output -> putStr output
-    Nothing -> return ()
+  case runJS input of
+    Right output -> putStr output
+    Left err -> hPutStrLn stderr (show err) >> exitFailure
