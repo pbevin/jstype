@@ -95,7 +95,7 @@ terminated p = do
 
   return result
 
-  
+
 
 statement :: Parser Statement
 statement = choice [ block <?> "block",
@@ -258,9 +258,14 @@ functionExpr = do
 
 callExpr :: Parser Expr -> Parser Expr
 callExpr p = do
-  fun <- p
-  applications <- many (parens argumentList)
-  return $ foldl FunCall fun applications
+  base <- p
+  addons base
+    where
+      addons :: Expr -> Parser Expr
+      addons base = (parens argumentList >>= \args -> FunCall <$> addons base <*> pure args)
+                <|> ((char '.' >> identifier) >>= \id -> MemberDot <$> addons base <*> pure id)
+                <|> (brackets expr >>= \e -> MemberGet <$> addons base <*> pure e)
+                <|> return base
 
 argumentList :: Parser [Expr]
 argumentList = expr `sepBy` comma

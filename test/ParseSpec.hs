@@ -85,6 +85,9 @@ spec = do
     it "parses a chained function call" $ do
       parseExpr "f()()" `shouldBe` FunCall (FunCall (ReadVar "f") []) []
 
+    it "parses a chained member access with a function call" $ do
+      parseExpr "a.b.c()" `shouldBe` FunCall (MemberDot (MemberDot (ReadVar "a") "b") "c") []
+
     it "is the inverse of showExpr" $
       property prop_showExpr
 
