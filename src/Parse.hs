@@ -31,6 +31,8 @@ parseExpr str = case parse (expr <* eof) "" str of
   Left err   -> error (show err)
 
 
+sameLine :: SourcePos -> SourcePos -> Bool
+sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
 
 identStart  = (['a'..'z'] ++ ['A'..'Z'] ++ "$_")
 identLetter = identStart ++ ['0'..'9']
@@ -79,22 +81,34 @@ prog :: Parser Program
 prog = Program <$> statementList
 
 statementList :: Parser [Statement]
-statementList = many (statement <* optional terminator)
+statementList = many (statement)
 
-terminator = semicolon
+terminated :: Parser a -> Parser a
+terminated p = do
+  pos1 <- getPosition
+  result <- p
+  pos2 <- getPosition
+
+  if sameLine pos1 pos2
+  then optional semicolon
+  else return ()
+
+  return result
+
+  
 
 statement :: Parser Statement
 statement = choice [ block <?> "block",
-                     exprStmt <?> "expression",
-                     varDecl <?> "var declaration",
+                     terminated exprStmt <?> "expression",
+                     terminated varDecl <?> "var declaration",
                      ifStmt <?> "if",
                      forStmt <?> "for",
                      whileStmt <?> "while",
-                     returnStmt <?> "return",
-                     breakStmt <?> "break",
-                     continueStmt <?> "continue",
-                     throwStmt <?> "throw",
-                     tryStmt <?> "try",
+                     terminated returnStmt <?> "return",
+                     terminated breakStmt <?> "break",
+                     terminated continueStmt <?> "continue",
+                     terminated throwStmt <?> "throw",
+                     terminated tryStmt <?> "try",
                      emptyStmt <?> ";",
                      debuggerStmt <?> "debugger" ]
 
@@ -121,8 +135,13 @@ varAssign = do
 
 returnStmt :: Parser Statement
 returnStmt = do
+  pos1 <- getPosition
   try (reserved "return")
-  Return <$> optionMaybe (noNewline >> expr)
+  pos2 <- getPosition
+
+  Return <$> if sameLine pos1 pos2
+             then optionMaybe expr
+             else pure Nothing
 
 ifStmt :: Parser Statement
 ifStmt = do

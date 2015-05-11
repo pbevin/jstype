@@ -119,18 +119,25 @@ spec = do
 
     it "treats semicolons as optional" $ do
       simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
-      -- XXX evaluate (simpleParse "a() b()") `shouldThrow` anyException
+
+    it "parses a return statement with a value" $ do
+      simpleParse "return 4" `shouldBe`
+        Program [ Return $ Just $ Num 4 ]
 
     it "does not let a return statement break onto a newline" $ do
-      simpleParse "return\n3\n" `shouldBe` Program [Return Nothing, ExprStmt (Num 3)]
+      simpleParse "return\n5\n" `shouldBe` Program [Return Nothing, ExprStmt (Num 5)]
 
     it "resolves the if-then-else ambiguity" $ do
-      simpleParse "if (a) if (b) continue else break" `shouldBe`
+      simpleParse "if (a) if (b) continue; else break" `shouldBe`
         Program [IfStatement (ReadVar "a")
                              (IfStatement (ReadVar "b")
                                           ContinueStatement
                                           (Just BreakStatement))
                              Nothing]
+
+    it "parses empty statements" $ do
+      simpleParse ";\n;\n" `shouldBe`
+        Program [ EmptyStatement, EmptyStatement ]
 
     it "is the inverse of showProg" $
       property prop_showProg

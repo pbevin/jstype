@@ -77,13 +77,13 @@ showStatement stmt = case stmt of
 
 ppStatement n stmt = case stmt of
   For header stmt ->
-    vcat [ text "for" <+> parens (ppdoc 0 header),
+    vcat [ text "for" <+> ppdoc 0 header,
            nest 2 $ ppdoc n stmt ]
 
   IfStatement test ifTrue ifFalse ->
     case ifFalse of
       Just ifFalse' ->
-        vcat [ ifPart, block ifTrue, text "} else {", block ifFalse' ]
+        vcat [ ifPart, block ifTrue, text "} else {", block ifFalse', text "}" ]
       Nothing ->
         vcat [ ifPart, block ifTrue, text "}" ]
 
@@ -102,7 +102,7 @@ showHeader header = pparens $ case header of
   ForIn a b -> showExpr a ++ " in " ++ showExpr b
 
 ppHeader n header = case header of
-  ForIn a b -> ppdoc 0 a <+> text "in" <+> ppdoc 1 b
+  ForIn a b -> parens $ ppdoc 0 a <+> text "in" <+> ppdoc 1 b
 
   _ -> text (code header)
 
