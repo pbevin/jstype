@@ -13,12 +13,17 @@ import Expr
 
 import Debug.Trace
 
+type ParseState = Bool -- "in" allowed
+type JSParser = Parsec String ParseState
+
+jsParse :: JSParser a -> SourceName -> String -> Either ParseError a
+jsParse p = runP p True
+
 parseJS :: String -> Either ParseError Program
--- parseJS str = parse (whiteSpace >> prog <* eof) "" str
 parseJS str = parseJS' str ""
 
 parseJS' :: String -> String -> Either ParseError Program
-parseJS' str filename = parse (whiteSpace >> prog <* eof) filename str
+parseJS' str filename = jsParse (whiteSpace >> prog <* eof) filename str
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of
@@ -26,7 +31,7 @@ simpleParse str = case parseJS str of
   Left err   -> error (show err)
 
 parseExpr :: String -> Expr
-parseExpr str = case parse (expr <* eof) "" str of
+parseExpr str = case jsParse (expr <* eof) "" str of
   Right expr -> expr
   Left err   -> error (show err)
 
@@ -59,7 +64,7 @@ whiteSpace = T.whiteSpace lexer
 spaceNotNewline :: Char -> Bool
 spaceNotNewline ch = isSpace ch && ch /= '\n'
 
-noNewline :: Parser ()
+noNewline :: JSParser ()
 noNewline = satisfy spaceNotNewline >> return ()
 
 allOps = sortBy reverseLength $ nub allJsOps
@@ -77,13 +82,27 @@ resOp = do
 comma = lexeme "," >> return ()
 semicolon = lexeme ";" >> return ()
 
-prog :: Parser Program
+
+disableInKeyword, enableInKeyword :: JSParser ()
+disableInKeyword = putState False
+enableInKeyword  = putState True
+
+removeIn :: [String] -> JSParser [String]
+removeIn ops = do
+  inKeywordEnabled <- getState
+  return $ if inKeywordEnabled
+           then ops
+           else ops \\ ["in"]
+
+
+
+prog :: JSParser Program
 prog = Program <$> statementList
 
-statementList :: Parser [Statement]
+statementList :: JSParser [Statement]
 statementList = many (statement)
 
-terminated :: Parser a -> Parser a
+terminated :: JSParser a -> JSParser a
 terminated p = do
   pos1 <- getPosition
   result <- p
@@ -97,7 +116,7 @@ terminated p = do
 
 
 
-statement :: Parser Statement
+statement :: JSParser Statement
 statement = choice [ block <?> "block",
                      terminated exprStmt <?> "expression",
                      terminated varDecl <?> "var declaration",
@@ -112,7 +131,7 @@ statement = choice [ block <?> "block",
                      emptyStmt <?> ";",
                      debuggerStmt <?> "debugger" ]
 
-block :: Parser Statement
+block :: JSParser Statement
 block = do
   stmts <- braces statementList
   return $ case stmts of
@@ -121,10 +140,10 @@ block = do
 
 realblock = Block <$> braces statementList
 
-varDecl :: Parser Statement
+varDecl :: JSParser Statement
 varDecl = (try $ lexeme "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
 
-varAssign :: Parser (String, Maybe Expr)
+varAssign :: JSParser (String, Maybe Expr)
 varAssign = do
   id <- identifier
   assignment id <|> return (id, Nothing)
@@ -133,7 +152,7 @@ varAssign = do
             e <- expr
             return (id, Just e)
 
-returnStmt :: Parser Statement
+returnStmt :: JSParser Statement
 returnStmt = do
   pos1 <- getPosition
   try (reserved "return")
@@ -143,7 +162,7 @@ returnStmt = do
              then optionMaybe expr
              else pure Nothing
 
-ifStmt :: Parser Statement
+ifStmt :: JSParser Statement
 ifStmt = do
   try $ lexeme "if"
   test <- parens expr
@@ -151,39 +170,39 @@ ifStmt = do
   ifFalse <- try elseClause <|> return Nothing
   return $ IfStatement test ifTrue ifFalse
 
-elseClause :: Parser (Maybe Statement)
+elseClause :: JSParser (Maybe Statement)
 elseClause = try (lexeme "else" >> Just <$> statement)
 
-whileStmt :: Parser Statement
+whileStmt :: JSParser Statement
 whileStmt = try $ lexeme "while" >>
   WhileStatement <$> parens expr <*> statement
 
-forStmt :: Parser Statement
+forStmt :: JSParser Statement
 forStmt = (try $ lexeme "for") >>
   For <$> forHeader <*> statement
 
 forHeader = parens $ (try forin <|> for3)
-forin = ForIn <$> expr <*> (lexeme "in" >> expr)
-for3 = For3 <$> optionMaybe expr <*>
+forin = ForIn <$> exprNoIn <*> (lexeme "in" >> expr)
+for3 = For3 <$> optionMaybe exprNoIn <*>
                 (lexeme ";" >> optionMaybe expr) <*>
                 (lexeme ";" >> optionMaybe expr)
 
-exprStmt :: Parser Statement
+exprStmt :: JSParser Statement
 exprStmt = ExprStmt <$> expr
 
-emptyStmt :: Parser Statement
+emptyStmt :: JSParser Statement
 emptyStmt = semicolon >> return EmptyStatement
 
-breakStmt :: Parser Statement
+breakStmt :: JSParser Statement
 breakStmt = lexeme "break" >> return BreakStatement
 
-continueStmt :: Parser Statement
+continueStmt :: JSParser Statement
 continueStmt = lexeme "continue" >> return ContinueStatement
 
-throwStmt :: Parser Statement
+throwStmt :: JSParser Statement
 throwStmt = try (lexeme "throw") >> ThrowStatement <$> expr
 
-tryStmt :: Parser Statement
+tryStmt :: JSParser Statement
 tryStmt = try (lexeme "try") >> TryStatement <$> realblock
              <*> optionMaybe catch <*> optionMaybe finally
     where catch = try (lexeme "catch") >>
@@ -194,7 +213,7 @@ tryStmt = try (lexeme "try") >> TryStatement <$> realblock
 
 
 
-debuggerStmt :: Parser Statement
+debuggerStmt :: JSParser Statement
 debuggerStmt = lexeme "debugger" >> return DebuggerStatement
 
 
@@ -207,7 +226,7 @@ debuggerStmt = lexeme "debugger" >> return DebuggerStatement
 
 
 
-expr :: Parser Expr
+expr :: JSParser Expr
 expr = foldr ($) simple [
   assignExpr,
   condExpr,
@@ -217,7 +236,7 @@ expr = foldr ($) simple [
   binOps [ "^" ],
   binOps [ "&" ],
   binOps [ "===", "!==", "==", "!=" ],
-  binOps [ ">=", "<=", ">", "<", "instanceof" ],
+  binOps [ ">=", "<=", ">", "<", "instanceof", "in" ],
   binOps [ ">>>", ">>", "<<" ],
   binOps ["+", "-"],
   binOps ["*", "/", "%"],
@@ -226,29 +245,31 @@ expr = foldr ($) simple [
   callExpr,
   memberExpr ] <?> "expr"
 
-memberExpr :: Parser Expr -> Parser Expr
+exprNoIn = disableInKeyword *> expr <* enableInKeyword
+
+memberExpr :: JSParser Expr -> JSParser Expr
 memberExpr p = (try (lexeme "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
            <|> baseMemberExpr p
 
-baseMemberExpr :: Parser Expr -> Parser Expr
+baseMemberExpr :: JSParser Expr -> JSParser Expr
 baseMemberExpr p = do
   base <- (functionExpr <|> p)
   extras <- many (dotExt <|> arrayExt)
   return $ foldl (flip ($)) base extras
 
-dotExt :: Parser (Expr -> Expr)
+dotExt :: JSParser (Expr -> Expr)
 dotExt = try $ do
   char '.'
   id <- identifier
   return (\e -> MemberDot e id)
 
-arrayExt :: Parser (Expr -> Expr)
+arrayExt :: JSParser (Expr -> Expr)
 arrayExt = try $ do
   x <- brackets expr
   return (\a -> MemberGet a x)
 
 
-functionExpr :: Parser Expr
+functionExpr :: JSParser Expr
 functionExpr = do
   try $ lexeme "function"
   name <- optionMaybe identifier <?> "function name"
@@ -256,21 +277,21 @@ functionExpr = do
   stmts <- braces statementList <?> "function body"
   return $ FunDef name params stmts
 
-callExpr :: Parser Expr -> Parser Expr
+callExpr :: JSParser Expr -> JSParser Expr
 callExpr p = do
   base <- p
   addons base
     where
-      addons :: Expr -> Parser Expr
+      addons :: Expr -> JSParser Expr
       addons base = (parens argumentList >>= \args -> FunCall <$> addons base <*> pure args)
                 <|> ((char '.' >> identifier) >>= \id -> MemberDot <$> addons base <*> pure id)
                 <|> (brackets expr >>= \e -> MemberGet <$> addons base <*> pure e)
                 <|> return base
 
-argumentList :: Parser [Expr]
+argumentList :: JSParser [Expr]
 argumentList = expr `sepBy` comma
 
-postfixExpr :: Parser Expr -> Parser Expr
+postfixExpr :: JSParser Expr -> JSParser Expr
 postfixExpr p = do
   e <- p
   try (postfix e) <|> return e
@@ -279,7 +300,7 @@ postfixExpr p = do
             whiteSpace
             return $ PostOp op e
 
-unaryExpr :: Parser Expr -> Parser Expr
+unaryExpr :: JSParser Expr -> JSParser Expr
 unaryExpr p = (try(unop) <|> p) <?> "unary expr"
   where unop = do
           op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
@@ -287,8 +308,8 @@ unaryExpr p = (try(unop) <|> p) <?> "unary expr"
           e <- p
           return $ UnOp op e
 
-binOps :: [String] -> Parser Expr -> Parser Expr
-binOps ops p = p `chainl1` bin ops
+binOps :: [String] -> JSParser Expr -> JSParser Expr
+binOps ops p = do { ops' <- removeIn ops; p `chainl1` bin ops' }
   where bin ops = try $ do
           op <- resOp
           whiteSpace
@@ -296,7 +317,7 @@ binOps ops p = p `chainl1` bin ops
           then return $ BinOp op
           else unexpected ("one of " ++ show ops)
 
-condExpr :: Parser Expr -> Parser Expr
+condExpr :: JSParser Expr -> JSParser Expr
 condExpr p = do
   test <- p
   choice [queryColon test, return test]
@@ -307,7 +328,7 @@ condExpr p = do
             ifFalse <- expr
             return $ Cond test ifTrue ifFalse
 
-assignExpr :: Parser Expr -> Parser Expr
+assignExpr :: JSParser Expr -> JSParser Expr
 assignExpr p = do
   expr <- p
   if isLHS expr
@@ -322,10 +343,10 @@ assignment lhs = do
 isLHS :: Expr -> Bool
 isLHS e = True -- XXX
 
-lhsExpr :: Parser Expr
+lhsExpr :: JSParser Expr
 lhsExpr = memberExpr simple
 
-simple :: Parser Expr
+simple :: JSParser Expr
 simple = parens expr
      <|> arrayLiteral
      <|> objectLiteral
@@ -335,22 +356,22 @@ simple = parens expr
      <|> num
      <|> str
 
-this :: Parser Expr
+this :: JSParser Expr
 this = try $ lexeme "this" >> return This
 
-var :: Parser Expr
+var :: JSParser Expr
 var = identifier >>= return . ReadVar
 
-str :: Parser Expr
+str :: JSParser Expr
 str = Str <$> quotedString
 
-arrayLiteral :: Parser Expr
+arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
 
-objectLiteral :: Parser Expr
+objectLiteral :: JSParser Expr
 objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
 
-regexLiteral :: Parser Expr
+regexLiteral :: JSParser Expr
 regexLiteral = do
   try (char '/')
   first <- regexFirstChar
@@ -377,12 +398,12 @@ regexClass = do
   return $ "[" ++ concat xs ++ "]"
 
 
-tostr :: Parser Char -> Parser String
+tostr :: JSParser Char -> JSParser String
 tostr p = do
   c <- p
   return [c]
 
-propertyAssignment :: Parser (PropertyName, Expr)
+propertyAssignment :: JSParser (PropertyName, Expr)
 propertyAssignment = do
   name <- (IdentProp <$> identifier
             <|> StringProp <$> quotedString
@@ -392,10 +413,10 @@ propertyAssignment = do
   return (name, val)
 
 
-quotedString :: Parser String
+quotedString :: JSParser String
 quotedString = T.stringLiteral lexer <|> singleQuotedString
 
-singleQuotedString :: Parser String
+singleQuotedString :: JSParser String
 singleQuotedString = do
   char '\''
   str <- many (noneOf "'")
@@ -403,10 +424,10 @@ singleQuotedString = do
   whiteSpace
   return str
 
-num :: Parser Expr
+num :: JSParser Expr
 num = Num <$> numericLiteral
 
-numericLiteral :: Parser JSNum
+numericLiteral :: JSParser JSNum
 numericLiteral = do
   val <- T.naturalOrFloat lexer
   return $ case val of
@@ -414,7 +435,7 @@ numericLiteral = do
     Right dbl -> JSNum dbl
 
 
-assignOp :: Parser String
+assignOp :: JSParser String
 assignOp = choice $ map op $ assignOps jsLang
   where op name = try (lexeme name) >> return name
 
