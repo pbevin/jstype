@@ -128,6 +128,7 @@ statement = choice [ block <?> "block",
                      ifStmt <?> "if",
                      forStmt <?> "for",
                      whileStmt <?> "while",
+                     terminated doWhileStmt <?> "do...while",
                      terminated returnStmt <?> "return",
                      terminated breakStmt <?> "break",
                      terminated continueStmt <?> "continue",
@@ -181,6 +182,14 @@ elseClause = try (keyword "else" >> Just <$> statement)
 whileStmt :: JSParser Statement
 whileStmt = try $ keyword "while" >>
   WhileStatement <$> parens expr <*> statement
+
+doWhileStmt :: JSParser Statement
+doWhileStmt = try $ keyword "do" >> do
+  stmt <- statement
+  keyword "while"
+  e <- parens expr
+  return $ DoWhileStatement e stmt
+  
 
 forStmt :: JSParser Statement
 forStmt = (try $ keyword "for") >>

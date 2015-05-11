@@ -101,6 +101,10 @@ spec = do
     it "parses a while statement" $ do
       simpleParse "while (a) { }" `shouldBe` Program [WhileStatement (ReadVar "a") (Block [])]
 
+    it "parses a do-while statement" $ do
+      simpleParse "do {} while (a);" `shouldBe` Program [DoWhileStatement (ReadVar "a") (Block [])]
+
+
     it "parses a var declaration" $ do
       simpleParse "var a;" `shouldBe` Program [VarDecl [("a", Nothing)]]
       simpleParse "var a, b;" `shouldBe` Program [VarDecl [("a", Nothing),
