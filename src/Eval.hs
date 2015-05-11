@@ -45,6 +45,9 @@ instance Fractional JSNum where
   (JSNum a) / (JSNum b) = JSNum (a / b)
   fromRational r = JSNum $ fromRational r
 
+instance Ord JSNum where
+  (JSNum a) < (JSNum b) = a < b
+
 instance Num JSVal where
   (VNum a) + (VNum b) = VNum (a + b)
   (VNum a) - (VNum b) = VNum (a - b)
@@ -82,6 +85,7 @@ runProg (Program stmts) = forM_ stmts runStmt
 runStmt :: Statement -> JSRuntime ()
 runStmt s = case s of
   ExprStmt e -> void $ runExprStmt e
+
   VarDecl assignments ->
     forM_ assignments $ \(x, e) -> case e of 
       Nothing -> putVar x VUndef
@@ -98,9 +102,12 @@ runStmt s = case s of
         then do
           runStmt stmt
           maybeRunExprStmt e3
+          iterate
         else return ()
 
+  Block stmts -> forM_ stmts runStmt
 
+  EmptyStatement -> return ()
   _ -> error ("Unimplemented stmt: " ++ show s)
 
 maybeRunExprStmt :: Maybe Expr -> JSRuntime ()
@@ -123,15 +130,13 @@ runExprStmt expr = case expr of
 
   Assign (ReadVar x) op e -> do
     v <- runExprStmt e
-    env <- get
-    let old = maybe VUndef id $ M.lookup x env
-    let new = assignOp op old v
-    put $ M.insert x new env
-
-    return new
+    updateVar (opAssign op v) x
 
   BinOp op e1 e2 -> do
     evalBinOp op <$> runExprStmt e1 <*> runExprStmt e2
+
+  PostOp op (ReadVar x) -> do
+    updateVar (+1) x
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
@@ -148,6 +153,17 @@ putVar x v = do
   put (M.insert x v env)
   return ()
 
+updateVar :: (JSVal -> JSVal) -> Ident -> JSRuntime JSVal
+updateVar f x = do
+  env <- get
+
+  let old = maybe VUndef id $ M.lookup x env
+  let new = f old
+
+  put $ M.insert x new env
+
+  return new
+
 funCall :: JSVal -> [JSVal] -> JSRuntime JSVal
 funCall (VNative f) args = f args
 
@@ -157,7 +173,10 @@ assignOp "+=" = (+)
 assignOp "-=" = (-)
 assignOp "*=" = (*)
 assignOp "/=" = (/)
+assignOp other = error $ "No assignOp for " ++ show other
 
+opAssign :: String -> (JSVal -> JSVal -> JSVal)
+opAssign op = flip (assignOp op)
 
 isTruthy :: JSVal -> Bool
 isTruthy (VNum 0)      = False
@@ -176,8 +195,10 @@ showVal (VNum (JSNum n)) = show (round n :: Integer)
 showVal VUndef = "(undefined)"
 
 evalBinOp :: String -> JSVal -> JSVal -> JSVal
-evalBinOp op (VNum v1) (VNum v2) = VNum $ case op of
-  "+" -> v1 + v2
-  "-" -> v1 - v2
-  "*" -> v1 * v2
-  "/" -> v1 / v2
+evalBinOp op (VNum v1) (VNum v2) = case op of
+  "+" -> VNum $ v1 + v2
+  "-" -> VNum $ v1 - v2
+  "*" -> VNum $ v1 * v2
+  "/" -> VNum $ v1 / v2
+  "<" -> VBool $ v1 < v2
+  other -> error $ "No such binop: " ++ other

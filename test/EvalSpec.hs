@@ -31,3 +31,6 @@ spec = do
     runJS "a = 10; a -= 1; console.log(a);" `shouldBe` Right "9\n"
     runJS "a = 10; a *= 3; console.log(a);" `shouldBe` Right "30\n"
     runJS "a = 10; a /= 2; console.log(a);" `shouldBe` Right "5\n"
+
+  it "runs loops" $ do
+    runJS "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldBe` Right "45\n"
