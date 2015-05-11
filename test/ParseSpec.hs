@@ -30,9 +30,10 @@ spec = do
       parseExpr "'single quoted'" `shouldBe` Str "single quoted"
       parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"
 
-    it "parses array literals" $ do
+    it "parses object literals" $ do
       parseExpr "{}" `shouldBe` ObjectLiteral []
       parseExpr "{a: 1}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1)]
+      parseExpr "{a: 1, b: 2}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1), (IdentProp "b", Num 2)]
 
     it "parses regular expression literals" $ do
       parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"

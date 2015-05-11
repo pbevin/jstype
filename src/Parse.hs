@@ -155,7 +155,7 @@ varAssign = do
   assignment id <|> return (id, Nothing)
     where assignment id = do
             lexeme "="
-            e <- expr
+            e <- assignmentExpr
             return (id, Just e)
 
 returnStmt :: JSParser Statement
@@ -241,7 +241,11 @@ debuggerStmt = keyword "debugger" >> return DebuggerStatement
 
 
 expr :: JSParser Expr
-expr = foldr ($) simple [
+expr = assignmentExpr `chainl1` commaExpr
+  where commaExpr = lexeme "," >> (return $ BinOp ",")
+
+assignmentExpr :: JSParser Expr
+assignmentExpr = foldr ($) simple [
   assignExpr,
   condExpr,
   binOps [ "||" ],
@@ -303,7 +307,7 @@ callExpr p = do
                 <|> return base
 
 argumentList :: JSParser [Expr]
-argumentList = expr `sepBy` comma
+argumentList = assignmentExpr `sepBy` comma
 
 postfixExpr :: JSParser Expr -> JSParser Expr
 postfixExpr p = do
@@ -384,6 +388,14 @@ arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
 
 objectLiteral :: JSParser Expr
 objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
+  where
+    propertyAssignment = do
+      name <- (IdentProp <$> identifier
+                <|> StringProp <$> quotedString
+                <|> NumProp <$> numericLiteral)
+      lexeme ":"
+      val <- assignmentExpr
+      return (name, val)
 
 regexLiteral :: JSParser Expr
 regexLiteral = do
@@ -416,15 +428,6 @@ tostr :: JSParser Char -> JSParser String
 tostr p = do
   c <- p
   return [c]
-
-propertyAssignment :: JSParser (PropertyName, Expr)
-propertyAssignment = do
-  name <- (IdentProp <$> identifier
-            <|> StringProp <$> quotedString
-            <|> NumProp <$> numericLiteral)
-  lexeme ":"
-  val <- expr
-  return (name, val)
 
 
 quotedString :: JSParser String
