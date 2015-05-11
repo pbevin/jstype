@@ -20,6 +20,7 @@ data JSVal = VNum JSNum
            | VMap (M.Map Ident JSVal)
            | VNative ([JSVal] -> JSRuntime JSVal)
            | JSVoid
+           | JSErrorObj JSVal
            deriving Show
 
 instance Eq JSVal where
@@ -118,6 +119,7 @@ maybeRunExprStmt (Just e) = void (runExprStmt e)
 runExprStmt :: Expr -> JSRuntime JSVal
 runExprStmt expr = case expr of
   Num n          -> return $ VNum n
+  Str s          -> return $ VStr s
   ReadVar x      -> lookupVar x
   MemberDot e x  -> do
     VMap m <- runExprStmt e
@@ -137,6 +139,11 @@ runExprStmt expr = case expr of
 
   PostOp op (ReadVar x) -> do
     updateVar (+1) x
+
+  NewExpr f args -> do
+    if f == ReadVar "Error"
+    then JSErrorObj <$> (runExprStmt $ head args)
+    else error "Can only new Error() so far"
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
