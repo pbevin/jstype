@@ -20,6 +20,7 @@ main = do
 runFile :: String -> IO ()
 runFile filename = do
   input <- readFile filename
-  case runJS input of
+  result <- runJS input
+  case result of
     Right output -> putStr output
     Left err -> hPutStrLn stderr (show err) >> exitFailure

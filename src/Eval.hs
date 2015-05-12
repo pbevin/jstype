@@ -63,20 +63,22 @@ instance Fractional JSVal where
   (VNum a) / (VNum b) = VNum (a / b)
   fromRational r = VNum $ fromRational r
 
-runJS :: String -> Either JSError String
-runJS input = case runJS' input of
-  (Left err, _, _)     -> Left err
-  (Right _, output, _) -> Right output
+runJS :: String -> IO (Either JSError String)
+runJS input = do
+  r <- runJS' input
+  case r of
+    (Left err, _, _)     -> return $ Left err
+    (Right _, output, _) -> return $ Right output
 
-runJS' :: String -> (Either JSError (), JSOutput, JSEnv)
+runJS' :: String -> IO (Either JSError (), JSOutput, JSEnv)
 runJS' input = case parseJS input of
   Left err -> error (show err)
-  Right ast -> runJSRuntime (runProg ast)
+  Right ast -> return $ runJSRuntime (runProg ast)
 
-jsEvalExpr :: String -> JSVal
+jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = case runJSRuntime (runExprStmt $ parseExpr input) of
   (Left err, _, _)  -> error (show err)
-  (Right val, _, _) -> val
+  (Right val, _, _) -> return val
 
 runJSRuntime :: JSRuntime a -> (Either JSError a, JSOutput, JSEnv)
 runJSRuntime a = let ((result, output), env) = runState (runWriterT (runExceptT (unJS a))) initialEnv
