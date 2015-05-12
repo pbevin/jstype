@@ -17,15 +17,14 @@ spec = do
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum 3.33333333
 
+  it "adds two strings" $ do
+    jsEvalExpr "\"a\" + \"b\"" `shouldReturn` VStr "ab"
+
   it "evaluates a program" $ do
     runJS "console.log(1);" `shouldReturn` Right "1\n"
     runJS "a = 3; console.log(a);" `shouldReturn` Right "3\n"
     runJS "a = 3; console.log(a+4);" `shouldReturn` Right "7\n"
   
-  it "assigns a variable" $ do
-    (Right _, _, env) <- runJS' "var a = 3"
-    M.lookup "a" env `shouldBe` Just (VNum 3)
-
   it "does update-assignments" $ do
     runJS "a = 10; a += 1; console.log(a);" `shouldReturn` Right "11\n"
     runJS "a = 10; a -= 1; console.log(a);" `shouldReturn` Right "9\n"
