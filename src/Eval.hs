@@ -49,7 +49,7 @@ instance Fractional JSNum where
   fromRational r = JSNum $ fromRational r
 
 instance Ord JSNum where
-  (JSNum a) < (JSNum b) = a < b
+  compare (JSNum a) (JSNum b) = compare a b
 
 instance Num JSVal where
   (VNum a) + (VNum b) = VNum (a + b)
