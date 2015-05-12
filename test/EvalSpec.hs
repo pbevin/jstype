@@ -36,3 +36,6 @@ spec = do
 
   it "can call a function" $ do
     runJS "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldReturn` Right "hi\n"
+
+  it "can define a simple object" $ do
+    runJS "function A() { this.a = 0; }; A.prototype.inc = function() { this.a++ }; var a = new A(); a.inc(); console.log(a.a);" `shouldReturn` Right "1\n"

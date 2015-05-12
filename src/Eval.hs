@@ -122,9 +122,10 @@ runExprStmt env expr = case expr of
   ReadVar x      -> lookupVar env x
 
   MemberDot e x  -> do
-    lref <- runExprStmt env e
-    VMap m <- getValue lref
-    return $ maybe VUndef id $ M.lookup x m
+    lval <- runExprStmt env e >>= getValue
+    case lval of
+      VMap m -> return $ maybe VUndef id $ M.lookup x m
+      _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
 
   FunCall f args -> do
     f' <- runExprStmt env f >>= getValue
