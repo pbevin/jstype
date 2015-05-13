@@ -5,6 +5,7 @@ import Test.Hspec
 import qualified Data.Map as M
 import Expr
 import Eval
+import Runtime.Types
 
 spec :: Spec
 spec = do
