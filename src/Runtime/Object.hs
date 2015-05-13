@@ -15,25 +15,45 @@ newObject = liftIO $ do
                               ownProperties = M.fromList [("prototype", VObj prototype)],
                               callMethod = uncallable }
 
+newObjectFromConstructor :: JSVal -> JSRuntime (IORef JSObj)
+newObjectFromConstructor (VObj funref) = do
+  obj <- newObject
+  f <- liftIO $ readIORef funref
+  prototype <- objGetProperty f "prototype"
+  liftIO $ modifyIORef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+  return obj
+
 objectPrototype :: JSObj
 objectPrototype = JSObj { objClass = "Object",
                           ownProperties = M.fromList [("prototype", VUndef)],
                           callMethod = uncallable }
+
+objSetProperty :: String -> JSVal -> JSObj -> JSObj
+objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
 
 -- objCreate :: M.Map String JSVal -> M.Map String (IORef JSVal) -> JSRuntime (IORef JSObj)
 -- objCreate internals ownProperties = liftIO $ newIORef $ JSObj internals ownProperties
 
 
 -- ref 8.12.1, incomplete
-objGetOwnProperty :: IORef JSObj -> String -> JSRuntime (Maybe JSVal)
-objGetOwnProperty objref name = liftIO $ do
-  obj <- readIORef objref
+objGetOwnProperty :: JSObj -> String -> JSRuntime (Maybe JSVal)
+objGetOwnProperty obj name = liftIO $ do
   return $ M.lookup name (ownProperties obj)
 
 -- ref 8.12.2, incomplete
-objGetProperty :: IORef JSObj -> String -> JSRuntime (Maybe JSVal)
+objGetProperty :: JSObj -> String -> JSRuntime (Maybe JSVal)
 -- objGetProperty objref key = liftIO $ readIORef objref >>= \obj -> return $ fromJust $ M.lookup key $ objInternal obj
-objGetProperty = objGetOwnProperty
+objGetProperty obj name = do
+  prop <- objGetOwnProperty obj name
+  case prop of
+    Just _ -> return prop
+    Nothing -> do
+      let prototype = M.lookup "prototype" (ownProperties obj)
+      case prototype of
+        Just (VObj obj) -> do
+          proto <- liftIO $ readIORef obj
+          objGetProperty proto name
+        _ -> return Nothing
 
 uncallable :: JSVal -> [JSVal] -> JSRuntime JSVal
 uncallable _ _ = error "Can't call this object"

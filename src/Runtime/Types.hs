@@ -27,7 +27,7 @@ instance Show JSVal where
   show (VNum a) = show a
   show (VStr a) = show a
   show (VBool a) = show a
-  show (VRef _) = "(reference)"
+  show (VRef ref) = "(reference " ++ show ref ++ ")"
   show VUndef = "undefined"
   show (VObj _) = "[Object object]"
   show (VMap _) = "(map)"
@@ -43,7 +43,7 @@ data JSObj = JSObj {
 }
 
 
-data JSRef = JSRef { getBase :: JSVal, getReferencedName :: String, isStrictReference :: Bool }
+data JSRef = JSRef { getBase :: JSVal, getReferencedName :: String, isStrictReference :: Bool } deriving Show
 
 data JSType = TypeUndefined
             | TypeNull

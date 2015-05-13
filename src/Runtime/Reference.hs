@@ -50,7 +50,8 @@ isUnresolvableReference ref =
 
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal
-getValuePropertyReference (JSRef (VObj obj) name isStrict) = do
+getValuePropertyReference (JSRef (VObj objref) name isStrict) = do
+  obj <- liftIO $ readIORef objref
   val <- objGetProperty obj name
   case val of
     Nothing -> return VUndef
@@ -68,7 +69,7 @@ getValueEnvironmentRecord (JSRef (VEnv envref) name isStrict) = liftIO $ do
 getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
 
 
-  
+
 
 
 

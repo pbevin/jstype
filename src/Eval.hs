@@ -117,7 +117,9 @@ runExprStmt env expr = case expr of
   NewExpr f args -> do
     if f == ReadVar "Error"
     then JSErrorObj <$> (runExprStmt env $ head args)
-    else newObject >>= return . VObj
+    else do
+      fun <- runExprStmt env f >>= getValue
+      newObjectFromConstructor fun >>= return . VObj
 
   FunDef (Just name) params body -> do
     fun <- createFunction params body env
@@ -222,7 +224,8 @@ createFunction :: [Ident] -> [Statement] -> JSEnv -> JSRuntime JSVal
 createFunction paramList body env = do
     objref <- newObject
     liftIO $ modifyIORef objref $
-      \obj -> obj { objClass = "Function", callMethod = funcCall env paramList body }
+      \obj -> obj { objClass = "Function",
+                    callMethod = funcCall env paramList body }
     return $ VObj objref
 
 
