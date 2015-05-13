@@ -48,9 +48,9 @@ isUnresolvableReference ref =
 
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal
-getValuePropertyReference = undefined
+getValuePropertyReference ref = return $ VStr "qqq"
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
-getValueEnvironmentRecord = undefined
+getValueEnvironmentRecord ref = return $ VStr "www"
 
 
 
@@ -74,13 +74,13 @@ getValueEnvironmentRecord = undefined
 
 
 putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
-putUnresolvable = undefined
+putUnresolvable ref val = return ()
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
-putPropertyReference = undefined
+putPropertyReference ref val = return ()
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord = undefined
+putEnvironmentRecord ref val = return ()
 
 
 

@@ -19,6 +19,7 @@ data JSVal = VNum JSNum
            | VObj JSObj
            | VMap (M.Map Ident JSVal)
            | VNative ([JSVal] -> JSRuntime JSVal)
+           | VPrim PrimitiveFunction
            | JSErrorObj JSVal
            | VEnv JSEnv
 
@@ -33,7 +34,7 @@ instance Show JSVal where
   show (VNative _) = "(native function)"
   show (JSErrorObj a) = "JSError(" ++ show a ++ ")"
 
-data JSObj = JSObj
+data JSObj = JSObj { objInternal :: M.Map String JSVal }
 
 data JSRef = JSRef { getBase :: JSVal, getReferencedName :: String, isStrictReference :: Bool }
 
@@ -67,6 +68,7 @@ instance Eq JSVal where
 type JSOutput = String
 type JSError = String
 type JSEnv = IORef (M.Map Ident (IORef JSVal))
+type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 newtype JSRuntime a = JS {
   unJS :: ExceptT JSError (WriterT String IO) a

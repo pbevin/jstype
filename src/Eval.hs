@@ -94,7 +94,7 @@ runExprStmt env expr = case expr of
     func <- getValue ref
     argList <- evalArguments env args
     let thisValue = computeThisValue ref
-    objInternalCall func thisValue argList
+    objRunPrimitive "call" func thisValue argList
 
   Assign lhs op e -> do
     lref <- runExprStmt env lhs
@@ -120,7 +120,7 @@ runExprStmt env expr = case expr of
     else error "Can only new Error() so far"
 
   FunDef (Just name) params body -> do
-    fun <- createFunction params body env
+    let fun = createFunction params body env
     putVar env name fun
     return fun
 
@@ -216,15 +216,41 @@ evalBinOp op v1 v2 = error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 -------------------------------------------------
 
-createFunction :: [Ident] -> [Statement] -> JSEnv -> JSRuntime JSVal
-createFunction = undefined
+createFunction :: [Ident] -> [Statement] -> JSEnv -> JSVal
+createFunction paramList body env = do
+  VObj $ objSetInternalProperties objCreate
+    [ ("class", VStr "Function"),
+      ("prototype", funcProto),
+      ("call", prim funcCall),
+      ("construct", prim funcConstruct) ]
+
+objCreate :: JSObj
+objCreate = JSObj M.empty
+
+objSetInternalProperties :: JSObj -> [(String, JSVal)] -> JSObj
+objSetInternalProperties obj props = obj
+
+    
+funcProto :: JSVal
+funcProto = VObj objCreate
+
+funcCall, funcConstruct :: PrimitiveFunction
+funcCall this args = return $ VStr "jjj"
+funcConstruct this args = return $ VStr "kkk"
+
+prim :: PrimitiveFunction -> JSVal
+prim = VPrim
 
 
-objInternalCall :: JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
-objInternalCall = undefined
 
 
-typeOf :: JSVal -> JSType
-typeOf = undefined
+objRunPrimitive :: String -> JSVal -> PrimitiveFunction
+objRunPrimitive key obj = maybe nullFunc getPrim $ objLookupInternal key obj
+  where getPrim (VPrim f) = f
+        getPrim _ = nullFunc
+        nullFunc = \_ _ -> return VUndef
 
-
+objLookupInternal :: String -> JSVal -> Maybe JSVal
+objLookupInternal key (VObj obj) =
+  M.lookup key (objInternal obj)
+objLookupInternal key val = error $ "Can't lookup " ++ key ++ " in " ++ show val
