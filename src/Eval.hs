@@ -27,12 +27,11 @@ runJS input = do
 runJS' :: String -> IO (Either JSError (), String)
 runJS' input = case parseJS input of
   Left err -> error (show err)
-  Right ast -> runJSRuntime (liftIO initialEnv >>= runProg ast)
+  Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
-  env <- initialEnv
-  result <- runJSRuntime (runExprStmt env $ parseExpr input)
+  result <- runJSRuntime (initialCxt >>= \cxt -> runExprStmt cxt $ parseExpr input)
   case result of
     (Left err, _)  -> error (show err)
     (Right val, _) -> return val
@@ -41,97 +40,109 @@ runJSRuntime :: JSRuntime a -> IO (Either JSError a, String)
 runJSRuntime a = runWriterT (runExceptT (unJS a))
 
 
+initialCxt :: JSRuntime JSCxt
+initialCxt = do
+  this <- newObject
+  lexEnv <- initialEnv
+  varEnv <- liftIO $ newIORef M.empty
+  return $ JSCxt lexEnv varEnv (VObj this)
+
+initialEnv :: JSRuntime JSEnv
+initialEnv = liftIO $ do
+  console <- newIORef $ VMap $ M.fromList [ ("log", VNative jsConsoleLog) ]
+  newIORef $ M.fromList [ ("console", console) ]
 
 
-runProg :: Program -> JSEnv -> JSRuntime ()
-runProg (Program stmts) env = forM_ stmts (runStmt env)
 
-runStmt :: JSEnv -> Statement -> JSRuntime ()
-runStmt env s = case s of
-  ExprStmt e -> void $ runExprStmt env e
+runProg :: Program -> JSRuntime ()
+runProg (Program stmts) = do
+  cxt <- initialCxt
+  forM_ stmts $ runStmt cxt
+
+runStmt :: JSCxt -> Statement -> JSRuntime ()
+runStmt cxt s = case s of
+  ExprStmt e -> void $ runExprStmt cxt e
 
   VarDecl assignments ->
     forM_ assignments $ \(x, e) -> case e of
-      Nothing  -> putVar env x VUndef
-      Just e' -> do { v <- runExprStmt env e'; putVar env x v }
+      Nothing  -> putVar cxt x VUndef
+      Just e' -> do { v <- runExprStmt cxt e'; putVar cxt x v }
 
   For (For3 e1 e2 e3) stmt ->
-    maybeRunExprStmt env e1 >> keepGoing where
+    maybeRunExprStmt cxt e1 >> keepGoing where
       keepGoing = do
         willEval <- case e2 of
           Nothing  -> pure True
-          Just e2' -> isTruthy <$> runExprStmt env e2'
+          Just e2' -> isTruthy <$> runExprStmt cxt e2'
 
-        if willEval
-        then do
-          runStmt env stmt
-          maybeRunExprStmt env e3
+        when willEval $ do
+          runStmt cxt stmt
+          maybeRunExprStmt cxt e3
           keepGoing
-        else return ()
 
-  Block stmts -> forM_ stmts (runStmt env)
+  Block stmts -> forM_ stmts (runStmt cxt)
 
   EmptyStatement -> return ()
   _ -> error ("Unimplemented stmt: " ++ show s)
 
-maybeRunExprStmt :: JSEnv -> Maybe Expr -> JSRuntime ()
+maybeRunExprStmt :: JSCxt -> Maybe Expr -> JSRuntime ()
 maybeRunExprStmt _ Nothing  = return ()
-maybeRunExprStmt env (Just e) = void (runExprStmt env e)
+maybeRunExprStmt cxt (Just e) = void (runExprStmt cxt e)
 
 
-runExprStmt :: JSEnv -> Expr -> JSRuntime JSVal
-runExprStmt env expr = case expr of
+runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
+runExprStmt cxt expr = case expr of
   Num n          -> return $ VNum n
   Str s          -> return $ VStr s
-  ReadVar x      -> lookupVar env x
+  ReadVar x      -> lookupVar cxt x
 
   MemberDot e x  -> do
-    lval <- runExprStmt env e >>= getValue
+    lval <- runExprStmt cxt e >>= getValue
     case lval of
       VMap m -> return $ maybe VUndef id $ M.lookup x m
       VObj _ -> return $ VRef (JSRef lval x False)
       _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
-    ref <- runExprStmt env f
+    ref <- runExprStmt cxt f
     func <- getValue ref
-    argList <- evalArguments env args
+    argList <- evalArguments cxt args
     let thisValue = computeThisValue ref
-    objCall env func thisValue argList
+    objCall cxt func thisValue argList
 
   Assign lhs op e -> do
-    lref <- runExprStmt env lhs
-    rref <- runExprStmt env e
+    lref <- runExprStmt cxt lhs
+    rref <- runExprStmt cxt e
     updateRef (assignOp op) lref rref
 
-  BinOp op e1 e2 -> do
-    evalBinOp op <$> (runExprStmt env e1 >>= getValue)
-                 <*> (runExprStmt env e2 >>= getValue)
+  BinOp op e1 e2 ->
+    evalBinOp op <$> (runExprStmt cxt e1 >>= getValue)
+                 <*> (runExprStmt cxt e2 >>= getValue)
 
   PostOp op e -> do -- ref 11.3
-    lhs <- runExprStmt env e
+    lhs <- runExprStmt cxt e
     lval <- getValue lhs
     putValue lhs (postfixUpdate op lval)
     return lval
 
-  NewExpr f args -> do
+  NewExpr f args ->
     if f == ReadVar "Error"
-    then JSErrorObj <$> (runExprStmt env $ head args)
+    then JSErrorObj <$> runExprStmt cxt (head args)
     else do
-      fun <- runExprStmt env f >>= getValue
-      newObjectFromConstructor fun >>= return . VObj
+      fun <- runExprStmt cxt f >>= getValue
+      liftM VObj (newObjectFromConstructor fun)
 
   FunDef (Just name) params body -> do
-    fun <- createFunction params body env
-    putVar env name fun
+    fun <- createFunction params body cxt
+    putVar cxt name fun
     return fun
 
-  FunDef Nothing params body -> createFunction params body env
+  FunDef Nothing params body -> createFunction params body cxt
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
-evalArguments :: JSEnv -> [Expr] -> JSRuntime [JSVal]
-evalArguments env = mapM (\a -> runExprStmt env a >>= getValue)
+evalArguments :: JSCxt -> [Expr] -> JSRuntime [JSVal]
+evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
 
 computeThisValue :: JSVal -> JSVal
 computeThisValue v = case v of
@@ -143,20 +154,20 @@ computeThisValue v = case v of
   _ -> VUndef
 
 
-putVar :: JSEnv -> Ident -> JSVal -> JSRuntime ()
-putVar envref x v = liftIO $ do
-  env <- readIORef envref
-  let valref = M.lookup x env
+putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
+putVar (JSCxt envref _ _) x v = liftIO $ do
+  cxt <- readIORef envref
+  let valref = M.lookup x cxt
   case valref of
     Nothing -> do
       newRef <- newIORef v
-      writeIORef envref (M.insert x newRef env)
+      writeIORef envref (M.insert x newRef cxt)
     Just ref  -> writeIORef ref v
   return ()
 
-lookupVar :: JSEnv -> Ident -> JSRuntime JSVal
+lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
 lookupVar envref x = do
-  return $ VRef $ JSRef (VEnv envref) x False
+  return $ VRef $ JSRef (VCxt envref) x False
 
 
 updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
@@ -182,10 +193,6 @@ isTruthy VUndef        = False
 isTruthy (VBool False) = False
 isTruthy _             = True
 
-initialEnv :: IO JSEnv
-initialEnv = do
-  console <- newIORef $ VMap $ M.fromList [ ("log", VNative jsConsoleLog) ]
-  newIORef $ M.fromList [ ("console", console) ]
 
 jsConsoleLog :: JSVal -> [JSVal] -> JSRuntime JSVal
 jsConsoleLog _this xs = tell ((intercalate " " $ map showVal xs) ++ "\n") >> return VUndef
@@ -199,7 +206,7 @@ showVal other = show other
 postfixUpdate :: String -> JSVal -> JSVal
 postfixUpdate "++" (VNum v) = VNum (v+1)
 postfixUpdate "--" (VNum v) = VNum (v-1)
-postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ (show v)
+postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 
 evalBinOp :: String -> JSVal -> JSVal -> JSVal
 evalBinOp op (VNum v1) (VNum v2) = case op of
@@ -220,30 +227,30 @@ evalBinOp op v1 v2 = error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 -------------------------------------------------
 
-createFunction :: [Ident] -> [Statement] -> JSEnv -> JSRuntime JSVal
-createFunction paramList body env = do
+createFunction :: [Ident] -> [Statement] -> JSCxt -> JSRuntime JSVal
+createFunction paramList body cxt = do
     objref <- newObject
     liftIO $ modifyIORef objref $
       \obj -> obj { objClass = "Function",
-                    callMethod = funcCall env paramList body }
+                    callMethod = funcCall cxt paramList body }
     return $ VObj objref
 
 
-funcCall :: JSEnv -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
-funcCall env paramList body this args =
-  let makeRef name = JSRef (VEnv env) name False
+funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
+funcCall cxt paramList body this args =
+  let makeRef name = JSRef (VCxt cxt) name False
       refs = map makeRef paramList
   in do
     zipWithM_ putEnvironmentRecord refs args
-    forM_ body (runStmt env)
+    forM_ body (runStmt cxt)
     return VUndef
 
 
 prim :: PrimitiveFunction -> JSVal
 prim = VPrim
 
-objCall :: JSEnv -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
-objCall env func this args = case func of
+objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCall cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> liftIO (readIORef objref) >>= \obj -> (callMethod obj) this args
   _ -> error $ "Can't call " ++ show func

@@ -21,7 +21,7 @@ data JSVal = VNum JSNum
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
            | JSErrorObj JSVal
-           | VEnv JSEnv
+           | VCxt JSCxt
 
 instance Show JSVal where
   show (VNum a) = show a
@@ -75,6 +75,7 @@ instance Eq JSVal where
 
 type JSOutput = String
 type JSError = String
+data JSCxt = JSCxt { lexEnv :: JSEnv, varEnv :: JSEnv, thisBinding :: JSVal }
 type JSEnv = IORef (M.Map Ident (IORef JSVal))
 type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 

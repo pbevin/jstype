@@ -63,7 +63,7 @@ getValuePropertyReference _ = error "Internal error in getValuePropertyReference
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
-getValueEnvironmentRecord (JSRef (VEnv envref) name isStrict) = liftIO $ do
+getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) = liftIO $ do
   env <- readIORef envref
   maybe (return VUndef) readIORef $ M.lookup name env
 getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
@@ -102,7 +102,7 @@ putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ do
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord (JSRef (VEnv envref) name isStrict) val = liftIO $ do
+putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) val = liftIO $ do
   env <- readIORef envref
   case M.lookup name env of
     Just ref -> writeIORef ref val
