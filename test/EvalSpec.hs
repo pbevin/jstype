@@ -39,4 +39,4 @@ spec = do
     runJS "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldReturn` Right "hi\n"
 
   it "can define a simple object" $ do
-    runJS "function A() { this.a = 0; }; A.prototype.inc = function() { this.a++ }; var a = new A(); a.inc(); console.log(a.a);" `shouldReturn` Right "1\n"
+    runJS "function Counter() { this.val = 0; }; Counter.prototype.inc = function() { this.val++ }; var counter = new Counter(); counter.inc(); counter.inc(); console.log(counter.val);" `shouldReturn` Right "2\n"

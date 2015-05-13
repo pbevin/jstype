@@ -3,6 +3,7 @@ module Runtime.Reference where
 import Control.Monad.Except
 import qualified Data.Map as M
 import Data.IORef
+import Runtime.Object
 import Runtime.Types
 
 -- ref 8.7.1
@@ -49,7 +50,15 @@ isUnresolvableReference ref =
 
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal
-getValuePropertyReference _ = return $ VStr "qqq"
+getValuePropertyReference (JSRef (VObj obj) name isStrict) = do
+  val <- objGetProperty obj name
+  case val of
+    Nothing -> return VUndef
+    Just v  -> return v
+
+getValuePropertyReference _ = error "Internal error in getValuePropertyReference"
+
+
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
@@ -83,10 +92,17 @@ getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord
 
 
 putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
-putUnresolvable _ref _val = return ()
+putUnresolvable _ref _val = error "Can't putUnresolvable"
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
-putPropertyReference _ref _val = return ()
+putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ do
+  obj <- readIORef objref
+  case M.lookup name (ownProperties obj) of
+    Just ref -> writeIORef ref val
+    Nothing -> do
+      ref <- newIORef val
+      writeIORef objref $ obj { ownProperties = M.insert name ref (ownProperties obj) }
+putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
 putEnvironmentRecord (JSRef (VEnv envref) name isStrict) val = liftIO $ do
@@ -96,6 +112,7 @@ putEnvironmentRecord (JSRef (VEnv envref) name isStrict) val = liftIO $ do
     Nothing -> do
       ref <- newIORef val
       writeIORef envref (M.insert name ref env)
+putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
 

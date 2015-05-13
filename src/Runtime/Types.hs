@@ -16,12 +16,10 @@ data JSVal = VNum JSNum
            | VBool Bool
            | VRef JSRef
            | VUndef
-           | VObj JSObj
+           | VObj (IORef JSObj)
            | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
-           | VFormalParams [Ident]
-           | VFuncBody [Statement]
            | JSErrorObj JSVal
            | VEnv JSEnv
 
@@ -36,7 +34,13 @@ instance Show JSVal where
   show (VNative _) = "(native function)"
   show (JSErrorObj a) = "JSError(" ++ show a ++ ")"
 
-data JSObj = JSObj { objInternal :: M.Map String JSVal }
+data JSObj = JSObj {
+  objPrototype :: Maybe JSObj,
+  objClass :: String,
+  ownProperties :: M.Map Ident (IORef JSVal),
+  callMethod :: JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
+}
+
 
 data JSRef = JSRef { getBase :: JSVal, getReferencedName :: String, isStrictReference :: Bool }
 

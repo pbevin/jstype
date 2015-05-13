@@ -13,6 +13,7 @@ import Text.Show.Functions
 import Parse
 import Expr
 import Runtime.Types
+import Runtime.Object
 import Runtime.Reference
 import Debug.Trace
 
@@ -88,6 +89,7 @@ runExprStmt env expr = case expr of
     lval <- runExprStmt env e >>= getValue
     case lval of
       VMap m -> return $ maybe VUndef id $ M.lookup x m
+      VObj obj -> return $ VRef (JSRef lval x False)
       _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
@@ -118,9 +120,11 @@ runExprStmt env expr = case expr of
     else error "Can only new Error() so far"
 
   FunDef (Just name) params body -> do
-    let fun = createFunction params body env
+    fun <- createFunction params body env
     putVar env name fun
     return fun
+
+  FunDef Nothing params body -> createFunction params body env
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
@@ -214,36 +218,20 @@ evalBinOp op v1 v2 = error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 -------------------------------------------------
 
-createFunction :: [Ident] -> [Statement] -> JSEnv -> JSVal
+createFunction :: [Ident] -> [Statement] -> JSEnv -> JSRuntime JSVal
 createFunction paramList body env = do
-  VObj $ objSetInternalProperties objCreate
-    [ ("class", VStr "Function"),
-      ("prototype", funcProto),
-      ("formalParameters", VFormalParams paramList),
-      ("body", VFuncBody body) ]
-      -- ("call", prim funcCall),
-      -- ("construct", prim funcConstruct) ]
+    objref <- newObject
+    liftIO $ modifyIORef objref $
+      \obj -> obj { objClass = "Function", callMethod = funcCall env paramList body }
+    return $ VObj objref
 
-objCreate :: JSObj
-objCreate = JSObj M.empty
-
-objSetInternalProperties :: JSObj -> [(String, JSVal)] -> JSObj
-objSetInternalProperties obj props = obj { objInternal = objInternal obj `M.union` M.fromList props }
-
-objGetProperty :: JSObj -> String -> JSVal -- XXX should be Maybe
-objGetProperty obj key = fromJust $ M.lookup key $ objInternal obj
-
-funcProto :: JSVal
-funcProto = VObj objCreate
 
 funcConstruct :: JSObj -> PrimitiveFunction
 funcConstruct obj this args = return $ VStr "kkk"
 
-funcCall :: JSEnv -> JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
-funcCall env obj this args =
-  let VFormalParams paramList = objGetProperty obj "formalParameters"
-      VFuncBody body = objGetProperty obj "body"
-      makeRef name = JSRef (VEnv env) name False
+funcCall :: JSEnv -> [Ident] -> [Statement] -> JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
+funcCall env paramList body obj this args =
+  let makeRef name = JSRef (VEnv env) name False
       refs = map makeRef paramList
   in do
     zipWithM_ putEnvironmentRecord refs args
@@ -257,5 +245,5 @@ prim = VPrim
 objCall :: JSEnv -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall env func this args = case func of
   VNative f -> f this args
-  VObj obj -> funcCall env obj this args
+  VObj objref -> liftIO (readIORef objref) >>= \obj -> (callMethod obj) obj this args
   _ -> error $ "Can't call " ++ show func
