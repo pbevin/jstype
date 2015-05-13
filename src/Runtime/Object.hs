@@ -9,19 +9,15 @@ import Runtime.Types
 
 
 newObject :: JSRuntime (IORef JSObj)
-newObject = liftIO $ newIORef blankObject
-
-
-blankObject :: JSObj
-blankObject = JSObj { objPrototype = Just objectPrototype,
-                      objClass = "Object",
-                      ownProperties = M.empty,
-                      callMethod = uncallable }
+newObject = liftIO $ do
+  prototype <- newIORef $ objectPrototype
+  newIORef $ JSObj { objClass = "Object",
+                              ownProperties = M.fromList [("prototype", VObj prototype)],
+                              callMethod = uncallable }
 
 objectPrototype :: JSObj
-objectPrototype = JSObj { objPrototype = Nothing,
-                          objClass = "Object",
-                          ownProperties = M.empty,
+objectPrototype = JSObj { objClass = "Object",
+                          ownProperties = M.fromList [("prototype", VUndef)],
                           callMethod = uncallable }
 
 -- objCreate :: M.Map String JSVal -> M.Map String (IORef JSVal) -> JSRuntime (IORef JSObj)
@@ -32,16 +28,12 @@ objectPrototype = JSObj { objPrototype = Nothing,
 objGetOwnProperty :: IORef JSObj -> String -> JSRuntime (Maybe JSVal)
 objGetOwnProperty objref name = liftIO $ do
   obj <- readIORef objref
-  let val = M.lookup name (ownProperties obj)
-  case val of
-    Nothing -> return Nothing
-    Just ref -> Just <$> readIORef ref
-
+  return $ M.lookup name (ownProperties obj)
 
 -- ref 8.12.2, incomplete
 objGetProperty :: IORef JSObj -> String -> JSRuntime (Maybe JSVal)
 -- objGetProperty objref key = liftIO $ readIORef objref >>= \obj -> return $ fromJust $ M.lookup key $ objInternal obj
 objGetProperty = objGetOwnProperty
 
-uncallable :: JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
-uncallable _ _ _ = error "Can't call this object"
+uncallable :: JSVal -> [JSVal] -> JSRuntime JSVal
+uncallable _ _ = error "Can't call this object"

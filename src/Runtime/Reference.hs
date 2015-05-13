@@ -96,12 +96,8 @@ putUnresolvable _ref _val = error "Can't putUnresolvable"
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
 putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ do
-  obj <- readIORef objref
-  case M.lookup name (ownProperties obj) of
-    Just ref -> writeIORef ref val
-    Nothing -> do
-      ref <- newIORef val
-      writeIORef objref $ obj { ownProperties = M.insert name ref (ownProperties obj) }
+  modifyIORef objref setRef where
+    setRef obj = obj { ownProperties = M.insert name val (ownProperties obj) }
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()

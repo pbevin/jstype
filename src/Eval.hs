@@ -89,7 +89,7 @@ runExprStmt env expr = case expr of
     lval <- runExprStmt env e >>= getValue
     case lval of
       VMap m -> return $ maybe VUndef id $ M.lookup x m
-      VObj obj -> return $ VRef (JSRef lval x False)
+      VObj _ -> return $ VRef (JSRef lval x False)
       _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
@@ -117,7 +117,7 @@ runExprStmt env expr = case expr of
   NewExpr f args -> do
     if f == ReadVar "Error"
     then JSErrorObj <$> (runExprStmt env $ head args)
-    else error "Can only new Error() so far"
+    else newObject >>= return . VObj
 
   FunDef (Just name) params body -> do
     fun <- createFunction params body env
@@ -226,11 +226,8 @@ createFunction paramList body env = do
     return $ VObj objref
 
 
-funcConstruct :: JSObj -> PrimitiveFunction
-funcConstruct obj this args = return $ VStr "kkk"
-
-funcCall :: JSEnv -> [Ident] -> [Statement] -> JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
-funcCall env paramList body obj this args =
+funcCall :: JSEnv -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
+funcCall env paramList body this args =
   let makeRef name = JSRef (VEnv env) name False
       refs = map makeRef paramList
   in do
@@ -245,5 +242,5 @@ prim = VPrim
 objCall :: JSEnv -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall env func this args = case func of
   VNative f -> f this args
-  VObj objref -> liftIO (readIORef objref) >>= \obj -> (callMethod obj) obj this args
+  VObj objref -> liftIO (readIORef objref) >>= \obj -> (callMethod obj) this args
   _ -> error $ "Can't call " ++ show func

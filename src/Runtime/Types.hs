@@ -33,12 +33,13 @@ instance Show JSVal where
   show (VMap _) = "(map)"
   show (VNative _) = "(native function)"
   show (JSErrorObj a) = "JSError(" ++ show a ++ ")"
+  show _ = "???"
 
 data JSObj = JSObj {
   objPrototype :: Maybe JSObj,
   objClass :: String,
-  ownProperties :: M.Map Ident (IORef JSVal),
-  callMethod :: JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
+  ownProperties :: M.Map Ident JSVal,
+  callMethod :: JSVal -> [JSVal] -> JSRuntime JSVal
 }
 
 
