@@ -18,8 +18,10 @@ data JSVal = VNum JSNum
            | VUndef
            | VObj JSObj
            | VMap (M.Map Ident JSVal)
-           | VNative ([JSVal] -> JSRuntime JSVal)
+           | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
+           | VFormalParams [Ident]
+           | VFuncBody [Statement]
            | JSErrorObj JSVal
            | VEnv JSEnv
 
@@ -57,6 +59,7 @@ typeof v = case v of
   VBool _ -> TypeBoolean
   VRef  _ -> TypeReference
   VUndef  -> TypeUndefined
+  VNative _ -> TypeFunction
   VObj _  -> TypeObject
   _       -> error $ "No idea what type " ++ show v ++ " is..."
 

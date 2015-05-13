@@ -5,6 +5,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
+import Data.Maybe
 import Data.List (intercalate)
 import Data.IORef
 import qualified Data.Map as M
@@ -94,7 +95,7 @@ runExprStmt env expr = case expr of
     func <- getValue ref
     argList <- evalArguments env args
     let thisValue = computeThisValue ref
-    objRunPrimitive "call" func thisValue argList
+    objCall env func thisValue argList
 
   Assign lhs op e -> do
     lref <- runExprStmt env lhs
@@ -105,14 +106,11 @@ runExprStmt env expr = case expr of
     evalBinOp op <$> (runExprStmt env e1 >>= getValue)
                  <*> (runExprStmt env e2 >>= getValue)
 
-  -- PostOp op e -> do
-  --   lref <- runExprStmt env e
-  --   let f = postfixOp op
-  --   case lref of
-  --     VRef v -> do
-  --       liftIO $ modifyIORef' v f
-  --       return lref
-  --     _ -> error $ "Can't postop " ++ show lref
+  PostOp op e -> do -- ref 11.3
+    lhs <- runExprStmt env e
+    lval <- getValue lhs
+    putValue lhs (postfixUpdate op lval)
+    return lval
 
   NewExpr f args -> do
     if f == ReadVar "Error"
@@ -183,8 +181,8 @@ initialEnv = do
   console <- newIORef $ VMap $ M.fromList [ ("log", VNative jsConsoleLog) ]
   newIORef $ M.fromList [ ("console", console) ]
 
-jsConsoleLog :: [JSVal] -> JSRuntime JSVal
-jsConsoleLog xs = tell ((intercalate " " $ map showVal xs) ++ "\n") >> return VUndef
+jsConsoleLog :: JSVal -> [JSVal] -> JSRuntime JSVal
+jsConsoleLog _this xs = tell ((intercalate " " $ map showVal xs) ++ "\n") >> return VUndef
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
@@ -192,10 +190,10 @@ showVal (VNum (JSNum n)) = show (round n :: Integer)
 showVal VUndef = "(undefined)"
 showVal other = show other
 
-postfixOp :: String -> JSVal -> JSVal
-postfixOp "++" (VNum v) = VNum (v+1)
-postfixOp "--" (VNum v) = VNum (v-1)
-postfixOp op v = error $ "No such postfix op " ++ op ++ " on " ++ (show v)
+postfixUpdate :: String -> JSVal -> JSVal
+postfixUpdate "++" (VNum v) = VNum (v+1)
+postfixUpdate "--" (VNum v) = VNum (v-1)
+postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ (show v)
 
 evalBinOp :: String -> JSVal -> JSVal -> JSVal
 evalBinOp op (VNum v1) (VNum v2) = case op of
@@ -221,36 +219,43 @@ createFunction paramList body env = do
   VObj $ objSetInternalProperties objCreate
     [ ("class", VStr "Function"),
       ("prototype", funcProto),
-      ("call", prim funcCall),
-      ("construct", prim funcConstruct) ]
+      ("formalParameters", VFormalParams paramList),
+      ("body", VFuncBody body) ]
+      -- ("call", prim funcCall),
+      -- ("construct", prim funcConstruct) ]
 
 objCreate :: JSObj
 objCreate = JSObj M.empty
 
 objSetInternalProperties :: JSObj -> [(String, JSVal)] -> JSObj
-objSetInternalProperties obj props = obj
+objSetInternalProperties obj props = obj { objInternal = objInternal obj `M.union` M.fromList props }
 
-    
+objGetProperty :: JSObj -> String -> JSVal -- XXX should be Maybe
+objGetProperty obj key = fromJust $ M.lookup key $ objInternal obj
+
 funcProto :: JSVal
 funcProto = VObj objCreate
 
-funcCall, funcConstruct :: PrimitiveFunction
-funcCall this args = return $ VStr "jjj"
-funcConstruct this args = return $ VStr "kkk"
+funcConstruct :: JSObj -> PrimitiveFunction
+funcConstruct obj this args = return $ VStr "kkk"
+
+funcCall :: JSEnv -> JSObj -> JSVal -> [JSVal] -> JSRuntime JSVal
+funcCall env obj this args =
+  let VFormalParams paramList = objGetProperty obj "formalParameters"
+      VFuncBody body = objGetProperty obj "body"
+      makeRef name = JSRef (VEnv env) name False
+      refs = map makeRef paramList
+  in do
+    zipWithM_ putEnvironmentRecord refs args
+    forM_ body (runStmt env)
+    return VUndef
+
 
 prim :: PrimitiveFunction -> JSVal
 prim = VPrim
 
-
-
-
-objRunPrimitive :: String -> JSVal -> PrimitiveFunction
-objRunPrimitive key obj = maybe nullFunc getPrim $ objLookupInternal key obj
-  where getPrim (VPrim f) = f
-        getPrim _ = nullFunc
-        nullFunc = \_ _ -> return VUndef
-
-objLookupInternal :: String -> JSVal -> Maybe JSVal
-objLookupInternal key (VObj obj) =
-  M.lookup key (objInternal obj)
-objLookupInternal key val = error $ "Can't lookup " ++ key ++ " in " ++ show val
+objCall :: JSEnv -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCall env func this args = case func of
+  VNative f -> f this args
+  VObj obj -> funcCall env obj this args
+  _ -> error $ "Can't call " ++ show func

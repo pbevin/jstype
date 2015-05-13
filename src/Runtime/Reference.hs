@@ -1,6 +1,7 @@
 module Runtime.Reference where
 
 import Control.Monad.Except
+import qualified Data.Map as M
 import Data.IORef
 import Runtime.Types
 
@@ -48,9 +49,17 @@ isUnresolvableReference ref =
 
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal
-getValuePropertyReference ref = return $ VStr "qqq"
+getValuePropertyReference _ = return $ VStr "qqq"
+
+-- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
-getValueEnvironmentRecord ref = return $ VStr "www"
+getValueEnvironmentRecord (JSRef (VEnv envref) name isStrict) = liftIO $ do
+  env <- readIORef envref
+  maybe (return VUndef) readIORef $ M.lookup name env
+getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
+
+
+  
 
 
 
@@ -74,20 +83,19 @@ getValueEnvironmentRecord ref = return $ VStr "www"
 
 
 putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
-putUnresolvable ref val = return ()
+putUnresolvable _ref _val = return ()
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
-putPropertyReference ref val = return ()
+putPropertyReference _ref _val = return ()
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord ref val = return ()
-
-
-
-
-
-
-
+putEnvironmentRecord (JSRef (VEnv envref) name isStrict) val = liftIO $ do
+  env <- readIORef envref
+  case M.lookup name env of
+    Just ref -> writeIORef ref val
+    Nothing -> do
+      ref <- newIORef val
+      writeIORef envref (M.insert name ref env)
 
 
 
