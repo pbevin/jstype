@@ -70,28 +70,6 @@ getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord
 
 
 
-
-
-
-
---   | hasPrimitiveBase v        -> undefined -- 4b
---   | isPropertyReference v     -> undefined -- 4a
---   | otherwise                 -> get
-
-
-
---   | otherwise                 -> getValue' $ unwrapRef v
-
--- getValue' :: JSRef -> JSRuntime JSVal
--- getValue' ref = do
---   base <- getBase ref
-
---   case v of
---     VRef ref -> readIORef ref
---     other -> return other
-
-
-
 putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
 putUnresolvable _ref _val = error "Can't putUnresolvable"
 

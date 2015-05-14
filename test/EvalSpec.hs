@@ -41,5 +41,9 @@ spec = do
   it "can set an object property" $ do
     runJS "a = function() { }; a.prop = 2; console.log(a.prop);" `shouldReturn` Right "2\n"
 
+  it "can do if-then-else" $ do
+    runJS "if (1) { console.log(\"hi\") }" `shouldReturn` Right "hi\n"
+    runJS "if (0) { console.log(\"wrong\") } else { console.log(\"yes\") } " `shouldReturn` Right "yes\n"
+
   it "can define a simple object" $ do
     runJS "function Counter() { this.val = 0; }; Counter.prototype.inc = function() { this.val++ }; var counter = new Counter(); counter.inc(); counter.inc(); console.log(counter.val);" `shouldReturn` Right "2\n"

@@ -16,6 +16,7 @@ data JSVal = VNum JSNum
            | VBool Bool
            | VRef JSRef
            | VUndef
+           | VNull
            | VObj (IORef JSObj)
            | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
@@ -36,7 +37,6 @@ instance Show JSVal where
   show _ = "???"
 
 data JSObj = JSObj {
-  objPrototype :: Maybe JSObj,
   objClass :: String,
   ownProperties :: M.Map Ident JSVal,
   callMethod :: JSVal -> [JSVal] -> JSRuntime JSVal

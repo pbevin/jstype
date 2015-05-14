@@ -1,4 +1,3 @@
-
 module Eval where
 
 import Control.Monad.State
@@ -8,6 +7,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.List (intercalate)
 import Data.IORef
+import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Text.Show.Functions
 import Parse
@@ -15,6 +15,7 @@ import Expr
 import Runtime.Types
 import Runtime.Object
 import Runtime.Reference
+import Runtime.Conversion
 import Debug.Trace
 
 runJS :: String -> IO (Either JSError String)
@@ -54,14 +55,14 @@ emptyEnv = liftIO (newIORef M.empty)
 runProg :: Program -> JSRuntime ()
 runProg (Program stmts) = do
   cxt <- initialCxt
-  forM_ stmts $ runStmt cxt
+  F.forM_ stmts $ runStmt cxt
 
 runStmt :: JSCxt -> Statement -> JSRuntime ()
 runStmt cxt s = case s of
   ExprStmt e -> void $ runExprStmt cxt e
 
   VarDecl assignments ->
-    forM_ assignments $ \(x, e) -> case e of
+    F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
       Just e' -> do { v <- runExprStmt cxt e'; putVar cxt x v }
 
@@ -77,7 +78,13 @@ runStmt cxt s = case s of
           maybeRunExprStmt cxt e3
           keepGoing
 
-  Block stmts -> forM_ stmts (runStmt cxt)
+  IfStatement predicate ifThen ifElse -> do -- ref 12.5
+    v <- runExprStmt cxt predicate >>= getValue
+    if toBoolean v
+    then runStmt cxt ifThen
+    else F.forM_ ifElse (runStmt cxt)
+
+  Block stmts -> F.forM_ stmts (runStmt cxt)
 
   EmptyStatement -> return ()
   _ -> error ("Unimplemented stmt: " ++ show s)
@@ -85,6 +92,10 @@ runStmt cxt s = case s of
 maybeRunExprStmt :: JSCxt -> Maybe Expr -> JSRuntime ()
 maybeRunExprStmt _ Nothing  = return ()
 maybeRunExprStmt cxt (Just e) = void (runExprStmt cxt e)
+
+
+
+
 
 
 runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
@@ -242,7 +253,7 @@ funcCall cxt paramList body this args =
       newCxt = cxt { thisBinding = this }
   in do
     zipWithM_ putEnvironmentRecord refs args
-    forM_ body (runStmt newCxt)
+    F.forM_ body (runStmt newCxt)
     return VUndef
 
 -- ref 13.2.2, incomplete
