@@ -96,8 +96,7 @@ putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
 putUnresolvable _ref _val = error "Can't putUnresolvable"
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
-putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ do
-  modifyIORef objref setRef where
+putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ modifyIORef objref setRef where
     setRef obj = obj { ownProperties = M.insert name val (ownProperties obj) }
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 

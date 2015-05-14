@@ -97,7 +97,7 @@ runExprStmt cxt expr = case expr of
   MemberDot e x  -> do
     lval <- runExprStmt cxt e >>= getValue
     case lval of
-      VMap m -> return $ maybe VUndef id $ M.lookup x m
+      VMap m -> return $ fromMaybe VUndef $ M.lookup x m
       VObj _ -> return $ VRef (JSRef lval x False)
       _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
 
@@ -165,8 +165,7 @@ putVar (JSCxt envref _ _) x v = liftIO $ do
   return ()
 
 lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
-lookupVar envref x = do
-  return $ VRef $ JSRef (VCxt envref) x False
+lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
 
 
 updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
@@ -194,7 +193,7 @@ isTruthy _             = True
 
 
 jsConsoleLog :: JSVal -> [JSVal] -> JSRuntime JSVal
-jsConsoleLog _this xs = tell ((intercalate " " $ map showVal xs) ++ "\n") >> return VUndef
+jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
@@ -264,5 +263,5 @@ prim = VPrim
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
-  VObj objref -> liftIO (readIORef objref) >>= \obj -> (callMethod obj) this args
+  VObj objref -> liftIO (readIORef objref) >>= \obj -> callMethod obj this args
   _ -> error $ "Can't call " ++ show func

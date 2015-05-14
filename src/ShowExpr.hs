@@ -73,7 +73,7 @@ showStatement stmt = case stmt of
         Just stmt -> " else " ++ bbraces (showStatement stmt)
 
   For header stmt ->
-    "for " ++ (showHeader header) ++ showStatement stmt
+    "for " ++ showHeader header ++ showStatement stmt
 
 ppStatement n stmt = case stmt of
   For header stmt ->
@@ -183,7 +183,7 @@ ppExpr n expr = case expr of
 
 commaList :: [Doc] -> Doc
 commaList [] = empty
-commaList params = (foldl1 (\d e -> d <> comma $$ e) params)
+commaList params = foldl1 (\d e -> d <> comma $$ e) params
 
 parensIf :: Bool -> Doc -> Doc
 parensIf False = id

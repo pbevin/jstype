@@ -10,10 +10,10 @@ import Runtime.Types
 
 newObject :: JSRuntime (IORef JSObj)
 newObject = liftIO $ do
-  prototype <- newIORef $ objectPrototype
-  newIORef $ JSObj { objClass = "Object",
-                              ownProperties = M.fromList [("prototype", VObj prototype)],
-                              callMethod = uncallable }
+  prototype <- newIORef objectPrototype
+  newIORef JSObj { objClass = "Object",
+                   ownProperties = M.fromList [("prototype", VObj prototype)],
+                   callMethod = uncallable }
 
 objectPrototype :: JSObj
 objectPrototype = JSObj { objClass = "Object",
@@ -29,8 +29,7 @@ objSetProperty name value obj = obj { ownProperties = M.insert name value (ownPr
 
 -- ref 8.12.1, incomplete
 objGetOwnProperty :: JSObj -> String -> JSRuntime (Maybe JSVal)
-objGetOwnProperty obj name = liftIO $ do
-  return $ M.lookup name (ownProperties obj)
+objGetOwnProperty obj name = liftIO $ return $ M.lookup name (ownProperties obj)
 
 -- ref 8.12.2, incomplete
 objGetProperty :: JSObj -> String -> JSRuntime (Maybe JSVal)
