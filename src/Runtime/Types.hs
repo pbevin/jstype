@@ -43,7 +43,17 @@ data JSObj = JSObj {
 }
 
 
-data JSRef = JSRef { getBase :: JSVal, getReferencedName :: String, isStrictReference :: Bool } deriving Show
+data JSRef = JSRef {
+  getBase :: JSVal,
+  getReferencedName :: String,
+  isStrictReference :: Bool
+  } deriving Show
+
+data JSCxt = JSCxt {
+  lexEnv :: JSEnv,
+  varEnv :: JSEnv,
+  thisBinding :: JSVal
+}
 
 data JSType = TypeUndefined
             | TypeNull
@@ -75,7 +85,6 @@ instance Eq JSVal where
 
 type JSOutput = String
 type JSError = String
-data JSCxt = JSCxt { lexEnv :: JSEnv, varEnv :: JSEnv, thisBinding :: JSVal }
 type JSEnv = IORef (M.Map Ident (IORef JSVal))
 type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 

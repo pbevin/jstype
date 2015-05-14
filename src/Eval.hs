@@ -39,19 +39,16 @@ jsEvalExpr input = do
 runJSRuntime :: JSRuntime a -> IO (Either JSError a, String)
 runJSRuntime a = runWriterT (runExceptT (unJS a))
 
-
 initialCxt :: JSRuntime JSCxt
-initialCxt = do
-  this <- newObject
-  lexEnv <- initialEnv
-  varEnv <- liftIO $ newIORef M.empty
-  return $ JSCxt lexEnv varEnv (VObj this)
+initialCxt = JSCxt <$> initialEnv <*> emptyEnv <*> (VObj <$> newObject)
 
 initialEnv :: JSRuntime JSEnv
 initialEnv = liftIO $ do
   console <- newIORef $ VMap $ M.fromList [ ("log", VNative jsConsoleLog) ]
   newIORef $ M.fromList [ ("console", console) ]
 
+emptyEnv :: JSRuntime JSEnv
+emptyEnv = liftIO (newIORef M.empty)
 
 
 runProg :: Program -> JSRuntime ()
@@ -95,6 +92,7 @@ runExprStmt cxt expr = case expr of
   Num n          -> return $ VNum n
   Str s          -> return $ VStr s
   ReadVar x      -> lookupVar cxt x
+  This           -> return $ thisBinding cxt
 
   MemberDot e x  -> do
     lval <- runExprStmt cxt e >>= getValue
@@ -130,7 +128,8 @@ runExprStmt cxt expr = case expr of
     then JSErrorObj <$> runExprStmt cxt (head args)
     else do
       fun <- runExprStmt cxt f >>= getValue
-      liftM VObj (newObjectFromConstructor fun)
+      argList <- evalArguments cxt args
+      liftM VObj (newObjectFromConstructor cxt fun argList)
 
   FunDef (Just name) params body -> do
     fun <- createFunction params body cxt
@@ -236,14 +235,27 @@ createFunction paramList body cxt = do
     return $ VObj objref
 
 
+-- ref 13.2.1, incomplete
 funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
 funcCall cxt paramList body this args =
   let makeRef name = JSRef (VCxt cxt) name False
       refs = map makeRef paramList
+      newCxt = cxt { thisBinding = this }
   in do
     zipWithM_ putEnvironmentRecord refs args
-    forM_ body (runStmt cxt)
+    forM_ body (runStmt newCxt)
     return VUndef
+
+-- ref 13.2.2, incomplete
+newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (IORef JSObj)
+newObjectFromConstructor cxt fun@(VObj funref) args = do
+  obj <- newObject
+  f <- liftIO $ readIORef funref
+  prototype <- objGetProperty f "prototype"
+  liftIO $ modifyIORef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+  objCall cxt fun (VObj obj) args
+  return obj
+
 
 
 prim :: PrimitiveFunction -> JSVal

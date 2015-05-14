@@ -15,14 +15,6 @@ newObject = liftIO $ do
                               ownProperties = M.fromList [("prototype", VObj prototype)],
                               callMethod = uncallable }
 
-newObjectFromConstructor :: JSVal -> JSRuntime (IORef JSObj)
-newObjectFromConstructor (VObj funref) = do
-  obj <- newObject
-  f <- liftIO $ readIORef funref
-  prototype <- objGetProperty f "prototype"
-  liftIO $ modifyIORef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
-  return obj
-
 objectPrototype :: JSObj
 objectPrototype = JSObj { objClass = "Object",
                           ownProperties = M.fromList [("prototype", VUndef)],
