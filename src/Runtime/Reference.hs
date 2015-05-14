@@ -3,7 +3,6 @@ module Runtime.Reference where
 import Control.Monad.Except
 import qualified Data.Map as M
 import Data.Maybe
-import Data.IORef
 import Runtime.Object
 import Runtime.Types
 
@@ -52,8 +51,8 @@ isUnresolvableReference ref =
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal
 getValuePropertyReference (JSRef (VObj objref) name isStrict) = do
-  obj <- liftIO $ readIORef objref
-  val <- objGetProperty obj name
+  obj <- deref objref
+  val <- objGetProperty name obj
   case val of
     Nothing -> return VUndef
     Just v  -> return v
@@ -64,8 +63,8 @@ getValuePropertyReference _ = error "Internal error in getValuePropertyReference
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
-getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) = liftIO $ do
-  env <- readIORef envref
+getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) = do
+  env <- deref envref
   return $ fromMaybe VUndef $ M.lookup name env
 getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
 
@@ -75,12 +74,12 @@ putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
 putUnresolvable _ref _val = error "Can't putUnresolvable"
 
 putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
-putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ modifyIORef objref setRef where
+putPropertyReference (JSRef (VObj objref) name isStrict) val = modifyRef objref setRef where
     setRef obj = obj { ownProperties = M.insert name val (ownProperties obj) }
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) val = liftIO $ modifyIORef envref setRef where
+putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) val = modifyRef envref setRef where
   setRef = M.insert name val
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 

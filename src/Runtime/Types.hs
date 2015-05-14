@@ -17,7 +17,7 @@ data JSVal = VNum JSNum
            | VRef JSRef
            | VUndef
            | VNull
-           | VObj (IORef JSObj)
+           | VObj (Shared JSObj)
            | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
@@ -86,8 +86,17 @@ instance Eq JSVal where
 
 type JSOutput = String
 type JSError = String
-type JSEnv = IORef (M.Map Ident JSVal)
+type JSEnv = Shared (M.Map Ident JSVal)
 type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
+
+newtype Shared a = Shared (IORef a) deriving Eq
+
+share :: a -> JSRuntime (Shared a)
+share a = liftM Shared $ liftIO $ newIORef a
+deref :: Shared a -> JSRuntime a
+deref (Shared a) = liftIO $ readIORef a
+modifyRef :: Shared a -> (a -> a) -> JSRuntime ()
+modifyRef (Shared a) f = liftIO $ modifyIORef a f
 
 newtype JSRuntime a = JS {
   unJS :: ExceptT JSError (WriterT String IO) a

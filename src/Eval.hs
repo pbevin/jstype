@@ -6,7 +6,6 @@ import Control.Monad.Writer
 import Control.Applicative
 import Data.Maybe
 import Data.List (intercalate)
-import Data.IORef
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Text.Show.Functions
@@ -46,11 +45,11 @@ initialCxt = JSCxt <$> initialEnv <*> emptyEnv <*> (VObj <$> newObject)
 initialEnv :: JSRuntime JSEnv
 initialEnv = do
   console <- newObject
-  liftIO $ modifyIORef console $ objSetProperty "log" (VNative jsConsoleLog)
-  liftIO $ newIORef $ M.fromList [ ("console", VObj console) ]
+  modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
+  share $ M.fromList [ ("console", VObj console) ]
 
 emptyEnv :: JSRuntime JSEnv
-emptyEnv = liftIO (newIORef M.empty)
+emptyEnv = share M.empty
 
 
 runProg :: Program -> JSRuntime ()
@@ -177,8 +176,7 @@ computeThisValue v = case v of
 
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
-putVar (JSCxt envref _ _) x v = liftIO $ do
-  modifyIORef envref $ \env -> M.insert x v env
+putVar (JSCxt envref _ _) x v = modifyRef envref $ M.insert x v
 
 lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
 lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
@@ -254,7 +252,7 @@ tripleEquals x y
 createFunction :: [Ident] -> [Statement] -> JSCxt -> JSRuntime JSVal
 createFunction paramList body cxt = do
     objref <- newObject
-    liftIO $ modifyIORef objref $
+    modifyRef objref $
       \obj -> obj { objClass = "Function",
                     callMethod = funcCall cxt paramList body }
     return $ VObj objref
@@ -272,12 +270,12 @@ funcCall cxt paramList body this args =
     return VUndef
 
 -- ref 13.2.2, incomplete
-newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (IORef JSObj)
+newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
 newObjectFromConstructor cxt fun@(VObj funref) args = do
   obj <- newObject
-  f <- liftIO $ readIORef funref
-  prototype <- objGetProperty f "prototype"
-  liftIO $ modifyIORef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+  f <- deref funref
+  prototype <- objGetProperty "prototype" f
+  modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
   objCall cxt fun (VObj obj) args
   return obj
 
@@ -289,5 +287,5 @@ prim = VPrim
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
-  VObj objref -> liftIO (readIORef objref) >>= \obj -> callMethod obj this args
+  VObj objref -> deref objref >>= \obj -> callMethod obj this args
   _ -> error $ "Can't call " ++ show func
