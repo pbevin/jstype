@@ -46,7 +46,12 @@ initialEnv :: JSRuntime JSEnv
 initialEnv = do
   console <- newObject
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
-  share $ M.fromList [ ("console", VObj console) ]
+
+  function <- newObject
+  modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
+
+  share $ M.fromList [ ("console", VObj console),
+                       ("Function", VObj function) ]
 
 emptyEnv :: JSRuntime JSEnv
 emptyEnv = share M.empty
@@ -254,7 +259,7 @@ createFunction paramList body cxt = do
     objref <- newObject
     modifyRef objref $
       \obj -> obj { objClass = "Function",
-                    callMethod = funcCall cxt paramList body }
+                    callMethod = Just (funcCall cxt paramList body) }
     return $ VObj objref
 
 
@@ -280,6 +285,9 @@ newObjectFromConstructor cxt fun@(VObj funref) args = do
   return obj
 
 
+funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+funConstructor this args = throwError "hi ther"
+
 
 prim :: PrimitiveFunction -> JSVal
 prim = VPrim
@@ -287,5 +295,5 @@ prim = VPrim
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
-  VObj objref -> deref objref >>= \obj -> callMethod obj this args
+  VObj objref -> deref objref >>= \obj -> fromJust (callMethod obj) this args
   _ -> error $ "Can't call " ++ show func

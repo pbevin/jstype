@@ -12,12 +12,12 @@ newObject = do
   prototype <- share objectPrototype
   share JSObj { objClass = "Object",
                 ownProperties = M.fromList [("prototype", VObj prototype)],
-                callMethod = uncallable }
+                callMethod = Nothing }
 
 objectPrototype :: JSObj
 objectPrototype = JSObj { objClass = "Object",
                           ownProperties = M.fromList [("prototype", VUndef)],
-                          callMethod = uncallable }
+                          callMethod = Nothing }
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
@@ -32,6 +32,3 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
   where checkPrototype = case objGetOwnProperty obj "prototype" of
           Just (VObj prototype) -> objGetProperty name =<< deref prototype
           _ -> return Nothing
-
-uncallable :: JSVal -> [JSVal] -> JSRuntime JSVal
-uncallable _ _ = error "Can't call this object"

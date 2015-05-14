@@ -51,6 +51,9 @@ spec = do
     runJS "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJS "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
 
+  it "can define a function via Function(...)" $ do
+    runJS "f = Function('return 3'); console.log(f());" `shouldReturn` Right "3\n"
+
   it "can do ===" $ do
     runJS "if (1 === 1) console.log(\"OK\")" `shouldReturn` Right "OK\n"
     runJS "if (1 === 0) console.log(\"wrong\")" `shouldReturn` Right ""
