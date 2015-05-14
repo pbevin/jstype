@@ -88,6 +88,7 @@ runStmt cxt s = case s of
   Block stmts -> F.forM_ stmts (runStmt cxt)
 
   EmptyStatement -> return ()
+
   _ -> error ("Unimplemented stmt: " ++ show s)
 
 maybeRunExprStmt :: JSCxt -> Maybe Expr -> JSRuntime ()
@@ -222,19 +223,29 @@ postfixUpdate "--" (VNum v) = VNum (v-1)
 postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 
 evalBinOp :: String -> JSVal -> JSVal -> JSVal
-evalBinOp op (VNum v1) (VNum v2) = case op of
+evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
   "+" -> VNum $ v1 + v2
   "-" -> VNum $ v1 - v2
   "*" -> VNum $ v1 * v2
   "/" -> VNum $ v1 / v2
   "<" -> VBool $ v1 < v2
+  "===" -> tripleEquals x y
   _ -> error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
+evalBinOp "===" x y = tripleEquals x y
 evalBinOp "+" (VStr a) (VStr b) = VStr (a ++ b)
 evalBinOp op v1 v2 = error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 
-
-
+-- ref 11.9.6, incomplete
+tripleEquals :: JSVal -> JSVal -> JSVal
+tripleEquals x y
+  | typeof x /= typeof y        = VBool False
+  | typeof x == TypeUndefined   = VBool True
+  | typeof x == TypeNull        = VBool True
+  | typeof x == TypeNumber      = VBool (x == y)
+  | typeof x == TypeString      = VBool (x == y)
+  | typeof x == TypeBoolean     = VBool (x == y)
+  | typeof x == TypeObject      = VBool (x == y)
 
 
 

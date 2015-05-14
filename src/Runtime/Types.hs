@@ -81,6 +81,7 @@ typeof v = case v of
 instance Eq JSVal where
   VNum a == VNum b = a == b
   VStr a == VStr b = a == b
+  VObj a == VObj b = a == b
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
 
 type JSOutput = String

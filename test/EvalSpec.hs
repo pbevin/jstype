@@ -47,6 +47,17 @@ spec = do
 
   it "can do typeof" $ do
     runJS "console.log(typeof console)" `shouldReturn` Right "object\n"
+    runJS "console.log(typeof this)" `shouldReturn` Right "object\n"
+    runJS "console.log(typeof 5)" `shouldReturn` Right "number\n"
+    runJS "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
+
+  it "can do ===" $ do
+    runJS "if (1 === 1) console.log(\"OK\")" `shouldReturn` Right "OK\n"
+    runJS "if (1 === 0) console.log(\"wrong\")" `shouldReturn` Right ""
+    runJS "if ('a' === 'b') console.log(\"wrong\")" `shouldReturn` Right ""
+    runJS "if ('a' === 'a') console.log(\"OK\")" `shouldReturn` Right "OK\n"
+    runJS "if (console === console) console.log(\"OK\")" `shouldReturn` Right "OK\n"
+    runJS "if (console === this) console.log(\"wrong\")" `shouldReturn` Right ""
 
   it "can define a simple object" $ do
     runJS "function Counter() { this.val = 0; }; Counter.prototype.inc = function() { this.val++ }; var counter = new Counter(); counter.inc(); counter.inc(); console.log(counter.val);" `shouldReturn` Right "2\n"
