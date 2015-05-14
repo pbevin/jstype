@@ -313,6 +313,7 @@ funConstructor this [arg] =
       params = []
       Program stmts = simpleParse body
   in createFunction params stmts =<< initialCxt
+funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
 toString (VStr s) = s
 
