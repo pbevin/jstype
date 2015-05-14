@@ -51,6 +51,10 @@ spec = do
     runJS "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJS "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
 
+
+  it "can define a function" $ do
+    runJS "f = function() { return 2; }; console.log(f())" `shouldReturn` Right "2\n"
+
   it "can define a function via Function(...)" $ do
     runJS "f = Function('return 3'); console.log(f());" `shouldReturn` Right "3\n"
 

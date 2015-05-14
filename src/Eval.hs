@@ -60,38 +60,58 @@ emptyEnv = share M.empty
 runProg :: Program -> JSRuntime ()
 runProg (Program stmts) = do
   cxt <- initialCxt
-  F.forM_ stmts $ runStmt cxt
+  void $ runStmts cxt stmts
 
-runStmt :: JSCxt -> Statement -> JSRuntime ()
+runStmts :: JSCxt -> [Statement] -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
+runStmts _ [] = return (CTNormal, Nothing, Nothing)
+runStmts cxt (s:stmts) = do
+  result <- runStmt cxt s
+  case result of
+    (CTNormal, _, _) -> runStmts cxt stmts
+    _ -> return result
+
+runStmt :: JSCxt -> Statement -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
 runStmt cxt s = case s of
-  ExprStmt e -> void $ runExprStmt cxt e
+  ExprStmt e -> do
+    val <- runExprStmt cxt e
+    return (CTNormal, Just val, Nothing)
 
-  VarDecl assignments ->
+  VarDecl assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
       Just e' -> do { v <- runExprStmt cxt e'; putVar cxt x v }
+    return (CTNormal, Nothing, Nothing)
 
-  For (For3 e1 e2 e3) stmt ->
+  For (For3 e1 e2 e3) stmt -> do
     maybeRunExprStmt cxt e1 >> keepGoing where
       keepGoing = do
         willEval <- case e2 of
           Nothing  -> pure True
           Just e2' -> isTruthy <$> runExprStmt cxt e2'
 
-        when willEval $ do
+        if willEval
+        then do
           runStmt cxt stmt
           maybeRunExprStmt cxt e3
           keepGoing
+        else return (CTNormal, Nothing, Nothing)
 
   IfStatement predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt cxt predicate >>= getValue
     if toBoolean v
     then runStmt cxt ifThen
-    else F.forM_ ifElse (runStmt cxt)
+    else case ifElse of
+           Nothing -> return (CTNormal, Nothing, Nothing)
+           Just s  -> runStmt cxt s
 
-  Block stmts -> F.forM_ stmts (runStmt cxt)
+  Block stmts -> runStmts cxt stmts
 
-  EmptyStatement -> return ()
+  Return Nothing -> return (CTReturn, Just VUndef, Nothing)
+  Return (Just e) -> do
+    val <- runExprStmt cxt e
+    return (CTReturn, Just val, Nothing)
+
+  EmptyStatement -> return (CTNormal, Nothing, Nothing)
 
   _ -> error ("Unimplemented stmt: " ++ show s)
 
@@ -271,8 +291,10 @@ funcCall cxt paramList body this args =
       newCxt = cxt { thisBinding = this }
   in do
     zipWithM_ putEnvironmentRecord refs args
-    F.forM_ body (runStmt newCxt)
-    return VUndef
+    result <- runStmts newCxt body
+    case result of
+      (_, Nothing, _) -> return VUndef
+      (_, Just v, _)  -> return v
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
@@ -286,8 +308,13 @@ newObjectFromConstructor cxt fun@(VObj funref) args = do
 
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
-funConstructor this args = throwError "hi ther"
+funConstructor this [arg] =
+  let body = toString arg
+      params = []
+      Program stmts = simpleParse body
+  in createFunction params stmts =<< initialCxt
 
+toString (VStr s) = s
 
 prim :: PrimitiveFunction -> JSVal
 prim = VPrim

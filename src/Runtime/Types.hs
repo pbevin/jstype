@@ -91,6 +91,8 @@ type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 newtype Shared a = Shared (IORef a) deriving Eq
 
+data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
+
 share :: a -> JSRuntime (Shared a)
 share a = liftM Shared $ liftIO $ newIORef a
 deref :: Shared a -> JSRuntime a
