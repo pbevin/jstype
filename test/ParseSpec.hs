@@ -84,7 +84,7 @@ spec = do
       parseExpr "f(x,y)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x", ReadVar "y"]
 
     it "parses a chained function call" $ do
-      parseExpr "f()()" `shouldBe` FunCall (FunCall (ReadVar "f") []) []
+      parseExpr "f(1)(2)" `shouldBe` FunCall (FunCall (ReadVar "f") [Num 1]) [Num 2]
 
     it "parses a chained member access with a function call" $ do
       parseExpr "a.b.c()" `shouldBe` FunCall (MemberDot (MemberDot (ReadVar "a") "b") "c") []

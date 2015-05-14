@@ -312,9 +312,9 @@ callExpr p = do
   addons base
     where
       addons :: Expr -> JSParser Expr
-      addons base = (parens argumentList >>= \args -> FunCall <$> addons base <*> pure args)
-                <|> ((char '.' >> identifier) >>= \id -> MemberDot <$> addons base <*> pure id)
-                <|> (brackets expr >>= \e -> MemberGet <$> addons base <*> pure e)
+      addons base = (parens argumentList >>= \args -> addons $ FunCall base args)
+                <|> ((char '.' >> identifier) >>= \id -> addons $ MemberDot addons id)
+                <|> (brackets expr >>= \e -> addons $ MemberGet base e)
                 <|> return base
 
 argumentList :: JSParser [Expr]
