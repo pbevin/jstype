@@ -85,7 +85,7 @@ instance Eq JSVal where
 
 type JSOutput = String
 type JSError = String
-type JSEnv = IORef (M.Map Ident (IORef JSVal))
+type JSEnv = IORef (M.Map Ident JSVal)
 type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 newtype JSRuntime a = JS {

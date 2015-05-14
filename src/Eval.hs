@@ -44,9 +44,10 @@ initialCxt :: JSRuntime JSCxt
 initialCxt = JSCxt <$> initialEnv <*> emptyEnv <*> (VObj <$> newObject)
 
 initialEnv :: JSRuntime JSEnv
-initialEnv = liftIO $ do
-  console <- newIORef $ VMap $ M.fromList [ ("log", VNative jsConsoleLog) ]
-  newIORef $ M.fromList [ ("console", console) ]
+initialEnv = do
+  console <- newObject
+  liftIO $ modifyIORef console $ objSetProperty "log" (VNative jsConsoleLog)
+  liftIO $ newIORef $ M.fromList [ ("console", VObj console) ]
 
 emptyEnv :: JSRuntime JSEnv
 emptyEnv = liftIO (newIORef M.empty)
@@ -128,6 +129,16 @@ runExprStmt cxt expr = case expr of
     evalBinOp op <$> (runExprStmt cxt e1 >>= getValue)
                  <*> (runExprStmt cxt e2 >>= getValue)
 
+  UnOp "typeof" e -> do -- ref 11.4.3
+    val <- runExprStmt cxt e >>= getValue
+    return $ VStr $ case typeof val of
+      TypeUndefined -> "undefined"
+      TypeNull      -> "null"
+      TypeBoolean   -> "boolean"
+      TypeNumber    -> "number"
+      TypeString    -> "string"
+      TypeObject    -> "object"  -- or "function"
+
   PostOp op e -> do -- ref 11.3
     lhs <- runExprStmt cxt e
     lval <- getValue lhs
@@ -166,14 +177,7 @@ computeThisValue v = case v of
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
 putVar (JSCxt envref _ _) x v = liftIO $ do
-  cxt <- readIORef envref
-  let valref = M.lookup x cxt
-  case valref of
-    Nothing -> do
-      newRef <- newIORef v
-      writeIORef envref (M.insert x newRef cxt)
-    Just ref  -> writeIORef ref v
-  return ()
+  modifyIORef envref $ \env -> M.insert x v env
 
 lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
 lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False

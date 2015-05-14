@@ -2,6 +2,7 @@ module Runtime.Reference where
 
 import Control.Monad.Except
 import qualified Data.Map as M
+import Data.Maybe
 import Data.IORef
 import Runtime.Object
 import Runtime.Types
@@ -65,7 +66,7 @@ getValuePropertyReference _ = error "Internal error in getValuePropertyReference
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
 getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) = liftIO $ do
   env <- readIORef envref
-  maybe (return VUndef) readIORef $ M.lookup name env
+  return $ fromMaybe VUndef $ M.lookup name env
 getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
 
 
@@ -79,13 +80,8 @@ putPropertyReference (JSRef (VObj objref) name isStrict) val = liftIO $ modifyIO
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) val = liftIO $ do
-  env <- readIORef envref
-  case M.lookup name env of
-    Just ref -> writeIORef ref val
-    Nothing -> do
-      ref <- newIORef val
-      writeIORef envref (M.insert name ref env)
+putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) val = liftIO $ modifyIORef envref setRef where
+  setRef = M.insert name val
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
