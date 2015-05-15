@@ -21,7 +21,6 @@ data JSVal = VNum JSNum
            | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
-           | JSErrorObj JSVal
            | VException JSError
            | VCxt JSCxt
 
@@ -34,7 +33,6 @@ instance Show JSVal where
   show (VObj _) = "[Object object]"
   show (VMap _) = "(map)"
   show (VNative _) = "(native function)"
-  show (JSErrorObj a) = "JSError(" ++ show a ++ ")"
   show (VException exc) = "Exception " ++ show exc
   show _ = "???"
 

@@ -54,8 +54,15 @@ initialEnv = do
   function <- newObject
   modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
 
+  object <- newObject
+  modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+
+  error <- newObject
+
   share $ M.fromList [ ("console", VObj console),
-                       ("Function", VObj function) ]
+                       ("Function", VObj function),
+                       ("Object", VObj object),
+                       ("Error", VObj error) ]
 
 emptyEnv :: JSRuntime JSEnv
 emptyEnv = share M.empty
@@ -90,7 +97,7 @@ runStmt cxt s = case s of
   VarDecl loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
-      Just e' -> do { v <- runExprStmt cxt e'; putVar cxt x v }
+      Just e' -> do { v <- getValue =<< runExprStmt cxt e'; putVar cxt x v }
     return (CTNormal, Nothing, Nothing)
 
   For loc (For3 e1 e2 e3) stmt -> do
@@ -147,7 +154,7 @@ runExprStmt cxt expr = case expr of
     case lval of
       VMap m -> return $ fromMaybe VUndef $ M.lookup x m
       VObj _ -> return $ VRef (JSRef lval x False)
-      _ -> raiseError $ "Can't do ." ++ x ++ " on " ++ show lval
+      _ -> raiseError $ "Cannot read property '" ++ x ++ "' of " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt cxt f
@@ -184,7 +191,7 @@ runExprStmt cxt expr = case expr of
 
   NewExpr f args ->
     if f == ReadVar "Error"
-    then JSErrorObj <$> runExprStmt cxt (head args)
+    then createError =<< runExprStmt cxt (head args)
     else do
       fun <- runExprStmt cxt f >>= getValue
       argList <- evalArguments cxt args
@@ -246,6 +253,22 @@ isTruthy _             = True
 jsConsoleLog :: JSVal -> [JSVal] -> JSRuntime JSVal
 jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
 
+-- ref 15.2.3.3
+getOwnPropertyDescriptor :: JSVal -> [JSVal] -> JSRuntime JSVal
+getOwnPropertyDescriptor _this xs = do
+  let [objVal, propVal] = xs
+
+  obj <- getValue objVal
+  val <- getValue (VRef $ JSRef obj (toString propVal) False)
+
+  result <- newObject
+  modifyRef result $ objSetProperty "value" val
+  modifyRef result $ objSetProperty "writable" (VBool True)
+  modifyRef result $ objSetProperty "enumerable" (VBool False)
+  modifyRef result $ objSetProperty "configurable" (VBool True)
+
+  return $ VObj result
+
 showVal :: JSVal -> String
 showVal (VStr s) = s
 showVal (VNum (JSNum n)) = show (round n :: Integer)
@@ -288,11 +311,20 @@ tripleEquals x y
 
 createFunction :: [Ident] -> [Statement] -> JSCxt -> JSRuntime JSVal
 createFunction paramList body cxt = do
-    objref <- newObject
-    modifyRef objref $
-      \obj -> obj { objClass = "Function",
-                    callMethod = Just (funcCall cxt paramList body) }
-    return $ VObj objref
+  objref <- newObject
+  modifyRef objref $
+    \obj -> obj { objClass = "Function",
+                  callMethod = Just (funcCall cxt paramList body) }
+  return $ VObj objref
+
+createError :: JSVal -> JSRuntime JSVal
+createError text = do
+  objRef <- newObject
+  modifyRef objRef $
+    \obj -> obj { objClass = "Error" }
+
+  return $ VObj objRef
+
 
 
 -- ref 13.2.1, incomplete
@@ -318,7 +350,6 @@ newObjectFromConstructor cxt fun@(VObj funref) args = do
   modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
   objCall cxt fun (VObj obj) args
   return obj
-
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] =

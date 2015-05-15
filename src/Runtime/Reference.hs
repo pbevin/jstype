@@ -10,7 +10,7 @@ import Runtime.Types
 getValue :: JSVal -> JSRuntime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
-  | isUnresolvableReference ref = raiseError "ReferenceError"
+  | isUnresolvableReference ref = raiseError $ "ReferenceError: " ++ show ref
   | isPropertyReference ref     = getValuePropertyReference ref
   | otherwise                   = getValueEnvironmentRecord ref
     where ref = unwrapRef v
@@ -18,7 +18,7 @@ getValue v
 -- ref 8.7.2
 putValue :: JSVal -> JSVal -> JSRuntime ()
 putValue v w
-  | typeof v /= TypeReference   = raiseError "ReferenceError"
+  | typeof v /= TypeReference   = raiseError $ "ReferenceError" ++ show v
   | isUnresolvableReference ref = putUnresolvable ref w
   | isPropertyReference ref     = putPropertyReference ref w
   | otherwise                   = putEnvironmentRecord ref w
@@ -66,7 +66,7 @@ getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
 getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name isStrict) = do
   env <- deref envref
   return $ fromMaybe VUndef $ M.lookup name env
-getValueEnvironmentRecord _ = error "Internal error in getValueEnvironmentRecord"
+getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
 
 
 
