@@ -20,7 +20,6 @@ data JSVal = VNum JSNum
            | VObj (Shared JSObj)
            | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
-           | VPrim PrimitiveFunction
            | VException JSError
            | VCxt JSCxt
 
@@ -80,15 +79,20 @@ typeof v = case v of
   _       -> error $ "No idea what type " ++ show v ++ " is..."
 
 instance Eq JSVal where
-  VNum a == VNum b = a == b
-  VStr a == VStr b = a == b
-  VObj a == VObj b = a == b
+  VNum a == VNum b       = a == b
+  VStr a == VStr b       = a == b
+  VObj a == VObj b       = a == b
+  VNative a == VNative b = True -- XXX
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
 
 type JSOutput = String
 type JSError = (String, [SrcLoc])
 type JSEnv = Shared (M.Map Ident JSVal)
-type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
+type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
+
+newtype JSGlobal = JSGlobal {
+  globalObject :: Maybe (Shared JSObj)
+}
 
 newtype Shared a = Shared (IORef a) deriving Eq
 
@@ -102,8 +106,13 @@ modifyRef :: Shared a -> (a -> a) -> JSRuntime ()
 modifyRef (Shared a) f = liftIO $ modifyIORef a f
 
 newtype JSRuntime a = JS {
-  unJS :: ExceptT JSError (WriterT String IO) a
-} deriving (Monad, MonadIO, MonadWriter String, MonadError JSError, Functor, Applicative)
+  unJS :: ExceptT JSError (WriterT String (StateT JSGlobal IO)) a
+} deriving (Monad, MonadIO,
+            MonadWriter String,
+            MonadError JSError,
+            MonadState JSGlobal,
+            Functor,
+            Applicative)
 
 
 raiseError :: String -> JSRuntime a

@@ -25,10 +25,10 @@ runJS :: String -> String -> IO (Either JSError String)
 runJS sourceName input = do
   r <- runJS' sourceName input
   case r of
-    (Left err, _)     -> return $ Left err
-    (Right _, output) -> return $ Right output
+    ((Left err, _), _)     -> return $ Left err
+    ((Right _, output), _) -> return $ Right output
 
-runJS' :: String -> String -> IO (Either JSError (), String)
+runJS' :: String -> String -> IO ((Either JSError (), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
   Left err -> error (show err)
   Right ast -> runJSRuntime (runProg ast)
@@ -37,14 +37,16 @@ jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
   result <- runJSRuntime (initialCxt >>= \cxt -> runExprStmt cxt $ parseExpr input)
   case result of
-    (Left err, _)  -> error (show err)
-    (Right val, _) -> return val
+    ((Left err, _), _)  -> error (show err)
+    ((Right val, _), _) -> return val
 
-runJSRuntime :: JSRuntime a -> IO (Either JSError a, String)
-runJSRuntime a = runWriterT (runExceptT (unJS a))
+runJSRuntime :: JSRuntime a -> IO ((Either JSError a, String), JSGlobal)
+runJSRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) (JSGlobal Nothing)
 
 initialCxt :: JSRuntime JSCxt
-initialCxt = JSCxt <$> initialEnv <*> emptyEnv <*> (VObj <$> newObject)
+initialCxt = JSCxt <$> initialEnv
+                   <*> emptyEnv
+                   <*> (VObj <$> getGlobalObject)
 
 initialEnv :: JSRuntime JSEnv
 initialEnv = do
@@ -70,6 +72,7 @@ emptyEnv = share M.empty
 
 runProg :: Program -> JSRuntime ()
 runProg (Program stmts) = do
+  createGlobalThis
   cxt <- initialCxt
   result <- runStmts cxt stmts
   case result of
@@ -160,7 +163,7 @@ runExprStmt cxt expr = case expr of
     ref <- runExprStmt cxt f
     func <- getValue ref
     argList <- evalArguments cxt args
-    let thisValue = computeThisValue ref
+    let thisValue = computeThisValue cxt ref
     objCall cxt func thisValue argList
 
   Assign lhs op e -> do
@@ -168,9 +171,15 @@ runExprStmt cxt expr = case expr of
     rref <- runExprStmt cxt e
     updateRef (assignOp op) lref rref
 
+  BinOp "&&" e1 e2 -> do
+    v1 <- runExprStmt cxt e1 >>= getValue
+    if toBoolean v1
+    then runExprStmt cxt e2 >>= getValue
+    else return $ VBool False
+
   BinOp op e1 e2 -> do
-    v1 <- (runExprStmt cxt e1 >>= getValue)
-    v2 <- (runExprStmt cxt e2 >>= getValue)
+    v1 <- runExprStmt cxt e1 >>= getValue
+    v2 <- runExprStmt cxt e2 >>= getValue
     evalBinOp op v1 v2
 
   UnOp "typeof" e -> do -- ref 11.4.3
@@ -209,14 +218,14 @@ runExprStmt cxt expr = case expr of
 evalArguments :: JSCxt -> [Expr] -> JSRuntime [JSVal]
 evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
 
-computeThisValue :: JSVal -> JSVal
-computeThisValue v = case v of
+computeThisValue :: JSCxt -> JSVal -> JSVal
+computeThisValue cxt v = case v of
   VRef ref ->
-    if isPropertyReference ref
+    if isPropertyReference (traceShowId ref)
     then getBase ref
-    else VUndef -- s/b ImplicitThisRef
+    else thisBinding cxt
 
-  _ -> VUndef
+  _ -> thisBinding cxt
 
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
@@ -269,6 +278,12 @@ getOwnPropertyDescriptor _this xs = do
 
   return $ VObj result
 
+-- ref B.2.1, incomplete
+objEscape :: JSFunction
+objEscape _this [] = return $ VUndef
+objEscape _this (x:xs) = return $ x
+
+
 showVal :: JSVal -> String
 showVal (VStr s) = s
 showVal (VNum (JSNum n)) = show (round n :: Integer)
@@ -281,29 +296,31 @@ postfixUpdate "--" (VNum v) = VNum (v-1)
 postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
+evalBinOp "===" x y = return $ VBool $ tripleEquals x y
+evalBinOp "!==" x y = return $ VBool $ not $ tripleEquals x y
+evalBinOp "+" (VStr a) (VStr b) = return $ VStr (a ++ b)
 evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
   "+" -> return $ VNum $ v1 + v2
   "-" -> return $ VNum $ v1 - v2
   "*" -> return $ VNum $ v1 * v2
   "/" -> return $ VNum $ v1 / v2
   "<" -> return $ VBool $ v1 < v2
-  "===" -> return $ tripleEquals x y
   _ -> raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
-evalBinOp "===" x y = return $ tripleEquals x y
-evalBinOp "+" (VStr a) (VStr b) = return $ VStr (a ++ b)
 evalBinOp op v1 v2 = raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 
 -- ref 11.9.6, incomplete
-tripleEquals :: JSVal -> JSVal -> JSVal
+tripleEquals :: JSVal -> JSVal -> Bool
 tripleEquals x y
-  | typeof x /= typeof y        = VBool False
-  | typeof x == TypeUndefined   = VBool True
-  | typeof x == TypeNull        = VBool True
-  | typeof x == TypeNumber      = VBool (x == y)
-  | typeof x == TypeString      = VBool (x == y)
-  | typeof x == TypeBoolean     = VBool (x == y)
-  | typeof x == TypeObject      = VBool (x == y)
+  | typeof x /= typeof y        = False
+  | typeof x == TypeUndefined   = True
+  | typeof x == TypeNull        = True
+  | typeof x == TypeNumber      = (x == y)
+  | typeof x == TypeString      = (x == y)
+  | typeof x == TypeBoolean     = (x == y)
+  | typeof x == TypeObject      = (x == y)
+  | typeof x == TypeFunction    = (x == y)
+  | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
 
 
@@ -356,13 +373,12 @@ funConstructor this [arg] =
   let body = toString arg
       params = []
       Program stmts = simpleParse body
-  in createFunction params stmts =<< initialCxt
+  in createFunction params stmts =<< JSCxt <$> initialEnv
+                                           <*> emptyEnv
+                                           <*> (VObj <$> getGlobalObject)
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
 toString (VStr s) = s
-
-prim :: PrimitiveFunction -> JSVal
-prim = VPrim
 
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
@@ -375,3 +391,14 @@ stackTrace :: JSError -> JSRuntime ()
 stackTrace (err, trace) = liftIO $ do
   putStrLn $ "Error: " ++ err
   mapM_ print (reverse trace)
+
+createGlobalThis :: JSRuntime ()
+createGlobalThis = do
+  this <- newObject
+  modifyRef this $ objSetProperty "escape" (VNative objEscape)
+  put $ JSGlobal (Just this)
+
+getGlobalObject :: JSRuntime (Shared JSObj)
+getGlobalObject = do
+  global <- get
+  return $ fromJust $ globalObject global
