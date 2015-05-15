@@ -17,15 +17,19 @@ import Runtime.Reference
 import Runtime.Conversion
 import Debug.Trace
 
-runJS :: String -> IO (Either JSError String)
-runJS input = do
-  r <- runJS' input
+runJStr :: String -> IO (Either JSError String)
+runJStr = runJS ""
+
+
+runJS :: String -> String -> IO (Either JSError String)
+runJS sourceName input = do
+  r <- runJS' sourceName input
   case r of
     (Left err, _)     -> return $ Left err
     (Right _, output) -> return $ Right output
 
-runJS' :: String -> IO (Either JSError (), String)
-runJS' input = case parseJS input of
+runJS' :: String -> String -> IO (Either JSError (), String)
+runJS' sourceName input = case parseJS' input sourceName of
   Left err -> error (show err)
   Right ast -> runJSRuntime (runProg ast)
 
@@ -60,29 +64,36 @@ emptyEnv = share M.empty
 runProg :: Program -> JSRuntime ()
 runProg (Program stmts) = do
   cxt <- initialCxt
-  void $ runStmts cxt stmts
+  result <- runStmts cxt stmts
+  case result of
+    (CTNormal, _, _) -> return ()
+    (CTThrow, Just (VException (err, trace)), _) -> stackTrace (err, trace)
+    _ -> liftIO $ putStrLn $ "Abnormal exit: " ++ show result
+
+returnThrow :: Statement -> JSError -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
+returnThrow s (err, trace) = return (CTThrow, Just $ VException (err, (sourceLocation s):trace), Nothing)
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
 runStmts _ [] = return (CTNormal, Nothing, Nothing)
 runStmts cxt (s:stmts) = do
-  result <- runStmt cxt s
+  result <- runStmt cxt s `catchError` returnThrow s
   case result of
     (CTNormal, _, _) -> runStmts cxt stmts
     _ -> return result
 
 runStmt :: JSCxt -> Statement -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
 runStmt cxt s = case s of
-  ExprStmt e -> do
+  ExprStmt loc e -> do
     val <- runExprStmt cxt e
     return (CTNormal, Just val, Nothing)
 
-  VarDecl assignments -> do
+  VarDecl loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
       Just e' -> do { v <- runExprStmt cxt e'; putVar cxt x v }
     return (CTNormal, Nothing, Nothing)
 
-  For (For3 e1 e2 e3) stmt -> do
+  For loc (For3 e1 e2 e3) stmt -> do
     maybeRunExprStmt cxt e1 >> keepGoing where
       keepGoing = do
         willEval <- case e2 of
@@ -96,7 +107,7 @@ runStmt cxt s = case s of
           keepGoing
         else return (CTNormal, Nothing, Nothing)
 
-  IfStatement predicate ifThen ifElse -> do -- ref 12.5
+  IfStatement loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt cxt predicate >>= getValue
     if toBoolean v
     then runStmt cxt ifThen
@@ -104,14 +115,14 @@ runStmt cxt s = case s of
            Nothing -> return (CTNormal, Nothing, Nothing)
            Just s  -> runStmt cxt s
 
-  Block stmts -> runStmts cxt stmts
+  Block loc stmts -> runStmts cxt stmts
 
-  Return Nothing -> return (CTReturn, Just VUndef, Nothing)
-  Return (Just e) -> do
+  Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
+  Return loc (Just e) -> do
     val <- runExprStmt cxt e
     return (CTReturn, Just val, Nothing)
 
-  EmptyStatement -> return (CTNormal, Nothing, Nothing)
+  EmptyStatement loc -> return (CTNormal, Nothing, Nothing)
 
   _ -> error ("Unimplemented stmt: " ++ show s)
 
@@ -136,7 +147,7 @@ runExprStmt cxt expr = case expr of
     case lval of
       VMap m -> return $ fromMaybe VUndef $ M.lookup x m
       VObj _ -> return $ VRef (JSRef lval x False)
-      _ -> error $ "Can't do ." ++ x ++ " on " ++ show lval
+      _ -> raiseError $ "Can't do ." ++ x ++ " on " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt cxt f
@@ -150,9 +161,10 @@ runExprStmt cxt expr = case expr of
     rref <- runExprStmt cxt e
     updateRef (assignOp op) lref rref
 
-  BinOp op e1 e2 ->
-    evalBinOp op <$> (runExprStmt cxt e1 >>= getValue)
-                 <*> (runExprStmt cxt e2 >>= getValue)
+  BinOp op e1 e2 -> do
+    v1 <- (runExprStmt cxt e1 >>= getValue)
+    v2 <- (runExprStmt cxt e2 >>= getValue)
+    evalBinOp op v1 v2
 
   UnOp "typeof" e -> do -- ref 11.4.3
     val <- runExprStmt cxt e >>= getValue
@@ -245,18 +257,18 @@ postfixUpdate "++" (VNum v) = VNum (v+1)
 postfixUpdate "--" (VNum v) = VNum (v-1)
 postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 
-evalBinOp :: String -> JSVal -> JSVal -> JSVal
+evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
-  "+" -> VNum $ v1 + v2
-  "-" -> VNum $ v1 - v2
-  "*" -> VNum $ v1 * v2
-  "/" -> VNum $ v1 / v2
-  "<" -> VBool $ v1 < v2
-  "===" -> tripleEquals x y
-  _ -> error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
-evalBinOp "===" x y = tripleEquals x y
-evalBinOp "+" (VStr a) (VStr b) = VStr (a ++ b)
-evalBinOp op v1 v2 = error $ "No binop " ++ op ++ " on " ++ show (v1, v2)
+  "+" -> return $ VNum $ v1 + v2
+  "-" -> return $ VNum $ v1 - v2
+  "*" -> return $ VNum $ v1 * v2
+  "/" -> return $ VNum $ v1 / v2
+  "<" -> return $ VBool $ v1 < v2
+  "===" -> return $ tripleEquals x y
+  _ -> raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
+evalBinOp "===" x y = return $ tripleEquals x y
+evalBinOp "+" (VStr a) (VStr b) = return $ VStr (a ++ b)
+evalBinOp op v1 v2 = raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 
 
 -- ref 11.9.6, incomplete
@@ -293,8 +305,9 @@ funcCall cxt paramList body this args =
     zipWithM_ putEnvironmentRecord refs args
     result <- runStmts newCxt body
     case result of
-      (_, Nothing, _) -> return VUndef
-      (_, Just v, _)  -> return v
+      (CTReturn, Just v, _)  -> return v
+      (CTThrow, Just (VException (err, trace)), _) -> throwError (err, trace)
+      _ -> return VUndef
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
@@ -325,3 +338,9 @@ objCall cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> fromJust (callMethod obj) this args
   _ -> error $ "Can't call " ++ show func
+
+
+stackTrace :: JSError -> JSRuntime ()
+stackTrace (err, trace) = liftIO $ do
+  putStrLn $ "Error: " ++ err
+  mapM_ print (reverse trace)

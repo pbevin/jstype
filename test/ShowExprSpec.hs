@@ -7,6 +7,8 @@ import Eval
 import Expr
 import ShowExpr
 
+s = SrcLoc "" 0 0 Nothing
+
 spec :: Spec
 spec = do
   it "shows a number" $ do
@@ -23,16 +25,16 @@ spec = do
     showExpr (FunCall (BinOp "||" (ReadVar "f") (ReadVar "g")) [ReadVar "x"]) `shouldBe` "(f || g)(x)"
 
   it "shows ambiguous if-then-else statements correctly" $ do
-    let a = IfStatement (ReadVar "a")
-                        (IfStatement (ReadVar "b")
-                                     ContinueStatement
-                                     (Just BreakStatement))
+    let a = IfStatement s (ReadVar "a")
+                        (IfStatement s (ReadVar "b")
+                                     (ContinueStatement s)
+                                     (Just $ BreakStatement s))
                         Nothing
-    let b = IfStatement (ReadVar "a")
-                        (IfStatement (ReadVar "b")
-                                     ContinueStatement
+    let b = IfStatement s (ReadVar "a")
+                        (IfStatement s (ReadVar "b")
+                                     (ContinueStatement s)
                                      Nothing)
-                        (Just BreakStatement)
+                        (Just $ BreakStatement s)
 
     showProg (Program [a]) `shouldBe`
       "if (a) {if (b) {continue} else {break}}"
@@ -42,7 +44,7 @@ spec = do
   it "parenthesizes {} when needed" $ do
     -- {} could mean a block in some cases.
     let empty = ObjectLiteral []
-    showProg (Program [ExprStmt empty]) `shouldBe`
+    showProg (Program [ExprStmt s empty]) `shouldBe`
       "({})"
-    showProg (Program [VarDecl [("a", Just $ empty)]]) `shouldBe`
+    showProg (Program [VarDecl s [("a", Just $ empty)]]) `shouldBe`
       "var a = {}"

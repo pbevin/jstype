@@ -1,14 +1,9 @@
-module ShowExpr (Code, code, ppcode, showProg, showExpr, showHeader, pptest) where
+module ShowExpr (Code, code, ppcode, showProg, showExpr, showHeader) where
 
 import Text.PrettyPrint hiding (Str)
 import Data.List
 import Expr
 import Debug.Trace
-
-
-pptest :: IO ()
-pptest = putStrLn $ ppcode $ Program [For (ForIn (ReadVar "d") (Assign (ReadVar "e") ">>=" (NewExpr (UnOp "typeof" (Num (JSNum 0.9216030138163378))) []))) ContinueStatement,IfStatement (ObjectLiteral []) (For (For3 (Just (FunCall (Num (JSNum 14.28513156237923)) [])) Nothing (Just (FunCall (Num (JSNum 4.043844305662269)) []))) DebuggerStatement) Nothing,BreakStatement,EmptyStatement]
-
 
 
 class Code a where
@@ -43,44 +38,44 @@ ppProg n (Program stmts) = vcat (map (ppdoc n) stmts)
 
 showStatement :: Statement -> String
 showStatement stmt = case stmt of
-  WhileStatement expr stmt -> "while" ++ pparens (showExpr expr) ++ showStatement stmt
-  Return Nothing -> "return"
-  Return (Just expr) -> "return " ++ showExpr expr
-  EmptyStatement -> ";"
-  DebuggerStatement -> "debugger"
-  BreakStatement -> "break"
-  ContinueStatement -> "continue"
-  VarDecl decls -> "var " ++ showVarDecls decls
-  ThrowStatement expr -> "throw " ++ showExpr expr
-  TryStatement block catch finally ->
+  WhileStatement _ expr stmt -> "while" ++ pparens (showExpr expr) ++ showStatement stmt
+  Return _ Nothing -> "return"
+  Return _ (Just expr) -> "return " ++ showExpr expr
+  EmptyStatement _ -> ";"
+  DebuggerStatement _ -> "debugger"
+  BreakStatement _ -> "break"
+  ContinueStatement _ -> "continue"
+  VarDecl _ decls -> "var " ++ showVarDecls decls
+  ThrowStatement _ expr -> "throw " ++ showExpr expr
+  TryStatement _ block catch finally ->
     "try " ++ showStatement block
            ++ maybe "" showCatch catch
            ++ maybe "" showFinally finally
 
-  ExprStmt expr -> parenObjectLiterals(showExpr expr)
+  ExprStmt _ expr -> parenObjectLiterals(showExpr expr)
     where parenObjectLiterals str =
             if head str == '{'
             then pparens str
             else str
 
-  Block statements ->
+  Block _ statements ->
     bbraces $ intercalate "; " $ map showStatement statements
 
-  IfStatement test ifTrue ifFalse ->
+  IfStatement _ test ifTrue ifFalse ->
     "if " ++ pparens(showExpr test) ++ " " ++ bbraces (showStatement ifTrue) ++
       case ifFalse of
         Nothing -> ""
         Just stmt -> " else " ++ bbraces (showStatement stmt)
 
-  For header stmt ->
+  For _ header stmt ->
     "for " ++ showHeader header ++ showStatement stmt
 
 ppStatement n stmt = case stmt of
-  For header stmt ->
+  For _ header stmt ->
     vcat [ text "for" <+> ppdoc 0 header,
            nest 2 $ ppdoc n stmt ]
 
-  IfStatement test ifTrue ifFalse ->
+  IfStatement _ test ifTrue ifFalse ->
     case ifFalse of
       Just ifFalse' ->
         vcat [ ifPart, block ifTrue, text "} else {", block ifFalse', text "}" ]
@@ -100,6 +95,7 @@ showHeader header = pparens $ case header of
                       maybe "" showExpr c ]
 
   ForIn a b -> showExpr a ++ " in " ++ showExpr b
+  _ -> "..."
 
 ppHeader n header = case header of
   ForIn a b -> parens $ ppdoc 0 a <+> text "in" <+> ppdoc 1 b
@@ -107,8 +103,8 @@ ppHeader n header = case header of
   _ -> text (code header)
 
 
-showCatch (Catch ident block) = " catch (" ++ ident ++ ") " ++ showStatement block
-showFinally (Finally block) = " finally " ++ showStatement block
+showCatch (Catch _ ident block) = " catch (" ++ ident ++ ") " ++ showStatement block
+showFinally (Finally _ block) = " finally " ++ showStatement block
 
 
 showExpr :: Expr -> String
@@ -161,6 +157,8 @@ showExpr expr = case expr of
 
   FunDef (Just name) params body ->
     "function " ++ name ++ pparens (intercalate "," params) ++ bbraces (mapshow ";" body)
+
+  RegularExpression{} -> error "regex"
 
 ppExpr n expr = case expr of
   Assign lhs op rhs ->

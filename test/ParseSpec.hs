@@ -9,6 +9,29 @@ import Expr
 import Parse
 import Eval
 
+
+testParse :: String -> Program
+testParse input = let Program stmts = simpleParse input
+                      srcLoc = SrcLoc "" 0 0
+                      overrideAll = map overrideSrcLoc
+                      overrideSrcLoc stmt = case stmt of
+                        Block _ stmts          ->  Block s $ overrideAll stmts
+                        VarDecl _ a            ->  VarDecl s a
+                        ExprStmt _ a           ->  ExprStmt s a
+                        IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
+                        WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
+                        DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
+                        For _ a b              ->  For s a $ overrideSrcLoc b
+                        ContinueStatement _    ->  ContinueStatement s
+                        BreakStatement _       ->  BreakStatement s
+                        Return _ a             ->  Return s a
+                        ThrowStatement _ a     ->  ThrowStatement s a
+                        TryStatement _ a b c   ->  TryStatement s a b c
+                        EmptyStatement _       ->  EmptyStatement s
+                        DebuggerStatement _    ->  DebuggerStatement s
+                  in Program $ overrideAll stmts
+
+
 spec = do
   describe "ParseExpr" $ do
     it "parses a number" $ do
@@ -98,75 +121,75 @@ spec = do
     -- it "is the inverse of showExpr" $
     --   property prop_showExpr
 
-  describe "simpleParse" $ do
+  describe "Parsing programs" $ do
     it "parses a while statement" $ do
-      simpleParse "while (a) { }" `shouldBe` Program [WhileStatement (ReadVar "a") (Block [])]
+      testParse "while (a) { }" `shouldBe` Program [WhileStatement s (ReadVar "a") (Block s [])]
 
     it "parses a do-while statement" $ do
-      simpleParse "do {} while (a);" `shouldBe` Program [DoWhileStatement (ReadVar "a") (Block [])]
+      testParse "do {} while (a);" `shouldBe` Program [DoWhileStatement s (ReadVar "a") (Block s [])]
 
 
     it "parses a var declaration" $ do
-      simpleParse "var a;" `shouldBe` Program [VarDecl [("a", Nothing)]]
-      simpleParse "var a, b;" `shouldBe` Program [VarDecl [("a", Nothing),
+      testParse "var a;" `shouldBe` Program [VarDecl s [("a", Nothing)]]
+      testParse "var a, b;" `shouldBe` Program [VarDecl s [("a", Nothing),
                                                            ("b", Nothing)]]
-      simpleParse "var a = 1, b;" `shouldBe` Program [VarDecl [("a", Just $ Num 1),
+      testParse "var a = 1, b;" `shouldBe` Program [VarDecl s [("a", Just $ Num 1),
                                                                ("b", Nothing)]]
-      simpleParse "var a = 1, b = a;" `shouldBe` Program [VarDecl [("a", Just $ Num 1),
+      testParse "var a = 1, b = a;" `shouldBe` Program [VarDecl s [("a", Just $ Num 1),
                                                                    ("b", (Just $ ReadVar "a"))]]
 
     it "ignores comments at the start of the file" $ do
-      simpleParse "" `shouldBe` Program []
-      simpleParse "// this is a comment\n" `shouldBe` Program []
-      simpleParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt (Num 2)]
+      testParse "" `shouldBe` Program []
+      testParse "// this is a comment\n" `shouldBe` Program []
+      testParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt s (Num 2)]
 
     it "ignores white space before and after semicolons" $ do
-      simpleParse "1 ; 2" `shouldBe` simpleParse "1;2"
-      simpleParse "1; 2" `shouldBe` simpleParse "1;2"
-      simpleParse "1 ;2" `shouldBe` simpleParse "1;2"
+      testParse "1 ; 2" `shouldBe` testParse "1;2"
+      testParse "1; 2" `shouldBe` testParse "1;2"
+      testParse "1 ;2" `shouldBe` testParse "1;2"
 
     it "parses a semicolon-terminated statement in a function" $ do
-      simpleParse "function b() { return 3 }" `shouldBe` simpleParse "function b() { return 3; }"
+      testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
 
     it "is OK with a semicolon in an if" $ do
-      simpleParse "if (1) { return; }" `shouldBe` Program [IfStatement (Num 1) (Return Nothing) Nothing]
+      testParse "if (1) { return; }" `shouldBe` Program [IfStatement s (Num 1) (Return s Nothing) Nothing]
 
     it "treats semicolons as optional" $ do
-      simpleParse "a()\nb()\n" `shouldBe` simpleParse "a(); b();"
+      testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
 
     it "parses a return statement with a value" $ do
-      simpleParse "return 4" `shouldBe`
-        Program [ Return $ Just $ Num 4 ]
+      testParse "return 4" `shouldBe`
+        Program [ Return s $ Just $ Num 4 ]
 
     it "does not let a return statement break onto a newline" $ do
-      simpleParse "return\n5\n" `shouldBe` Program [Return Nothing, ExprStmt (Num 5)]
+      testParse "return\n5\n" `shouldBe` Program [Return s Nothing, ExprStmt s (Num 5)]
 
     it "resolves the if-then-else ambiguity" $ do
-      simpleParse "if (a) if (b) continue; else break" `shouldBe`
-        Program [IfStatement (ReadVar "a")
-                             (IfStatement (ReadVar "b")
-                                          ContinueStatement
-                                          (Just BreakStatement))
-                             Nothing]
+      testParse "if (a) if (b) continue; else break" `shouldBe`
+        Program [IfStatement s (ReadVar "a")
+                               (IfStatement s (ReadVar "b")
+                                            (ContinueStatement s)
+                                            (Just $ BreakStatement s))
+                               Nothing]
 
     it "parses empty statements" $ do
-      simpleParse ";\n;\n" `shouldBe`
-        Program [ EmptyStatement, EmptyStatement ]
+      testParse ";\n;\n" `shouldBe`
+        Program [ EmptyStatement s, EmptyStatement s ]
 
     it "parses a for..in statement" $ do
-      simpleParse "for (x in xs) return" `shouldBe`
-        Program [For (ForIn (ReadVar "x") (ReadVar "xs")) $ Return Nothing]
+      testParse "for (x in xs) return" `shouldBe`
+        Program [For s (ForIn (ReadVar "x") (ReadVar "xs")) $ Return s Nothing]
 
     it "parses a for..var..in statement" $ do
-      simpleParse "for (var x in xs) return" `shouldBe`
-        Program [For (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return Nothing]
+      testParse "for (var x in xs) return" `shouldBe`
+        Program [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return s Nothing]
 
     it "parses a new object" $ do
-      simpleParse "new X()" `shouldBe`
-        Program [ ExprStmt $ NewExpr (ReadVar "X") [] ]
+      testParse "new X()" `shouldBe`
+        Program [ ExprStmt s $ NewExpr (ReadVar "X") [] ]
 
     it "doesn't get confused by variables starting with 'new'" $ do
-      simpleParse "newx" `shouldBe` Program [ ExprStmt $ ReadVar "newx" ]
+      testParse "newx" `shouldBe` Program [ ExprStmt s $ ReadVar "newx" ]
 
     -- it "is the inverse of showProg" $
     --   property prop_showProg

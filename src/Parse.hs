@@ -7,6 +7,7 @@ import Text.Parsec hiding (newline)
 import Text.Parsec.String
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (javaStyle)
+import Data.Maybe
 import Data.List
 import Data.Char
 import ShowExpr
@@ -14,11 +15,11 @@ import Expr
 
 import Debug.Trace
 
-type ParseState = Bool -- "in" allowed
+type ParseState = (Bool, Maybe String) -- "in" allowed, context
 type JSParser = Parsec String ParseState
 
 jsParse :: JSParser a -> SourceName -> String -> Either ParseError a
-jsParse p = runP p True
+jsParse p = runP p (True, Nothing)
 
 parseJS :: String -> Either ParseError Program
 parseJS str = parseJS' str ""
@@ -93,20 +94,31 @@ semicolon = skip ";"
 
 
 disableInKeyword, enableInKeyword :: JSParser ()
-disableInKeyword = putState False
-enableInKeyword  = putState True
+disableInKeyword = modifyState $ \(_, cxt) -> (False, cxt)
+enableInKeyword  = modifyState $ \(_, cxt) -> (True, cxt)
 
 withoutInKeyword :: JSParser a -> JSParser a
 withoutInKeyword p = disableInKeyword *> p <* enableInKeyword
 
 removeIn :: [String] -> JSParser [String]
 removeIn ops = do
-  inKeywordEnabled <- getState
+  (inKeywordEnabled, _) <- getState
   return $ if inKeywordEnabled
            then ops
            else ops \\ ["in"]
 
+withFunctionContext :: Maybe String -> JSParser a -> JSParser a
+withFunctionContext fname p =
+  let here = fromMaybe "anonymous function" fname
+  in do
+    (a, cxt) <- getState
+    putState (a, Just here)
+    result <- p
+    putState (a, cxt)
+    return result
 
+currentContext :: JSParser (Maybe String)
+currentContext = snd <$> getState
 
 prog :: JSParser Program
 prog = Program <$> statementList
@@ -144,16 +156,18 @@ statement = choice [ block <?> "block",
 
 block :: JSParser Statement
 block = do
+  loc <- srcLoc
   stmts <- braces statementList
   return $ case stmts of
     [single] -> single
-    _ -> Block stmts
+    _ -> Block loc stmts
 
-realblock = Block <$> braces statementList
+realblock :: JSParser Statement
+realblock = Block <$> srcLoc <*> braces statementList
 
 
 varDecl :: JSParser Statement
-varDecl = try (keyword "var" >> VarDecl <$> varAssign `sepBy1` comma) <?> "variable declaration"
+varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma) <?> "variable declaration"
 
 varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
 varAssign = do
@@ -172,35 +186,37 @@ returnStmt = do
   try (keyword "return")
   pos2 <- getPosition
 
-  Return <$> if sameLine pos1 pos2
-             then optionMaybe expr
-             else pure Nothing
+  Return <$> srcLoc <*> if sameLine pos1 pos2
+                        then optionMaybe expr
+                        else pure Nothing
 
 ifStmt :: JSParser Statement
 ifStmt = do
   try $ keyword "if"
+  loc <- srcLoc
   test <- parens expr
   ifTrue <- statement
   ifFalse <- try elseClause <|> return Nothing
-  return $ IfStatement test ifTrue ifFalse
+  return $ IfStatement loc test ifTrue ifFalse
 
 elseClause :: JSParser (Maybe Statement)
 elseClause = try (keyword "else" >> Just <$> statement)
 
 whileStmt :: JSParser Statement
 whileStmt = try $ keyword "while" >>
-  WhileStatement <$> parens expr <*> statement
+  WhileStatement <$> srcLoc <*> parens expr <*> statement
 
 doWhileStmt :: JSParser Statement
 doWhileStmt = try $ keyword "do" >> do
+  loc <- srcLoc
   stmt <- statement
   keyword "while"
   e <- parens expr
-  return $ DoWhileStatement e stmt
+  return $ DoWhileStatement loc e stmt
   
 
 forStmt :: JSParser Statement
-forStmt = try (keyword "for") >> For <$> forHeader <*> statement
+forStmt = try (keyword "for") >> For <$> srcLoc <*> forHeader <*> statement
 
 forHeader :: JSParser ForHeader
 forHeader = parens (forinvar <|> try forin <|> for3)
@@ -213,40 +229,44 @@ for3 = For3 <$> optionMaybe exprNoIn <*>
                 (lexeme ";" >> optionMaybe expr)
 
 exprStmt :: JSParser Statement
-exprStmt = ExprStmt <$> expr
+exprStmt = ExprStmt <$> srcLoc <*> expr
 
 emptyStmt :: JSParser Statement
-emptyStmt = semicolon >> return EmptyStatement
+emptyStmt = semicolon >> EmptyStatement <$> srcLoc
 
 breakStmt :: JSParser Statement
-breakStmt = keyword "break" >> return BreakStatement
+breakStmt = keyword "break" >> BreakStatement <$> srcLoc
 
 continueStmt :: JSParser Statement
-continueStmt = keyword "continue" >> return ContinueStatement
+continueStmt = keyword "continue" >> ContinueStatement <$> srcLoc
 
 throwStmt :: JSParser Statement
-throwStmt = try (keyword "throw") >> ThrowStatement <$> expr
+throwStmt = try (keyword "throw") >> ThrowStatement <$> srcLoc <*> expr
 
 tryStmt :: JSParser Statement
-tryStmt = try (keyword "try") >> TryStatement <$> realblock
+tryStmt = try (keyword "try") >> TryStatement <$> srcLoc <*> realblock
              <*> optionMaybe catch <*> optionMaybe finally
     where catch = try (keyword "catch") >>
-                     Catch <$> parens identifier <*> realblock
+                     Catch <$> srcLoc <*> parens identifier <*> realblock
           finally = try (keyword "finally") >>
-                     Finally <$> realblock
+                     Finally <$> srcLoc <*> realblock
 
 
 
 
 debuggerStmt :: JSParser Statement
-debuggerStmt = keyword "debugger" >> return DebuggerStatement
+debuggerStmt = keyword "debugger" >> DebuggerStatement <$> srcLoc
 
 
 
 
 
 
-
+srcLoc :: JSParser SrcLoc
+srcLoc = do
+  pos <- getPosition
+  cxt <- currentContext
+  return $ SrcLoc (sourceName pos) (sourceLine pos) (sourceColumn pos) $ cxt
 
 
 
@@ -303,7 +323,7 @@ functionExpr = do
   try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  stmts <- braces statementList <?> "function body"
+  stmts <- withFunctionContext name (braces statementList) <?> "function body"
   return $ FunDef name params stmts
 
 callExpr :: JSParser Expr -> JSParser Expr
@@ -313,7 +333,7 @@ callExpr p = do
     where
       addons :: Expr -> JSParser Expr
       addons base = (parens argumentList >>= \args -> addons $ FunCall base args)
-                <|> ((char '.' >> identifier) >>= \id -> addons $ MemberDot addons id)
+                <|> ((char '.' >> identifier) >>= \id -> addons $ MemberDot base id)
                 <|> (brackets expr >>= \e -> addons $ MemberGet base e)
                 <|> return base
 

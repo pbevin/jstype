@@ -30,28 +30,28 @@ arbProg :: Int -> Gen Program
 arbProg n = Program <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
-arbStmt 0 = Return <$> resize 0 arbitrary
+arbStmt 0 = Return s <$> resize 0 arbitrary
 
-arbStmt n = oneof [ ExprStmt <$> resize (n-1) arbitrary,
-                    WhileStatement <$> arbExpr half <*> arbStmt half,
-                    Return <$> resize (n-1) arbitrary,
-                    VarDecl <$> shortListOf1 n (sized arbVarDecl),
-                    IfStatement <$> subexpr <*> substmt <*> pure Nothing,
-                    IfStatement <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
-                    For <$> arbitrary <*> arbitrary,
-                    Block <$> two (resize half arbitrary),
-                    ThrowStatement <$> arbitrary,
-                    TryStatement <$> (block half) <*> (Just <$> Catch "e" <$> block half) <*> pure Nothing,
-                    TryStatement <$> (block half) <*> pure Nothing <*> (Just <$> Finally <$> block half),
-                    pure ContinueStatement,
-                    pure BreakStatement,
-                    pure EmptyStatement,
-                    pure DebuggerStatement ]
+arbStmt n = oneof [ ExprStmt s <$> resize (n-1) arbitrary,
+                    WhileStatement s <$> arbExpr half <*> arbStmt half,
+                    Return s <$> resize (n-1) arbitrary,
+                    VarDecl s <$> shortListOf1 n (sized arbVarDecl),
+                    IfStatement s <$> subexpr <*> substmt <*> pure Nothing,
+                    IfStatement s <$> (resize third arbitrary) <*> (resize third arbitrary) <*> (Just <$> resize third arbitrary),
+                    For s <$> arbitrary <*> arbitrary,
+                    Block s <$> two (resize half arbitrary),
+                    ThrowStatement s <$> arbitrary,
+                    TryStatement s <$> (block half) <*> (Just <$> Catch s "e" <$> block half) <*> pure Nothing,
+                    TryStatement s <$> (block half) <*> pure Nothing <*> (Just <$> (Finally <$> pure s <*> block half)),
+                    pure $ ContinueStatement s,
+                    pure $ BreakStatement s,
+                    pure $ EmptyStatement s,
+                    pure $ DebuggerStatement s ]
   where half = n `div` 2
         third = n `div` 3
         subexpr = resize half arbitrary
         substmt = resize half arbitrary
-        block n = Block <$> shortListOf n arbitrary
+        block n = Block s <$> shortListOf n arbitrary
 
 
 arbVarDecl :: Int -> Gen (Ident, Maybe Expr)
@@ -153,27 +153,27 @@ shrinkProg (Program stmts) = [Program p | p <- recursivelyShrink stmts]
 
 shrinkStmt :: Statement -> [Statement]
 shrinkStmt expr = case expr of
-  ExprStmt e ->
-    [ExprStmt e | e <- shrink e]
+  ExprStmt _ e ->
+    [ExprStmt s e | e <- shrink e]
 
-  WhileStatement e s ->
-    [ExprStmt e, s] ++ [WhileStatement e' s' | (e', s') <- shrink (e, s)]
+  WhileStatement _ e st ->
+    [ExprStmt s e, st] ++ [WhileStatement s e' st' | (e', st') <- shrink (e, st)]
 
-  Return e ->
-    [Return e' | e' <- shrink e]
+  Return _ e ->
+    [Return s e' | e' <- shrink e]
 
-  IfStatement a b Nothing ->
-    [IfStatement a' b' Nothing | (a', b') <- shrink (a, b)]
+  IfStatement _ a b Nothing ->
+    [IfStatement s a' b' Nothing | (a', b') <- shrink (a, b)]
 
-  IfStatement a b c ->
-    [IfStatement a' b' c' | (a', b', c') <- shrink (a, b, c)]
+  IfStatement _ a b c ->
+    [IfStatement s a' b' c' | (a', b', c') <- shrink (a, b, c)]
 
-  EmptyStatement -> []
+  EmptyStatement _ -> []
 
-  For header stmt ->
-    [For h' s' | (h', s') <- shrink (header, stmt)]
+  For _ header stmt ->
+    [For s h' s' | (h', s') <- shrink (header, stmt)]
 
-  _ -> [EmptyStatement]
+  _ -> [EmptyStatement s]
 
 
 shrinkExpr :: Expr -> [Expr]
@@ -235,3 +235,7 @@ shrinkForHeader header = case header of
 
 shrinkPropertyName :: PropertyName -> [PropertyName]
 shrinkPropertyName _ = []
+
+
+s :: SrcLoc
+s = SrcLoc "" 0 0 Nothing

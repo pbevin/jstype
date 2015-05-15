@@ -10,7 +10,7 @@ import Runtime.Types
 getValue :: JSVal -> JSRuntime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
-  | isUnresolvableReference ref = throwError "ReferenceError"
+  | isUnresolvableReference ref = raiseError "ReferenceError"
   | isPropertyReference ref     = getValuePropertyReference ref
   | otherwise                   = getValueEnvironmentRecord ref
     where ref = unwrapRef v
@@ -18,7 +18,7 @@ getValue v
 -- ref 8.7.2
 putValue :: JSVal -> JSVal -> JSRuntime ()
 putValue v w
-  | typeof v /= TypeReference   = throwError "ReferenceError"
+  | typeof v /= TypeReference   = raiseError "ReferenceError"
   | isUnresolvableReference ref = putUnresolvable ref w
   | isPropertyReference ref     = putPropertyReference ref w
   | otherwise                   = putEnvironmentRecord ref w

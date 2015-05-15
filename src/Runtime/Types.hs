@@ -22,6 +22,7 @@ data JSVal = VNum JSNum
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VPrim PrimitiveFunction
            | JSErrorObj JSVal
+           | VException JSError
            | VCxt JSCxt
 
 instance Show JSVal where
@@ -34,6 +35,7 @@ instance Show JSVal where
   show (VMap _) = "(map)"
   show (VNative _) = "(native function)"
   show (JSErrorObj a) = "JSError(" ++ show a ++ ")"
+  show (VException exc) = "Exception " ++ show exc
   show _ = "???"
 
 data JSObj = JSObj {
@@ -76,6 +78,7 @@ typeof v = case v of
   VUndef  -> TypeUndefined
   VNative _ -> TypeFunction
   VObj _  -> TypeObject
+  VException _ -> TypeOther "Exception"
   _       -> error $ "No idea what type " ++ show v ++ " is..."
 
 instance Eq JSVal where
@@ -85,7 +88,7 @@ instance Eq JSVal where
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
 
 type JSOutput = String
-type JSError = String
+type JSError = (String, [SrcLoc])
 type JSEnv = Shared (M.Map Ident JSVal)
 type PrimitiveFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
@@ -104,3 +107,6 @@ newtype JSRuntime a = JS {
   unJS :: ExceptT JSError (WriterT String IO) a
 } deriving (Monad, MonadIO, MonadWriter String, MonadError JSError, Functor, Applicative)
 
+
+raiseError :: String -> JSRuntime a
+raiseError s = throwError (s, [])

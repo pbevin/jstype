@@ -8,6 +8,8 @@ module Expr (Program (..),
              JSNum(..),
              Lang(..),
              Ident,
+             SrcLoc(..),
+             sourceLocation,
              jsLang) where
 
 newtype JSNum = JSNum Double deriving Show
@@ -15,6 +17,16 @@ instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
 
 newtype Program = Program [Statement] deriving (Show, Eq)
+
+data SrcLoc = SrcLoc {
+  srcFilename :: String,
+  srcLine :: Int,
+  srcColumn :: Int,
+  srcContext :: Maybe String
+} deriving (Eq, Ord)
+
+instance Show SrcLoc where
+  show (SrcLoc file line col cxt) = "at " ++ file ++ ":" ++ show line ++ ":" ++ show col ++ maybe "" (" in " ++) cxt
 
 type Ident = String
 type Operator = String
@@ -27,28 +39,24 @@ data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
                | ForInVar VarDeclaration Expr
   deriving (Show, Eq)
 
-data Statement = Block [Statement]
-               | VarDecl [VarDeclaration]
-               | ExprStmt Expr
-               | IfStatement Expr Statement (Maybe Statement)
-               | WhileStatement Expr Statement
-               | DoWhileStatement Expr Statement
-               | For ForHeader Statement
-               -- | ForStatement ... (4 cases)
-               | ContinueStatement
-               | BreakStatement
-               | Return (Maybe Expr)
-               -- | WithStatement
-               | IdentifierStatement Ident Statement
-               | SwitchStatement
-               | ThrowStatement Expr
-               | TryStatement Statement (Maybe Catch) (Maybe Finally)
-               | EmptyStatement
-               | DebuggerStatement
+data Statement = Block SrcLoc [Statement]
+               | VarDecl SrcLoc [VarDeclaration]
+               | ExprStmt SrcLoc Expr
+               | IfStatement SrcLoc Expr Statement (Maybe Statement)
+               | WhileStatement SrcLoc Expr Statement
+               | DoWhileStatement SrcLoc Expr Statement
+               | For SrcLoc ForHeader Statement
+               | ContinueStatement SrcLoc
+               | BreakStatement SrcLoc
+               | Return SrcLoc (Maybe Expr)
+               | ThrowStatement SrcLoc Expr
+               | TryStatement SrcLoc Statement (Maybe Catch) (Maybe Finally)
+               | EmptyStatement SrcLoc
+               | DebuggerStatement SrcLoc
   deriving (Show, Eq)
 
-data Catch = Catch Ident Statement deriving (Show, Eq)
-data Finally = Finally Statement deriving (Show, Eq)
+data Catch = Catch SrcLoc Ident Statement deriving (Show, Eq)
+data Finally = Finally SrcLoc Statement deriving (Show, Eq)
 
 type FunBody = [Statement]
 
@@ -118,3 +126,20 @@ instance Fractional JSNum where
 
 instance Ord JSNum where
   compare (JSNum a) (JSNum b) = compare a b
+
+sourceLocation :: Statement -> SrcLoc
+sourceLocation stmt = case stmt of
+  Block s _ -> s
+  VarDecl s _ -> s
+  ExprStmt s _ -> s
+  IfStatement s _ _ _ -> s
+  WhileStatement s _ _ -> s
+  DoWhileStatement s _ _ -> s
+  For s _ _ -> s
+  ContinueStatement s -> s
+  BreakStatement s -> s
+  Return s _ -> s
+  ThrowStatement s _ -> s
+  TryStatement s _ _ _ -> s
+  EmptyStatement s -> s
+  DebuggerStatement s -> s
