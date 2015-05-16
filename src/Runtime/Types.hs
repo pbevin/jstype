@@ -105,6 +105,8 @@ deref :: Shared a -> JSRuntime a
 deref (Shared a) = liftIO $ readIORef a
 modifyRef :: Shared a -> (a -> a) -> JSRuntime ()
 modifyRef (Shared a) f = liftIO $ modifyIORef a f
+modifyRef' :: Shared a -> (a -> a) -> JSRuntime (Shared a)
+modifyRef' a f = modifyRef a f >> return a
 
 newtype JSRuntime a = JS {
   unJS :: ExceptT JSError (WriterT String (StateT JSGlobal IO)) a

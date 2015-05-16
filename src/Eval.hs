@@ -61,6 +61,7 @@ initialEnv = do
   modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
 
   error <- newObject
+  modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
   share $ M.fromList [ ("console", VObj console),
                        ("Function", VObj function),
@@ -101,7 +102,7 @@ runStmt cxt s = case s of
   VarDecl loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
-      Just e' -> do 
+      Just e' -> do
         v <- getValue =<< runExprStmt cxt e'
         putVar cxt x v
     return (CTNormal, Nothing, Nothing)
@@ -157,6 +158,12 @@ runStmt cxt s = case s of
 
   Block loc stmts -> runStmts cxt stmts
 
+  TryStatement _loc block catch finally -> do -- ref 12.14
+    b@(btype, bval, _) <- runStmt cxt block
+    if btype /= CTThrow
+    then return b
+    else runCatch cxt catch (fromJust bval)
+
   ThrowStatement loc e -> do
     exc <- runExprStmt cxt e >>= getValue
     return (CTThrow, Just exc, Nothing)
@@ -175,6 +182,14 @@ maybeRunExprStmt :: JSCxt -> Maybe Expr -> JSRuntime ()
 maybeRunExprStmt _ Nothing  = return ()
 maybeRunExprStmt cxt (Just e) = void (runExprStmt cxt e)
 
+
+-- ref 12.14
+runCatch :: JSCxt -> Maybe Catch -> JSVal -> JSRuntime StmtReturn
+runCatch _ Nothing _ = return (CTNormal, Nothing, Nothing)
+runCatch cxt (Just (Catch _loc var stmt)) exc = do
+  -- XXX create new environment
+  putVar cxt var exc
+  runStmt cxt stmt
 
 
 
@@ -244,13 +259,10 @@ runExprStmt cxt expr = case expr of
     putValue lhs (postfixUpdate op lval)
     return lval
 
-  NewExpr f args ->
-    if f == ReadVar "Error"
-    then createError =<< runExprStmt cxt (head args)
-    else do
-      fun <- runExprStmt cxt f >>= getValue
-      argList <- evalArguments cxt args
-      liftM VObj (newObjectFromConstructor cxt fun argList)
+  NewExpr f args -> do
+    fun <- runExprStmt cxt f >>= getValue
+    argList <- evalArguments cxt args
+    liftM VObj (newObjectFromConstructor cxt fun argList)
 
   FunDef (Just name) params body -> do
     fun <- createFunction params body cxt
@@ -258,6 +270,8 @@ runExprStmt cxt expr = case expr of
     return fun
 
   FunDef Nothing params body -> createFunction params body cxt
+
+  ObjectLiteral nameValueList -> makeObjectLiteral cxt nameValueList
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
@@ -381,15 +395,16 @@ createFunction paramList body cxt = do
                   callMethod = Just (funcCall cxt paramList body) }
   return $ VObj objref
 
+setClass :: String -> Shared JSObj -> JSRuntime (Shared JSObj)
+setClass cls objRef = modifyRef' objRef $ \obj -> obj { objClass = cls }
+
+addOwnProperty :: String -> JSVal -> Shared JSObj -> JSRuntime (Shared JSObj)
+addOwnProperty name val objRef = modifyRef' objRef $ objSetProperty name val
+
 createError :: JSVal -> JSRuntime JSVal
-createError text = do
-  objRef <- newObject
-  modifyRef objRef $
-    \obj -> obj { objClass = "Error" }
-
-  return $ VObj objRef
-
-
+createError text =
+  VObj <$> (newObject >>= setClass "Error"
+                      >>= addOwnProperty "message" text)
 
 -- ref 13.2.1, incomplete
 funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
@@ -418,6 +433,15 @@ newObjectFromConstructor cxt fun@(VObj funref) args = do
 objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 objConstructor _this _args = VObj <$> newObject
 
+errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+errConstructor this args =
+  let text = head args
+  in case this of
+    VObj obj -> do
+      x <- return obj >>= setClass "Error"
+                      >>= addOwnProperty "message" text
+      return (VObj x)
+
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] =
@@ -434,7 +458,9 @@ toString (VStr s) = s
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
-  VObj objref -> deref objref >>= \obj -> fromJust (callMethod obj) this args
+  VObj objref -> deref objref >>= \obj -> case callMethod obj of
+    Nothing -> error "Can't call function: no callMethod"
+    Just method -> method this args
   _ -> error $ "Can't call " ++ show func
 
 
@@ -453,3 +479,17 @@ getGlobalObject :: JSRuntime (Shared JSObj)
 getGlobalObject = do
   global <- get
   return $ fromJust $ globalObject global
+
+makeObjectLiteral :: JSCxt -> [(PropertyName, Expr)] -> JSRuntime JSVal
+makeObjectLiteral cxt nameValueList =
+  let nameOf :: PropertyName -> String
+      nameOf (IdentProp ident) = ident
+      nameOf (StringProp str)  = str
+      nameOf (NumProp n)       = show n
+      addProp :: Shared JSObj -> (PropertyName, Expr) -> JSRuntime (Shared JSObj)
+      addProp obj (propName, propValue) = do
+        val <- runExprStmt cxt propValue >>= getValue
+        return obj >>= addOwnProperty (nameOf propName) val
+  in do
+    obj <- newObject
+    VObj <$> foldM addProp obj nameValueList

@@ -78,3 +78,7 @@ spec = do
 
   it "can create a new object" $ do
     runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
+
+  it "runs a try..catch block" $ do
+    runJStr "try { throw new Error('hi') } catch (e) { console.log(e.message); }"
+    `shouldReturn` Right "hi\n";
