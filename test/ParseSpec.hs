@@ -143,27 +143,6 @@ spec = do
       testParse "// this is a comment\n" `shouldBe` Program []
       testParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt s (Num 2)]
 
-    it "ignores white space before and after semicolons" $ do
-      testParse "1 ; 2" `shouldBe` testParse "1;2"
-      testParse "1; 2" `shouldBe` testParse "1;2"
-      testParse "1 ;2" `shouldBe` testParse "1;2"
-
-    it "parses a semicolon-terminated statement in a function" $ do
-      testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
-
-    it "is OK with a semicolon in an if" $ do
-      testParse "if (1) { return; }" `shouldBe` Program [IfStatement s (Num 1) (Return s Nothing) Nothing]
-
-    it "treats semicolons as optional" $ do
-      testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
-
-    it "parses a return statement with a value" $ do
-      testParse "return 4" `shouldBe`
-        Program [ Return s $ Just $ Num 4 ]
-
-    it "does not let a return statement break onto a newline" $ do
-      testParse "return\n5\n" `shouldBe` Program [Return s Nothing, ExprStmt s (Num 5)]
-
     it "resolves the if-then-else ambiguity" $ do
       testParse "if (a) if (b) continue; else break" `shouldBe`
         Program [IfStatement s (ReadVar "a")
@@ -191,8 +170,35 @@ spec = do
     it "doesn't get confused by variables starting with 'new'" $ do
       testParse "newx" `shouldBe` Program [ ExprStmt s $ ReadVar "newx" ]
 
-    it "fails on ASI" $ do
+  describe "Automatic semicolon insertion" $ do
+    it "requires a semicolon on the same line" $ do
       evaluate (testParse "{ 1 2 } 3") `shouldThrow` anyException
 
-    -- it "is the inverse of showProg" $
-    --   property prop_showProg
+    it "does not require a semicolon with a line break" $ do
+      testParse "{ 1\n2 } 3" `shouldBe` testParse "{ 1; 2 } 3"
+
+    it "ignores white space before and after semicolons" $ do
+      testParse "1 ; 2" `shouldBe` testParse "1;2"
+      testParse "1; 2" `shouldBe` testParse "1;2"
+      testParse "1 ;2" `shouldBe` testParse "1;2"
+
+    it "parses a semicolon-terminated statement in a function" $ do
+      testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
+
+    it "is OK with a semicolon in an if" $ do
+      testParse "if (1) { return; }" `shouldBe` Program [IfStatement s (Num 1) (Return s Nothing) Nothing]
+
+    it "treats semicolons as optional" $ do
+      testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
+
+    it "parses a return statement with a value" $ do
+      testParse "return 4" `shouldBe`
+        Program [ Return s $ Just $ Num 4 ]
+
+    it "does not let a return statement break onto a newline" $ do
+      testParse "return\n5\n" `shouldBe` Program [Return s Nothing, ExprStmt s (Num 5)]
+
+    it "splits a statement on ++ if on a new line" $ do
+      testParse "a=b\n++c" `shouldBe`
+        Program [ ExprStmt s (Assign (ReadVar "a") "=" (ReadVar "b")),
+                  ExprStmt s (UnOp "++" (ReadVar "c")) ]

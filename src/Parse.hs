@@ -132,11 +132,10 @@ terminated p = do
   result <- p
   pos2 <- getPosition
 
-  when (sameLine pos1 pos2) $ semicolon
+  when (sameLine pos1 pos2) $ do
+    semicolon <|> lookAhead (eof <|> skip "}")
 
   return result
-
-
 
 statement :: JSParser Statement
 statement = choice [ block <?> "block",
@@ -342,8 +341,13 @@ argumentList = assignmentExpr `sepBy` comma
 
 postfixExpr :: JSParser Expr -> JSParser Expr
 postfixExpr p = do
+  pos1 <- getPosition
   e <- p
-  try (postfix e) <|> return e
+  pos2 <- getPosition
+
+  if sameLine pos1 pos2
+  then try (postfix e) <|> return e
+  else return e
     where postfix e = do
             op <- choice $ map (try . lexeme) $ postfixOps jsLang
             whiteSpace
