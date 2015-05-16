@@ -15,7 +15,7 @@ testParse input = let Program stmts = simpleParse input
                       srcLoc = SrcLoc "" 0 0
                       overrideAll = map overrideSrcLoc
                       overrideSrcLoc stmt = case stmt of
-                        Block _ stmts          ->  Block s $ overrideAll stmts
+                        Block _ sts            ->  Block s $ overrideAll sts
                         VarDecl _ a            ->  VarDecl s a
                         ExprStmt _ a           ->  ExprStmt s a
                         IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
@@ -32,6 +32,7 @@ testParse input = let Program stmts = simpleParse input
                   in Program $ overrideAll stmts
 
 
+spec :: Spec
 spec = do
   describe "ParseExpr" $ do
     it "parses a number" $ do

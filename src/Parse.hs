@@ -29,18 +29,19 @@ parseJS' str filename = jsParse (whiteSpace >> prog <* eof) filename str
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of
-  Right prog -> prog
-  Left err   -> error (show err)
+  Right p  -> p
+  Left err -> error (show err)
 
 parseExpr :: String -> Expr
 parseExpr str = case jsParse (expr <* eof) "" str of
-  Right expr -> expr
-  Left err   -> error (show err)
+  Right e  -> e
+  Left err -> error (show err)
 
 
 sameLine :: SourcePos -> SourcePos -> Bool
 sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
 
+identStart, identLetter :: [Char]
 identStart  = ['a'..'z'] ++ ['A'..'Z'] ++ "$_"
 identLetter = identStart ++ ['0'..'9']
 
@@ -52,15 +53,25 @@ javascript = javaStyle
               , T.identLetter = oneOf identLetter
               , T.caseSensitive = True }
 
+
+lexer :: T.TokenParser st
 lexer = T.makeTokenParser javascript
+
+parens, braces, brackets :: JSParser a -> JSParser a
 parens = T.parens lexer
 braces = T.braces lexer
 brackets = T.brackets lexer
+
+
+identifier :: JSParser String
 identifier = T.identifier lexer
+integer :: JSParser Integer
 integer = T.integer lexer
+float :: JSParser Double
 float = T.float lexer
+reserved :: String -> JSParser ()
 reserved = T.reserved lexer
-symbol = T.symbol lexer
+whiteSpace :: JSParser ()
 whiteSpace = T.whiteSpace lexer
 
 spaceNotNewline :: Char -> Bool
@@ -69,6 +80,7 @@ spaceNotNewline ch = isSpace ch && ch /= '\n'
 noNewline :: JSParser ()
 noNewline = void (satisfy spaceNotNewline)
 
+allOps :: [String]
 allOps = sortBy reverseLength $ nub allJsOps
   where allJsOps = assignOps jsLang ++ unaryOps jsLang ++ binaryOps jsLang ++ postfixOps jsLang
 
@@ -81,6 +93,7 @@ lexeme str = string str <* whiteSpace
 keyword :: String -> JSParser ()
 keyword str = reserved str >> whiteSpace
 
+resOp :: JSParser String
 resOp = do
   op <- choice (map (try . string) allOps)
   whiteSpace
@@ -89,6 +102,7 @@ resOp = do
 skip :: String -> JSParser ()
 skip = void . lexeme
 
+comma, semicolon :: JSParser ()
 comma = skip ","
 semicolon = skip ";"
 
@@ -170,12 +184,12 @@ varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma)
 
 varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
 varAssign = do
-  id <- identifier
-  assignment id <|> return (id, Nothing)
-    where assignment id = do
+  name <- identifier
+  assign name <|> return (name, Nothing)
+    where assign x = do
             lexeme "="
             e <- assignmentExpr
-            return (id, Just e)
+            return (x, Just e)
 
 varAssignNoIn = withoutInKeyword varAssign
 
@@ -212,7 +226,7 @@ doWhileStmt = try $ keyword "do" >> do
   keyword "while"
   e <- parens expr
   return $ DoWhileStatement loc e stmt
-  
+
 
 forStmt :: JSParser Statement
 forStmt = try (keyword "for") >> For <$> srcLoc <*> forHeader <*> statement
@@ -269,6 +283,8 @@ srcLoc = do
 
 
 
+exprNoIn :: JSParser Expr
+exprNoIn = withoutInKeyword expr
 
 expr :: JSParser Expr
 expr = assignmentExpr `chainl1` commaExpr
@@ -293,8 +309,6 @@ assignmentExpr = foldr ($) simple [
   callExpr,
   memberExpr ] <?> "expr"
 
-exprNoIn = withoutInKeyword expr
-
 memberExpr :: JSParser Expr -> JSParser Expr
 memberExpr p = (try (keyword "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
            <|> baseMemberExpr p
@@ -308,8 +322,8 @@ baseMemberExpr p = do
 dotExt :: JSParser (Expr -> Expr)
 dotExt = try $ do
   char '.'
-  id <- identifier
-  return (`MemberDot` id)
+  name <- identifier
+  return (`MemberDot` name)
 
 arrayExt :: JSParser (Expr -> Expr)
 arrayExt = try $ do
@@ -332,7 +346,7 @@ callExpr p = do
     where
       addons :: Expr -> JSParser Expr
       addons base = (parens argumentList >>= \args -> addons $ FunCall base args)
-                <|> ((char '.' >> identifier) >>= \id -> addons $ MemberDot base id)
+                <|> ((char '.' >> identifier) >>= \name -> addons $ MemberDot base name)
                 <|> (brackets expr >>= \e -> addons $ MemberGet base e)
                 <|> return base
 
@@ -362,8 +376,9 @@ unaryExpr p = (try unop <|> p) <?> "unary expr"
           return $ UnOp op e
 
 binOps :: [String] -> JSParser Expr -> JSParser Expr
-binOps ops p = do { ops' <- removeIn ops; p `chainl1` bin ops' }
-  where bin ops = try $ do
+binOps allowedOps p = do
+  ops <- removeIn allowedOps
+  chainl1 p $ try $ do
           op <- resOp
           whiteSpace
           if op `elem` ops
@@ -383,18 +398,14 @@ condExpr p = do
 
 assignExpr :: JSParser Expr -> JSParser Expr
 assignExpr p = do
-  expr <- p
-  if isLHS expr
-  then assignment expr <|> return expr
-  else return expr
+  e <- p
+  assignment e <|> return e
 
+assignment :: Expr -> JSParser Expr
 assignment lhs = do
   op <- lexeme "=" <|> assignOp
   rhs <- expr
   return $ Assign lhs op rhs
-
-isLHS :: Expr -> Bool
-isLHS e = True -- XXX
 
 lhsExpr :: JSParser Expr
 lhsExpr = memberExpr simple
@@ -407,16 +418,13 @@ simple = parens expr
      <|> this
      <|> var
      <|> num
-     <|> str
+     <|> Str <$> quotedString
 
 this :: JSParser Expr
 this = try $ keyword "this" >> return This
 
 var :: JSParser Expr
 var = liftM ReadVar identifier
-
-str :: JSParser Expr
-str = Str <$> quotedString
 
 arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
@@ -443,6 +451,7 @@ regexLiteral = do
 
   return $ RegularExpression (first ++ concat rest) flags
 
+regexFirstChar, regexChar, regexBackslash, regexClass :: JSParser String
 regexFirstChar = tostr (noneOf "*\\/[\n")
              <|> regexBackslash
              <|> regexClass
@@ -450,6 +459,7 @@ regexFirstChar = tostr (noneOf "*\\/[\n")
 regexChar      = tostr (noneOf "\\/\n")
              <|> regexBackslash
              <|> regexClass
+
 regexBackslash = do
   b <- char '\\'
   c <- noneOf "\n"
@@ -502,8 +512,14 @@ assignOp = choice $ map op $ assignOps jsLang
 
 
 
-prop_showProg prog = counterexample (ppcode prog) $ simpleParse (ppcode prog) == prog
-prop_showExpr expr = counterexample (ppcode expr) $ parseExpr (ppcode expr) == expr
+
+prop_showProg :: Program -> Property
+prop_showProg p = counterexample (ppcode p) $
+  simpleParse (ppcode p) == p
+
+prop_showExpr :: Expr -> Property
+prop_showExpr e = counterexample (ppcode e) $
+  parseExpr (ppcode e) == e
 
 disprove :: Program -> IO ()
 disprove p = do
