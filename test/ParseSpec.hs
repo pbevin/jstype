@@ -120,9 +120,6 @@ spec = do
     it "parses a double-bang" $ do
       parseExpr "!!x" `shouldBe` UnOp "!" (UnOp "!" (ReadVar "x"))
 
-    -- it "is the inverse of showExpr" $
-    --   property prop_showExpr
-
   describe "Parsing programs" $ do
     it "parses a while statement" $ do
       testParse "while (a) { }" `shouldBe` Program [WhileStatement s (ReadVar "a") (Block s [])]
@@ -204,3 +201,6 @@ spec = do
       testParse "a=b\n++c" `shouldBe`
         Program [ ExprStmt s (Assign (ReadVar "a") "=" (ReadVar "b")),
                   ExprStmt s (UnOp "++" (ReadVar "c")) ]
+
+    -- it "parses + edge cases right" $ do
+    --   testParse "var c = a\n+\n+\n+\nb" `shouldBe` Program []

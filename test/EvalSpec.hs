@@ -75,3 +75,6 @@ spec = do
 
   it "can define a simple object" $ do
     runJStr "function Counter() { this.val = 0; }; Counter.prototype.inc = function() { this.val++ }; var counter = new Counter(); counter.inc(); counter.inc(); console.log(counter.val);" `shouldReturn` Right "2\n"
+
+  it "can create a new object" $ do
+    runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"

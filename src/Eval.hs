@@ -58,6 +58,7 @@ initialEnv = do
 
   object <- newObject
   modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+  modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
 
   error <- newObject
 
@@ -156,6 +157,10 @@ runStmt cxt s = case s of
 
   Block loc stmts -> runStmts cxt stmts
 
+  ThrowStatement loc e -> do
+    exc <- runExprStmt cxt e >>= getValue
+    return (CTThrow, Just exc, Nothing)
+
   BreakStatement loc -> return (CTBreak, Nothing, Nothing)
   Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return loc (Just e) -> do
@@ -221,6 +226,10 @@ runExprStmt cxt expr = case expr of
       TypeNumber    -> "number"
       TypeString    -> "string"
       TypeObject    -> "object"  -- or "function"
+
+  UnOp "+" e -> do
+    val <- runExprStmt cxt e >>= getValue
+    return $ VNum $ toNumber val
 
   UnOp op e -> do -- ref 11.4.{4,5}
     lhs <- runExprStmt cxt e
@@ -405,6 +414,10 @@ newObjectFromConstructor cxt fun@(VObj funref) args = do
   modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
   objCall cxt fun (VObj obj) args
   return obj
+
+objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+objConstructor _this _args = VObj <$> newObject
+
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] =
