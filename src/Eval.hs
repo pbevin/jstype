@@ -192,6 +192,13 @@ runExprStmt cxt expr = case expr of
       TypeString    -> "string"
       TypeObject    -> "object"  -- or "function"
 
+  UnOp op e -> do -- ref 11.4.{4,5}
+    lhs <- runExprStmt cxt e
+    lval <- getValue lhs
+    let newVal = postfixUpdate op lval
+    putValue lhs newVal
+    return newVal
+
   PostOp op e -> do -- ref 11.3
     lhs <- runExprStmt cxt e
     lval <- getValue lhs
