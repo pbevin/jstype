@@ -228,7 +228,7 @@ evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
 computeThisValue :: JSCxt -> JSVal -> JSVal
 computeThisValue cxt v = case v of
   VRef ref ->
-    if isPropertyReference (traceShowId ref)
+    if isPropertyReference ref
     then getBase ref
     else thisBinding cxt
 
