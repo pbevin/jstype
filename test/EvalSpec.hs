@@ -35,6 +35,10 @@ spec = do
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"
 
+  it "runs do-while loops" $ do
+    runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
+      `shouldReturn` Right "3\n2\n1\n"
+
   it "can call a function" $ do
     runJStr "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldReturn` Right "hi\n"
 

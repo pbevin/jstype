@@ -97,6 +97,7 @@ newtype JSGlobal = JSGlobal {
 newtype Shared a = Shared (IORef a) deriving Eq
 
 data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
+type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)
 
 share :: a -> JSRuntime (Shared a)
 share a = liftM Shared $ liftIO $ newIORef a

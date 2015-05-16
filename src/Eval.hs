@@ -80,10 +80,10 @@ runProg (Program stmts) = do
     (CTThrow, Just (VException (err, trace)), _) -> stackTrace (err, trace)
     _ -> liftIO $ putStrLn $ "Abnormal exit: " ++ show result
 
-returnThrow :: Statement -> JSError -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
+returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
 returnThrow s (err, trace) = return (CTThrow, Just $ VException (err, (sourceLocation s):trace), Nothing)
 
-runStmts :: JSCxt -> [Statement] -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
+runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
 runStmts _ [] = return (CTNormal, Nothing, Nothing)
 runStmts cxt (s:stmts) = do
   result <- runStmt cxt s `catchError` returnThrow s
@@ -91,7 +91,7 @@ runStmts cxt (s:stmts) = do
     (CTNormal, _, _) -> runStmts cxt stmts
     _ -> return result
 
-runStmt :: JSCxt -> Statement -> JSRuntime (CompletionType, Maybe JSVal, Maybe Ident)
+runStmt :: JSCxt -> Statement -> JSRuntime StmtReturn
 runStmt cxt s = case s of
   ExprStmt loc e -> do
     val <- runExprStmt cxt e
@@ -100,22 +100,34 @@ runStmt cxt s = case s of
   VarDecl loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar cxt x VUndef
-      Just e' -> do { v <- getValue =<< runExprStmt cxt e'; putVar cxt x v }
+      Just e' -> do 
+        v <- getValue =<< runExprStmt cxt e'
+        putVar cxt x v
     return (CTNormal, Nothing, Nothing)
 
-  For loc (For3 e1 e2 e3) stmt -> do
-    maybeRunExprStmt cxt e1 >> keepGoing where
-      keepGoing = do
+  For loc (For3 e1 e2 e3) stmt -> do -- ref 12.6.3
+    maybeRunExprStmt cxt e1 >> keepGoing Nothing where
+      keepGoing v = do
         willEval <- case e2 of
           Nothing  -> pure True
           Just e2' -> isTruthy <$> runExprStmt cxt e2'
 
-        if willEval
-        then do
-          runStmt cxt stmt
-          maybeRunExprStmt cxt e3
-          keepGoing
-        else return (CTNormal, Nothing, Nothing)
+        if not willEval
+        then return (CTNormal, v, Nothing)
+        else do
+          sval@(stype, v', _) <- runStmt cxt stmt
+          let nextVal = case v' of
+                          Nothing -> v
+                          Just newVal -> Just newVal
+          case stype of
+            CTBreak -> return (CTNormal, v, Nothing)
+            CTContinue -> do
+              maybeRunExprStmt cxt e3
+              keepGoing nextVal
+            CTNormal -> do
+              maybeRunExprStmt cxt e3
+              keepGoing nextVal
+            _ -> return sval
 
   IfStatement loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt cxt predicate >>= getValue
@@ -125,8 +137,26 @@ runStmt cxt s = case s of
            Nothing -> return (CTNormal, Nothing, Nothing)
            Just s  -> runStmt cxt s
 
+  DoWhileStatement loc e s -> keepGoing Nothing True where -- ref 12.6.1
+    keepGoing :: Maybe JSVal -> Bool -> JSRuntime StmtReturn
+    keepGoing v False = return (CTNormal, v, Nothing)
+    keepGoing v True = do
+      sval@(stype, v', _) <- runStmt cxt s
+      let nextVal = case v' of
+                      Nothing -> v
+                      Just newVal -> Just newVal
+      case stype of
+        CTBreak -> return (CTNormal, v, Nothing)
+        CTNormal -> do
+          stillIterating <- runExprStmt cxt e >>= getValue
+          keepGoing v (toBoolean stillIterating)
+        _ -> return sval
+
+
+
   Block loc stmts -> runStmts cxt stmts
 
+  BreakStatement loc -> return (CTBreak, Nothing, Nothing)
   Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return loc (Just e) -> do
     val <- runExprStmt cxt e
@@ -312,6 +342,7 @@ evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
   "*" -> return $ VNum $ v1 * v2
   "/" -> return $ VNum $ v1 / v2
   "<" -> return $ VBool $ v1 < v2
+  ">" -> return $ VBool $ v1 > v2
   _ -> raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 evalBinOp op v1 v2 = raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
 

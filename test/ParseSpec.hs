@@ -11,25 +11,26 @@ import Eval
 
 
 testParse :: String -> Program
-testParse input = let Program stmts = simpleParse input
-                      srcLoc = SrcLoc "" 0 0
-                      overrideAll = map overrideSrcLoc
-                      overrideSrcLoc stmt = case stmt of
-                        Block _ sts            ->  Block s $ overrideAll sts
-                        VarDecl _ a            ->  VarDecl s a
-                        ExprStmt _ a           ->  ExprStmt s a
-                        IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
-                        WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
-                        DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
-                        For _ a b              ->  For s a $ overrideSrcLoc b
-                        ContinueStatement _    ->  ContinueStatement s
-                        BreakStatement _       ->  BreakStatement s
-                        Return _ a             ->  Return s a
-                        ThrowStatement _ a     ->  ThrowStatement s a
-                        TryStatement _ a b c   ->  TryStatement s a b c
-                        EmptyStatement _       ->  EmptyStatement s
-                        DebuggerStatement _    ->  DebuggerStatement s
-                  in Program $ overrideAll stmts
+testParse input =
+  let Program stmts = simpleParse input
+      srcLoc = SrcLoc "" 0 0
+      overrideAll = map overrideSrcLoc
+      overrideSrcLoc stmt = case stmt of
+        Block _ sts            ->  Block s $ overrideAll sts
+        VarDecl _ a            ->  VarDecl s a
+        ExprStmt _ a           ->  ExprStmt s a
+        IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
+        WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
+        DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
+        For _ a b              ->  For s a $ overrideSrcLoc b
+        ContinueStatement _    ->  ContinueStatement s
+        BreakStatement _       ->  BreakStatement s
+        Return _ a             ->  Return s a
+        ThrowStatement _ a     ->  ThrowStatement s a
+        TryStatement _ a b c   ->  TryStatement s a b c
+        EmptyStatement _       ->  EmptyStatement s
+        DebuggerStatement _    ->  DebuggerStatement s
+  in Program $ overrideAll stmts
 
 
 spec :: Spec
