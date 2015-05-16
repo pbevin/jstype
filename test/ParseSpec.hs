@@ -191,5 +191,8 @@ spec = do
     it "doesn't get confused by variables starting with 'new'" $ do
       testParse "newx" `shouldBe` Program [ ExprStmt s $ ReadVar "newx" ]
 
+    it "fails on ASI" $ do
+      evaluate (testParse "{ 1 2 } 3") `shouldThrow` anyException
+
     -- it "is the inverse of showProg" $
     --   property prop_showProg

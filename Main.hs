@@ -23,4 +23,4 @@ runFile filename = do
   result <- runJS filename input
   case result of
     Right output -> putStr output
-    Left err -> hPutStrLn stderr (show err) >> exitFailure
+    Left err -> hPutStrLn stderr ("SyntaxError: " ++ show err) >> exitFailure

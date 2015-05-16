@@ -30,7 +30,7 @@ runJS sourceName input = do
 
 runJS' :: String -> String -> IO ((Either JSError (), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> error (show err)
+  Left err -> return ((Left (show err, []), ""), JSGlobal Nothing)
   Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal

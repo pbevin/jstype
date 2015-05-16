@@ -132,7 +132,7 @@ terminated p = do
   result <- p
   pos2 <- getPosition
 
-  when (sameLine pos1 pos2) $ optional semicolon
+  when (sameLine pos1 pos2) $ semicolon
 
   return result
 
