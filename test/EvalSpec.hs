@@ -91,3 +91,7 @@ spec = do
     it "treats white space with respect" $ do
       -- test262: 11.6.1_A1
       jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VNum 2
+
+  describe "Number" $ do
+    it "has a NaN property" $ do
+      runJStr "console.log(Number.NaN)" `shouldReturn` Right "NaN\n"

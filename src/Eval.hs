@@ -67,11 +67,15 @@ initialEnv = do
   modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
   modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
 
+  number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
+
+
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
   share $ M.fromList [ ("console", VObj console),
                        ("Function", VObj function),
+                       ("Number", VObj number),
                        ("Object", VObj object),
                        ("Error", VObj error),
                        ("eval", VNative objEval),
@@ -387,7 +391,10 @@ objIsNaN _this args = case args of
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
-showVal (VNum (JSNum n)) = show (round n :: Integer)
+showVal (VNum (JSNum n)) =
+  if n == fromInteger (round n)
+  then show (round n :: Integer)
+  else show n
 showVal VUndef = "(undefined)"
 showVal other = show other
 

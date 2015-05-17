@@ -36,4 +36,5 @@ isString _ = False
 
 toString :: JSVal -> String
 toString (VStr s) = s
-toString _ = ".."
+toString (VNum n) = show n
+toString _ = "???"
