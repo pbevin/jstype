@@ -66,7 +66,8 @@ initialEnv = do
   share $ M.fromList [ ("console", VObj console),
                        ("Function", VObj function),
                        ("Object", VObj object),
-                       ("Error", VObj error) ]
+                       ("Error", VObj error),
+                       ("eval", VNative objEval) ]
 
 emptyEnv :: JSRuntime JSEnv
 emptyEnv = share M.empty
@@ -79,19 +80,21 @@ runProg (Program stmts) = do
   result <- runStmts cxt stmts
   case result of
     (CTNormal, _, _) -> return ()
-    (CTThrow, Just (VException (err, trace)), _) -> stackTrace (err, trace)
+    (CTThrow, Just (VException exc@(err, trace)), _) -> do
+      stackTrace exc; throwError exc
     _ -> liftIO $ putStrLn $ "Abnormal exit: " ++ show result
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
 returnThrow s (err, trace) = return (CTThrow, Just $ VException (err, (sourceLocation s):trace), Nothing)
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
-runStmts _ [] = return (CTNormal, Nothing, Nothing)
-runStmts cxt (s:stmts) = do
-  result <- runStmt cxt s `catchError` returnThrow s
-  case result of
-    (CTNormal, _, _) -> runStmts cxt stmts
-    _ -> return result
+runStmts = runStmts' (CTNormal, Nothing, Nothing) where
+  runStmts' emptyResult _ [] = return emptyResult
+  runStmts' _ cxt (s:stmts) = do
+    result <- runStmt cxt s `catchError` returnThrow s
+    case result of
+      (CTNormal, _, _) -> runStmts' result cxt stmts
+      _ -> return result
 
 runStmt :: JSCxt -> Statement -> JSRuntime StmtReturn
 runStmt cxt s = case s of
@@ -340,9 +343,27 @@ getOwnPropertyDescriptor _this xs = do
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
-objEscape _this [] = return $ VUndef
-objEscape _this (x:xs) = return $ x
+objEscape _this args = case args of
+  [] -> return $ VUndef
+  (x:xs) -> return x
 
+-- ref 15.1.2.1
+objEval :: JSFunction
+objEval _this args = case args of
+  [] -> return $ VUndef
+  (prog:args) ->
+    let Program stmts = simpleParse (toString prog)
+    in do
+      cxt <- JSCxt <$> initialEnv
+                   <*> emptyEnv
+                   <*> (VObj <$> getGlobalObject)
+
+      (stype, sval, _) <- runStmts cxt stmts
+      case stype of
+        CTNormal -> return $ fromMaybe VUndef sval
+        CTThrow ->
+          let Just (VException err) = sval
+          in throwError err
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
@@ -461,7 +482,7 @@ objCall cxt func this args = case func of
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> error "Can't call function: no callMethod"
     Just method -> method this args
-  _ -> error $ "Can't call " ++ show func
+  _ -> raiseError $ "Can't call " ++ show func
 
 
 stackTrace :: JSError -> JSRuntime ()
@@ -471,8 +492,7 @@ stackTrace (err, trace) = liftIO $ do
 
 createGlobalThis :: JSRuntime ()
 createGlobalThis = do
-  this <- newObject
-  modifyRef this $ objSetProperty "escape" (VNative objEscape)
+  this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
   put $ JSGlobal (Just this)
 
 getGlobalObject :: JSRuntime (Shared JSObj)

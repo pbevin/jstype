@@ -5,11 +5,10 @@ import Control.Applicative hiding (many, optional, (<|>))
 import Test.QuickCheck
 import Text.Parsec hiding (newline)
 import Text.Parsec.String
-import qualified Text.Parsec.Token as T
-import Text.Parsec.Language (javaStyle)
 import Data.Maybe
 import Data.List
 import Data.Char
+import Numeric
 import ShowExpr
 import Expr
 
@@ -45,40 +44,50 @@ identStart, identLetter :: [Char]
 identStart  = ['a'..'z'] ++ ['A'..'Z'] ++ "$_"
 identLetter = identStart ++ ['0'..'9']
 
-
-javascript :: T.LanguageDef st
-javascript = javaStyle
-              { T.reservedNames = reservedWords jsLang
-              , T.identStart = oneOf identStart
-              , T.identLetter = oneOf identLetter
-              , T.caseSensitive = True }
-
-
-lexer :: T.TokenParser st
-lexer = T.makeTokenParser javascript
+surround :: String -> String -> JSParser a -> JSParser a
+surround lhs rhs p = lexeme lhs *> p <* lexeme rhs
 
 parens, braces, brackets :: JSParser a -> JSParser a
-parens = T.parens lexer
-braces = T.braces lexer
-brackets = T.brackets lexer
+parens = surround "(" ")"
+braces = surround "{" "}"
+brackets = surround "[" "]"
 
 
 identifier :: JSParser String
-identifier = T.identifier lexer
-integer :: JSParser Integer
-integer = T.integer lexer
-float :: JSParser Double
-float = T.float lexer
+identifier = try $ do
+  name <- ident
+  if name `elem` reservedWords jsLang
+  then unexpected $ "reserved word " ++ name
+  else whiteSpace >> return name
+  where ident = (:) <$> oneOf identStart <*> many (oneOf identLetter)
+
 reserved :: String -> JSParser ()
-reserved = T.reserved lexer
+reserved word = void $ try $ do
+  string word
+  notFollowedBy (oneOf identLetter) <?> "end of " ++ word
+  whiteSpace
+
+comment :: JSParser ()
+comment = void $ try $ (lineComment <|> blockComment)
+  where lineComment = string "//" >> manyTill anyChar (try lineBreak)
+        blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
+
 whiteSpace :: JSParser ()
-whiteSpace = T.whiteSpace lexer
+whiteSpace = void $ many (lineBreak <|> void (satisfy isSpace) <|> comment)
 
-spaceNotNewline :: Char -> Bool
-spaceNotNewline ch = isSpace ch && ch /= '\n'
+isLineBreak :: Char -> Bool
+isLineBreak ch = ch == '\n' || ch == '\r' || ch == '\x2028' || ch == '\x2029'
 
-noNewline :: JSParser ()
-noNewline = void (satisfy spaceNotNewline)
+lineBreak :: JSParser ()
+lineBreak = let crlf = try (string "\r\n")
+                breakChar = satisfy isLineBreak >>= \ch -> do
+                  when (ch /= '\n') $ do
+                    pos <- getPosition
+                    setPosition $ nextLine pos
+            in (void crlf <|> void breakChar)
+
+nextLine :: SourcePos -> SourcePos
+nextLine pos = incSourceLine (setSourceColumn pos 1) 1
 
 allOps :: [String]
 allOps = sortBy reverseLength $ nub allJsOps
@@ -91,7 +100,7 @@ lexeme :: String -> JSParser String
 lexeme str = string str <* whiteSpace
 
 keyword :: String -> JSParser ()
-keyword str = reserved str >> whiteSpace
+keyword = reserved
 
 resOp :: JSParser String
 resOp = do
@@ -196,7 +205,7 @@ varAssignNoIn = withoutInKeyword varAssign
 returnStmt :: JSParser Statement
 returnStmt = do
   pos1 <- getPosition
-  try (keyword "return")
+  reserved "return"
   pos2 <- getPosition
 
   Return <$> srcLoc <*> if sameLine pos1 pos2
@@ -476,8 +485,33 @@ tostr p = do
   return [c]
 
 
+-- ref 7.8.4
 quotedString :: JSParser String
-quotedString = T.stringLiteral lexer <|> singleQuotedString
+quotedString = doubleQuotedString <|> singleQuotedString
+
+doubleQuotedString :: JSParser String
+doubleQuotedString = do
+  char '"'
+  str <- many (noneOf "\"\\" <|> (char '\\' >> escape))
+  char '"'
+  whiteSpace
+  return str
+
+escape :: JSParser Char
+escape = oneOf "'\"\\"
+     <|> (oneOf "bfnrtv" >>= return . singleCharEscape)
+     <|> (char 'u' >> unicodeEscape)
+
+singleCharEscape :: Char -> Char
+singleCharEscape 'b' = '\b'
+singleCharEscape 't' = '\t'
+singleCharEscape 'n' = '\n'
+singleCharEscape 'v' = '\v'
+singleCharEscape 'f' = '\f'
+singleCharEscape 'r' = '\r'
+
+unicodeEscape :: JSParser Char
+unicodeEscape = replicateM 4 hexDigit >>= return . chr . fst . head . readHex
 
 singleQuotedString :: JSParser String
 singleQuotedString = do
@@ -491,19 +525,15 @@ num :: JSParser Expr
 num = Num <$> numericLiteral
 
 numericLiteral :: JSParser JSNum
-numericLiteral = do
-  val <- T.naturalOrFloat lexer
-  return $ case val of
-    Left int -> JSNum $ fromIntegral int
-    Right dbl -> JSNum dbl
+numericLiteral = parseNumber >>= return . JSNum . read
+
+parseNumber :: JSParser String
+parseNumber = many1 digit <* whiteSpace
 
 
 assignOp :: JSParser String
 assignOp = choice $ map op $ assignOps jsLang
   where op name = try (lexeme name) >> return name
-
-
-
 
 
 

@@ -55,6 +55,9 @@ spec = do
       parseExpr "'single quoted'" `shouldBe` Str "single quoted"
       parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"
 
+    it "parses escape characters in strings" $ do
+      parseExpr "\"a\\u0009b\"" `shouldBe` Str "a\tb"
+
     it "parses object literals" $ do
       parseExpr "{}" `shouldBe` ObjectLiteral []
       parseExpr "{a: 1}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1)]
@@ -202,5 +205,26 @@ spec = do
         Program [ ExprStmt s (Assign (ReadVar "a") "=" (ReadVar "b")),
                   ExprStmt s (UnOp "++" (ReadVar "c")) ]
 
-    -- it "parses + edge cases right" $ do
-    --   testParse "var c = a\n+\n+\n+\nb" `shouldBe` Program []
+  describe "Unicode whitespace" $ do
+    describe "Newline characters" $ do
+      let expectedParse =
+            Program [ ExprStmt (SrcLoc "" 1 1 Nothing) (Num 1),
+                      ExprStmt (SrcLoc "" 2 1 Nothing) (Num 2) ]
+
+      it "treats \\n as a line break" $
+        simpleParse "1\n2" `shouldBe` expectedParse
+
+      it "treats \\r as a line break" $
+        simpleParse "1\r2" `shouldBe` expectedParse
+
+      it "treats unicode line separator as a line break" $
+        simpleParse "1\x2028\&2" `shouldBe` expectedParse
+
+      it "treats unicode paragraph separator as a line break" $
+        simpleParse "1\x2029\&2" `shouldBe` expectedParse
+
+      it "treats \\r\\n as a single line break" $
+        simpleParse "1\r\n2" `shouldBe` expectedParse
+
+    it "understands other kinds of whitespace" $ do
+      simpleParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` simpleParse "1 + 1"

@@ -82,3 +82,15 @@ spec = do
   it "runs a try..catch block" $ do
     runJStr "try { throw new Error('hi') } catch (e) { console.log(e.message); }"
     `shouldReturn` Right "hi\n";
+
+  it "raises runtime exceptions" $ do
+    Left (message, _stack) <- runJStr "var a; a();"
+    message `shouldBe` "Can't call undefined"
+
+  describe "The eval function" $ do
+    it "can eval code" $ do
+      runJStr "eval(\"console.log('hi')\")" `shouldReturn` Right "hi\n"
+
+    it "treats white space with respect" $ do
+      -- test262: 11.6.1_A1
+      jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VNum 2
