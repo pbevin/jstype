@@ -120,3 +120,5 @@ newtype JSRuntime a = JS {
 
 raiseError :: String -> JSRuntime a
 raiseError s = throwError (s, [])
+
+data PrimitiveHint = HintNone | HintNumber

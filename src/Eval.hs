@@ -15,6 +15,7 @@ import Runtime.Types
 import Runtime.Object
 import Runtime.Reference
 import Runtime.Conversion
+import Runtime.Operations
 import Debug.Trace
 
 runJStr :: String -> IO (Either JSError String)
@@ -35,10 +36,16 @@ runJS' sourceName input = case parseJS' input sourceName of
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
-  result <- runJSRuntime (initialCxt >>= \cxt -> runExprStmt cxt $ parseExpr input)
+  result <- runtime (initialCxt >>= \cxt -> runExprStmt cxt $ parseExpr input)
   case result of
-    ((Left err, _), _)  -> error (show err)
-    ((Right val, _), _) -> return val
+    Left err  -> error (show err)
+    Right val -> return val
+
+runtime :: JSRuntime a -> IO (Either JSError a)
+runtime p = do
+  result <- runJSRuntime p
+  return $ fst (fst result)
+
 
 runJSRuntime :: JSRuntime a -> IO ((Either JSError a, String), JSGlobal)
 runJSRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) (JSGlobal Nothing)
@@ -67,7 +74,8 @@ initialEnv = do
                        ("Function", VObj function),
                        ("Object", VObj object),
                        ("Error", VObj error),
-                       ("eval", VNative objEval) ]
+                       ("eval", VNative objEval),
+                       ("isNaN", VNative objIsNaN) ]
 
 emptyEnv :: JSRuntime JSEnv
 emptyEnv = share M.empty
@@ -230,6 +238,12 @@ runExprStmt cxt expr = case expr of
     then runExprStmt cxt e2 >>= getValue
     else return $ VBool False
 
+  BinOp "||" e1 e2 -> do
+    v1 <- runExprStmt cxt e1 >>= getValue
+    if toBoolean v1
+    then return $ VBool True
+    else runExprStmt cxt e2 >>= getValue
+
   BinOp op e1 e2 -> do
     v1 <- runExprStmt cxt e1 >>= getValue
     v2 <- runExprStmt cxt e2 >>= getValue
@@ -263,7 +277,7 @@ runExprStmt cxt expr = case expr of
     return lval
 
   NewExpr f args -> do
-    fun <- runExprStmt cxt f >>= getValue
+    fun <- runExprStmt cxt f
     argList <- evalArguments cxt args
     liftM VObj (newObjectFromConstructor cxt fun argList)
 
@@ -365,6 +379,12 @@ objEval _this args = case args of
           let Just (VException err) = sval
           in throwError err
 
+objIsNaN :: JSFunction
+objIsNaN _this args = case args of
+  [] -> return $ VUndef
+  (num:args) ->
+    return $ VBool (num /= num)
+
 showVal :: JSVal -> String
 showVal (VStr s) = s
 showVal (VNum (JSNum n)) = show (round n :: Integer)
@@ -379,16 +399,18 @@ postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp "===" x y = return $ VBool $ tripleEquals x y
 evalBinOp "!==" x y = return $ VBool $ not $ tripleEquals x y
-evalBinOp "+" (VStr a) (VStr b) = return $ VStr (a ++ b)
+evalBinOp "+" a b = jsAdd a b
+evalBinOp "instanceof" a b = jsInstanceOf a b
 evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
-  "+" -> return $ VNum $ v1 + v2
   "-" -> return $ VNum $ v1 - v2
   "*" -> return $ VNum $ v1 * v2
   "/" -> return $ VNum $ v1 / v2
   "<" -> return $ VBool $ v1 < v2
   ">" -> return $ VBool $ v1 > v2
-  _ -> raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
-evalBinOp op v1 v2 = raiseError $ "No binop " ++ op ++ " on " ++ show (v1, v2)
+  _ -> raiseError $ "No numeric binop " ++ op ++ " on " ++ show (v1, v2)
+evalBinOp op v1 v2 = raiseError $ "No binop `" ++ op ++ "' on " ++ show (v1, v2)
+
+
 
 
 -- ref 11.9.6, incomplete
@@ -443,13 +465,20 @@ funcCall cxt paramList body this args =
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
-newObjectFromConstructor cxt fun@(VObj funref) args = do
-  obj <- newObject
-  f <- deref funref
-  prototype <- objGetProperty "prototype" f
-  modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
-  objCall cxt fun (VObj obj) args
-  return obj
+newObjectFromConstructor cxt fun args = case fun of
+  VRef (JSRef _ name _) -> create name =<< getValue fun
+  _                     -> create (show fun) fun
+  where
+    create :: String -> JSVal -> JSRuntime (Shared JSObj)
+    create name f = case f of
+      VObj funref -> do
+        obj <- newObject
+        f <- deref funref
+        prototype <- objGetProperty "prototype" f
+        modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+        objCall cxt (VObj funref) (VObj obj) args
+        return obj
+      _ -> raiseError $ "Can't invoke constructor " ++ name
 
 objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 objConstructor _this _args = VObj <$> newObject
@@ -473,8 +502,6 @@ funConstructor this [arg] =
                                            <*> emptyEnv
                                            <*> (VObj <$> getGlobalObject)
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
-
-toString (VStr s) = s
 
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
@@ -513,3 +540,21 @@ makeObjectLiteral cxt nameValueList =
   in do
     obj <- newObject
     VObj <$> foldM addProp obj nameValueList
+
+newObject :: JSRuntime (Shared JSObj)
+newObject = do
+  prototype <- share objectPrototype
+  share JSObj { objClass = "Object",
+                ownProperties = M.fromList [("prototype", VObj prototype)],
+                callMethod = Nothing }
+
+objectPrototype :: JSObj
+objectPrototype =
+  JSObj { objClass = "Object",
+          ownProperties =
+            M.fromList [ ("prototype", VUndef),
+                         ("toString", VNative objToString) ],
+          callMethod = Nothing }
+
+objToString :: JSFunction
+objToString this _args = return $ VStr $ toString this

@@ -1,20 +1,11 @@
-module Expr (Program (..),
-             Statement (..),
-             Expr(..),
-             ForHeader(..),
-             Catch (..),
-             Finally (..),
-             PropertyName (..),
-             JSNum(..),
-             Lang(..),
-             Ident,
-             SrcLoc(..),
-             sourceLocation,
-             jsLang) where
+module Expr where
 
 newtype JSNum = JSNum Double deriving Show
 instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
+
+jsNaN :: JSNum
+jsNaN = JSNum $ 0 / 0
 
 newtype Program = Program [Statement] deriving (Show, Eq)
 

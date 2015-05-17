@@ -18,9 +18,6 @@ spec = do
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum 3.33333333
 
-  it "adds two strings" $ do
-    jsEvalExpr "\"a\" + \"b\"" `shouldReturn` VStr "ab"
-
   it "evaluates a program" $ do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
     runJStr "a = 3; console.log(a);" `shouldReturn` Right "3\n"

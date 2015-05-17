@@ -6,19 +6,6 @@ import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Types
 
-
-newObject :: JSRuntime (Shared JSObj)
-newObject = do
-  prototype <- share objectPrototype
-  share JSObj { objClass = "Object",
-                ownProperties = M.fromList [("prototype", VObj prototype)],
-                callMethod = Nothing }
-
-objectPrototype :: JSObj
-objectPrototype = JSObj { objClass = "Object",
-                          ownProperties = M.fromList [("prototype", VUndef)],
-                          callMethod = Nothing }
-
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
 
@@ -32,3 +19,7 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
   where checkPrototype = case objGetOwnProperty obj "prototype" of
           Just (VObj prototype) -> objGetProperty name =<< deref prototype
           _ -> return Nothing
+
+-- ref 8.12.8, incomplete
+objDefaultValue :: PrimitiveHint -> JSObj -> JSRuntime JSVal
+objDefaultValue _ _ = return VUndef
