@@ -97,7 +97,9 @@ runProg (Program stmts) = do
     _ -> liftIO $ putStrLn $ "Abnormal exit: " ++ show result
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
-returnThrow s (err, trace) = return (CTThrow, Just $ VException (err, (sourceLocation s):trace), Nothing)
+returnThrow s (err, trace) =
+ let exc = VException (err, sourceLocation s : trace)
+ in return (CTThrow, Just exc, Nothing)
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
 runStmts = runStmts' (CTNormal, Nothing, Nothing) where
@@ -380,13 +382,13 @@ getOwnPropertyDescriptor _this xs = do
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
 objEscape _this args = case args of
-  [] -> return $ VUndef
+  [] -> return VUndef
   (x:xs) -> return x
 
 -- ref 15.1.2.1
 objEval :: JSFunction
 objEval _this args = case args of
-  [] -> return $ VUndef
+  [] -> return VUndef
   (prog:args) ->
     let Program stmts = simpleParse (toString prog)
     in do
@@ -403,9 +405,10 @@ objEval _this args = case args of
 
 objIsNaN :: JSFunction
 objIsNaN _this args = case args of
-  [] -> return $ VUndef
-  (num:args) ->
-    return $ VBool (num /= num)
+  [] -> return VUndef
+  (num:args) -> return $ VBool $ case num of
+    VNum a -> a /= a
+    _      -> False
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
@@ -417,34 +420,23 @@ showVal VUndef = "(undefined)"
 showVal other = show other
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
-evalBinOp "===" x y = return $ VBool $ tripleEquals x y
-evalBinOp "!==" x y = return $ VBool $ not $ tripleEquals x y
-evalBinOp "+" a b = jsAdd a b
-evalBinOp "instanceof" a b = jsInstanceOf a b
-evalBinOp op x@(VNum v1) y@(VNum v2) = case op of
-  "-" -> return $ VNum $ v1 - v2
-  "*" -> return $ VNum $ v1 * v2
-  "/" -> return $ VNum $ v1 / v2
-  "<" -> return $ VBool $ v1 < v2
-  ">" -> return $ VBool $ v1 > v2
-  _ -> raiseError $ "No numeric binop " ++ op ++ " on " ++ show (v1, v2)
-evalBinOp op v1 v2 = raiseError $ "No binop `" ++ op ++ "' on " ++ show (v1, v2)
+evalBinOp op = case op of
+  "==="        -> \a b -> return $ VBool $ tripleEquals a b
+  "!=="        -> \a b -> return $ VBool $ not $ tripleEquals a b
+  "instanceof" -> jsInstanceOf
+  "+"          -> jsAdd
+  "-"          -> numberOp (-)
+  "*"          -> numberOp (*)
+  "/"          -> numberOp (/)
+  "<"          -> compareOp id         -- ref 11.8.1
+  ">"          -> flip (compareOp id)  -- ref 11.8.2
+  "<="         -> flip (compareOp not) -- ref 11.8.3
+  ">="         -> compareOp not        -- ref 11.8.4
+  _            -> noSuchBinop op
 
-
-
-
--- ref 11.9.6, incomplete
-tripleEquals :: JSVal -> JSVal -> Bool
-tripleEquals x y
-  | typeof x /= typeof y        = False
-  | typeof x == TypeUndefined   = True
-  | typeof x == TypeNull        = True
-  | typeof x == TypeNumber      = (x == y)
-  | typeof x == TypeString      = (x == y)
-  | typeof x == TypeBoolean     = (x == y)
-  | typeof x == TypeObject      = (x == y)
-  | typeof x == TypeFunction    = (x == y)
-  | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
+noSuchBinop :: String -> JSVal -> JSVal -> JSRuntime JSVal
+noSuchBinop op a b = raiseError $
+  "No binop `" ++ op ++ "' on " ++ show (a, b)
 
 
 

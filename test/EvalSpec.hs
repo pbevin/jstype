@@ -49,6 +49,27 @@ spec = do
     runJStr "var a = 5; console.log(a++); console.log(a)"
       `shouldReturn` Right "5\n6\n"
 
+  describe "comparison" $ do
+    it "understands <" $ do
+      jsEvalExpr "1 < 2" `shouldReturn` VBool True
+      jsEvalExpr "2 < 1" `shouldReturn` VBool False
+      jsEvalExpr "1 < 1" `shouldReturn` VBool False
+
+    it "understands <=" $ do
+      jsEvalExpr "1 <= 2" `shouldReturn` VBool True
+      jsEvalExpr "2 <= 1" `shouldReturn` VBool False
+      jsEvalExpr "1 <= 1" `shouldReturn` VBool True
+
+    it "understands >" $ do
+      jsEvalExpr "1 > 2" `shouldReturn` VBool False
+      jsEvalExpr "2 > 1" `shouldReturn` VBool True
+      jsEvalExpr "1 > 1" `shouldReturn` VBool False
+
+    it "understands >=" $ do
+      jsEvalExpr "1 >= 2" `shouldReturn` VBool False
+      jsEvalExpr "2 >= 1" `shouldReturn` VBool True
+      jsEvalExpr "1 >= 1" `shouldReturn` VBool True
+
 
 
   it "runs loops" $ do

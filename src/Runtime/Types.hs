@@ -82,6 +82,7 @@ instance Eq JSVal where
   VNum a == VNum b       = a == b
   VStr a == VStr b       = a == b
   VObj a == VObj b       = a == b
+  VBool a == VBool b     = a == b
   VNative a == VNative b = True -- XXX
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
 
