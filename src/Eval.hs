@@ -68,6 +68,7 @@ initialEnv = do
   modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
 
   number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
+                      >>= setCallMethod numConstructor
 
 
   error <- newObject
@@ -270,9 +271,9 @@ runExprStmt cxt expr = case expr of
     let f = case op of
               "++"   -> modifyingOp (+ 1) (+ 1)
               "--"   -> modifyingOp (subtract 1) (subtract 1)
-              "+"    -> purePrefix (VNum . toNumber)
-              "-"    -> purePrefix (VNum . negate . toNumber)
-              "void" -> purePrefix (const VUndef)
+              "+"    -> purePrefix possitive
+              "-"    -> purePrefix neggative
+              "void" -> purePrefix (return . const VUndef)
               _    -> const $ const $ raiseError $ "Prefix op not implemented: " ++ op
     in f cxt e
 
@@ -301,6 +302,13 @@ runExprStmt cxt expr = case expr of
 evalArguments :: JSCxt -> [Expr] -> JSRuntime [JSVal]
 evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
 
+neggative :: JSVal -> JSRuntime JSVal
+neggative a = toNumber a >>= return . VNum . negate
+
+possitive :: JSVal -> JSRuntime JSVal
+possitive a = toNumber a >>= return . VNum
+
+
 computeThisValue :: JSCxt -> JSVal -> JSVal
 computeThisValue cxt v = case v of
   VRef ref ->
@@ -316,15 +324,15 @@ modifyingOp op returnOp cxt e = do
   case lhs of
     VRef ref -> do
       lval <- getValue lhs
-      let val = toNumber lval
-          newVal = VNum $ op val
+      val <- toNumber lval
+      let newVal = VNum $ op val
           retVal = VNum $ returnOp val
       putValue ref newVal
       return retVal
     _ -> raiseError $ show e ++ " is not assignable"
 
-purePrefix :: (JSVal -> JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
-purePrefix f cxt e = liftM f (runExprStmt cxt e >>= getValue)
+purePrefix :: (JSVal -> JSRuntime JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
+purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
 putVar (JSCxt envref _ _) x v = modifyRef envref $ M.insert x v
@@ -449,11 +457,23 @@ createFunction paramList body cxt = do
                   callMethod = Just (funcCall cxt paramList body) }
   return $ VObj objref
 
-setClass :: String -> Shared JSObj -> JSRuntime (Shared JSObj)
-setClass cls objRef = modifyRef' objRef $ \obj -> obj { objClass = cls }
 
-addOwnProperty :: String -> JSVal -> Shared JSObj -> JSRuntime (Shared JSObj)
-addOwnProperty name val objRef = modifyRef' objRef $ objSetProperty name val
+type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
+
+updateObj :: (JSObj -> JSObj) -> ObjectModifier
+updateObj f objRef = modifyRef' objRef f
+
+setClass :: String -> ObjectModifier
+setClass cls = updateObj $ \obj -> obj { objClass = cls }
+
+setCallMethod :: JSFunction -> ObjectModifier
+setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
+
+setPrimitiveValue :: JSVal -> ObjectModifier
+setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
+
+addOwnProperty :: String -> JSVal -> ObjectModifier
+addOwnProperty name val = updateObj $ objSetProperty name val
 
 createError :: JSVal -> JSRuntime JSVal
 createError text =
@@ -494,13 +514,22 @@ newObjectFromConstructor cxt fun args = case fun of
 objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 objConstructor _this _args = VObj <$> newObject
 
+numConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+numConstructor this args = do
+  num <- VNum <$> if null args
+                  then return 0
+                  else toNumber (head args)
+  case this of
+    VObj obj -> do
+      VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
+    _ -> raiseError $ "numConstructor called with this = " ++ show this
+
 errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 errConstructor this args =
   let text = head args
   in case this of
     VObj obj -> do
-      x <- setClass "Error" obj >>= addOwnProperty "message" text
-      return (VObj x)
+      VObj <$> (setClass "Error" obj >>= addOwnProperty "message" text)
 
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
@@ -517,7 +546,7 @@ objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
-    Nothing -> error "Can't call function: no callMethod"
+    Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
   _ -> raiseError $ "Can't call " ++ show func
 
@@ -556,7 +585,8 @@ newObject = do
   prototype <- share objectPrototype
   share JSObj { objClass = "Object",
                 ownProperties = M.fromList [("prototype", VObj prototype)],
-                callMethod = Nothing }
+                callMethod = Nothing,
+                primitive = Nothing }
 
 objectPrototype :: JSObj
 objectPrototype =
@@ -564,7 +594,8 @@ objectPrototype =
           ownProperties =
             M.fromList [ ("prototype", VUndef),
                          ("toString", VNative objToString) ],
-          callMethod = Nothing }
+          callMethod = Nothing,
+          primitive = Nothing }
 
 objToString :: JSFunction
 objToString this _args = return $ VStr $ toString this

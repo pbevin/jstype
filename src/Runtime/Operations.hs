@@ -1,5 +1,6 @@
 module Runtime.Operations where
 
+import Control.Monad (liftM)
 import Expr
 import Runtime.Types
 import Runtime.Conversion
@@ -11,26 +12,31 @@ jsAdd a b = do
   b' <- toPrimitive HintNone b
   if isString a' || isString b'
   then return $ VStr $ toString a' ++ toString b'
-  else return $ VNum $ toNumber a' + toNumber b'
+  else fmap VNum $ liftNum (+) a' b'
 
 -- ref 11.8.5
 compareOp :: (Bool -> Bool) -> JSVal -> JSVal -> JSRuntime JSVal
 compareOp op a b = do
   a' <- toPrimitive HintNumber a
   b' <- toPrimitive HintNumber b
-  return $ VBool $ op $ if isString a' && isString b'
-  then toString a' < toString b'
-  else toNumber a' < toNumber b'
+  liftM (VBool . op) $ if isString a' && isString b'
+  then return $ toString a' < toString b'
+  else liftNum (<) a' b'
 
 numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> JSRuntime JSVal
 numberOp op a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
-  return $ VNum $ toNumber a' `op` toNumber b'
+  fmap VNum $ liftNum op a' b'
 
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
 boolOp op a b = return (VBool $ op a b)
 
+liftNum :: (JSNum -> JSNum -> a) -> JSVal -> JSVal -> JSRuntime a
+liftNum op a b = do
+  n1 <- toNumber a
+  n2 <- toNumber b
+  return $ n1 `op` n2
 
 
 -- ref 11.9.6, incomplete

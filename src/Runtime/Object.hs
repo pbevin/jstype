@@ -22,4 +22,8 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
 
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> JSObj -> JSRuntime JSVal
-objDefaultValue _ _ = return VUndef
+objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
+
+fromHint :: PrimitiveHint -> JSVal
+fromHint HintNone = VUndef
+fromHint HintNumber = VNum 0

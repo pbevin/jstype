@@ -21,14 +21,14 @@ toBoolean (VStr "") = False
 toBoolean _         = True
 
 -- ref 9.3, incomplete
-toNumber :: JSVal -> JSNum
-toNumber VUndef     = jsNaN -- s/b NaN
-toNumber VNull      = 0
-toNumber (VBool b)  = if b then 1 else 0
-toNumber (VNum n)   = n
-toNumber (VStr s)   = JSNum $ read s
-toNumber (VObj obj) = error "Can't toNumber on an object yet" -- toPrimitive HintNumber obj
-toNumber _ = 0
+toNumber :: JSVal -> JSRuntime JSNum
+toNumber VUndef     = return jsNaN
+toNumber VNull      = return 0
+toNumber (VBool b)  = return $ if b then 1 else 0
+toNumber (VNum n)   = return n
+toNumber (VStr s)   = return $ JSNum (read s)
+toNumber v@(VObj obj) = toNumber =<< toPrimitive HintNumber v
+toNumber _ = return 0
 
 isString :: JSVal -> Bool
 isString (VStr _) = True

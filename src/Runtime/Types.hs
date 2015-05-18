@@ -38,7 +38,8 @@ instance Show JSVal where
 data JSObj = JSObj {
   objClass :: String,
   ownProperties :: M.Map Ident JSVal,
-  callMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal)
+  callMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal),
+  primitive :: Maybe JSVal
 }
 
 

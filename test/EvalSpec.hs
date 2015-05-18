@@ -138,3 +138,6 @@ spec = do
   describe "Number" $ do
     it "has a NaN property" $ do
       runJStr "console.log(Number.NaN)" `shouldReturn` Right "NaN\n"
+
+    it "can construct a wrapped number" $ do
+      runJStr "console.log(+(new Number(1.4)))" `shouldReturn` Right "1.4\n"
