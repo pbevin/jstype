@@ -32,6 +32,9 @@ withoutInKeyword = recurseState $ \st -> st { inKeywordAllowed = False }
 withInsideIteration :: JSParser a -> JSParser a
 withInsideIteration = recurseState $ \st -> st { insideIteration = True }
 
+withoutInsideIteration :: JSParser a -> JSParser a
+withoutInsideIteration = recurseState $ \st -> st { insideIteration = False }
+
 withFunctionContext :: Maybe String -> JSParser a -> JSParser a
 withFunctionContext fname = let here = fromMaybe "anonymous function" fname
                             in recurseState $ \st -> st { contextDescription = Just here }

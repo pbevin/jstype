@@ -239,7 +239,7 @@ functionExpr = do
   try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  stmts <- withFunctionContext name (braces statementList) <?> "function body"
+  stmts <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
   return $ FunDef name params stmts
 
 callExpr :: JSParser Expr -> JSParser Expr
