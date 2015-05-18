@@ -355,7 +355,7 @@ updateRef f lref rref =
       let r = f lval rval
       putValue ref r
       return r
-    _ -> raiseError $ show lref ++ " is not assignable"
+    _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
 
 assignOp :: String -> JSVal -> JSVal -> JSVal
 assignOp "=" _ b = b
