@@ -135,7 +135,7 @@ runStmt cxt s = case s of
       keepGoing v = do
         willEval <- case e2 of
           Nothing  -> pure True
-          Just e2' -> isTruthy <$> runExprStmt cxt e2'
+          Just e2' -> isTruthy <$> (runExprStmt cxt e2' >>= getValue)
 
         if not willEval
         then return (CTNormal, v, Nothing)
