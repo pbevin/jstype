@@ -1,6 +1,6 @@
 module Parse.Statements where
 
-import Text.Parsec hiding (many, (<|>))
+import Text.Parsec hiding (many, (<|>), optional)
 import Control.Monad (replicateM, liftM, when)
 import Control.Applicative
 import Data.Char
@@ -30,6 +30,7 @@ terminated p = do
 
 statement :: JSParser Statement
 statement = choice [ block <?> "block",
+                     labelledStmt <?> "label",
                      terminated exprStmt <?> "expression",
                      terminated varDecl <?> "var declaration",
                      ifStmt <?> "if",
@@ -55,6 +56,12 @@ block = do
 realblock :: JSParser Statement
 realblock = Block <$> srcLoc <*> braces statementList
 
+labelledStmt :: JSParser Statement
+labelledStmt = try $ do
+  loc <- srcLoc
+  label <- identifier
+  tok ":"
+  LabelledStatement loc label <$> withLabel label statement
 
 varDecl :: JSParser Statement
 varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma) <?> "variable declaration"
@@ -94,29 +101,39 @@ elseClause = try (keyword "else" >> Just <$> statement)
 
 whileStmt :: JSParser Statement
 whileStmt = try $ keyword "while" >>
-  WhileStatement <$> srcLoc <*> parens expr <*> statement
+  WhileStatement <$> srcLoc
+                 <*> parens expr
+                 <*> withInsideIteration statement
 
 doWhileStmt :: JSParser Statement
 doWhileStmt = try $ keyword "do" >> do
   loc <- srcLoc
-  stmt <- statement
+  stmt <- withInsideIteration statement
   keyword "while"
   e <- parens expr
   return $ DoWhileStatement loc e stmt
 
 
 forStmt :: JSParser Statement
-forStmt = try (keyword "for") >> For <$> srcLoc <*> forHeader <*> statement
+forStmt = try (keyword "for") >>
+  For <$> srcLoc
+      <*> forHeader
+      <*> withInsideIteration statement
 
 forHeader :: JSParser ForHeader
-forHeader = parens (forinvar <|> try forin <|> for3)
+forHeader = parens (forinvar <|> try forin <|> for3 <|> for3var)
 
-forinvar, forin, for3 :: JSParser ForHeader
-forinvar = keyword "var" >> ForInVar <$> varAssignNoIn <*> (keyword "in" >> expr)
+forinvar, forin, for3, for3var :: JSParser ForHeader
+forinvar = try $ keyword "var" >> ForInVar <$> varAssignNoIn <*> (keyword "in" >> expr)
 forin = ForIn <$> exprNoIn <*> (keyword "in" >> expr)
-for3 = For3 <$> optionMaybe exprNoIn <*>
-                (tok ";" >> optionMaybe expr) <*>
-                (tok ";" >> optionMaybe expr)
+for3 = For3 <$> optionMaybe exprNoIn
+            <*> (tok ";" >> optionMaybe expr)
+            <*> (tok ";" >> optionMaybe expr)
+for3var = keyword "var" >>
+  For3Var <$> identifier <* tok "="
+          <*> exprNoIn
+          <*> (tok ";" >> optionMaybe expr)
+          <*> (tok ";" >> optionMaybe expr)
 
 exprStmt :: JSParser Statement
 exprStmt = ExprStmt <$> srcLoc <*> expr
@@ -125,10 +142,19 @@ emptyStmt :: JSParser Statement
 emptyStmt = semicolon >> EmptyStatement <$> srcLoc
 
 breakStmt :: JSParser Statement
-breakStmt = keyword "break" >> BreakStatement <$> srcLoc
+breakStmt = ifInsideIteration $ keyword "break" >>
+  BreakStatement <$> srcLoc <*> optional (fromLabelSet identifier)
 
 continueStmt :: JSParser Statement
-continueStmt = keyword "continue" >> ContinueStatement <$> srcLoc
+continueStmt = ifInsideIteration $ do
+  pos1 <- getPosition
+  keyword "continue"
+  pos2 <- getPosition
+  if sameLine pos1 pos2
+  then ContinueStatement <$> srcLoc
+                         <*> optional (fromLabelSet identifier)
+  else ContinueStatement <$> srcLoc <*> pure Nothing
+
 
 throwStmt :: JSParser Statement
 throwStmt = try (keyword "throw") >> ThrowStatement <$> srcLoc <*> expr

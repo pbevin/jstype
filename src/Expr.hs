@@ -20,6 +20,7 @@ instance Show SrcLoc where
   show (SrcLoc file line col cxt) = "at " ++ file ++ ":" ++ show line ++ ":" ++ show col ++ maybe "" (" in " ++) cxt
 
 type Ident = String
+type Label = String
 type Operator = String
 type ParameterList = [Ident]
 type VarDeclaration = (Ident, Maybe Expr)
@@ -31,14 +32,15 @@ data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
   deriving (Show, Eq)
 
 data Statement = Block SrcLoc [Statement]
+               | LabelledStatement SrcLoc Label Statement
                | VarDecl SrcLoc [VarDeclaration]
                | ExprStmt SrcLoc Expr
                | IfStatement SrcLoc Expr Statement (Maybe Statement)
                | WhileStatement SrcLoc Expr Statement
                | DoWhileStatement SrcLoc Expr Statement
                | For SrcLoc ForHeader Statement
-               | ContinueStatement SrcLoc
-               | BreakStatement SrcLoc
+               | ContinueStatement SrcLoc (Maybe Label)
+               | BreakStatement SrcLoc (Maybe Label)
                | Return SrcLoc (Maybe Expr)
                | ThrowStatement SrcLoc Expr
                | TryStatement SrcLoc Statement (Maybe Catch) (Maybe Finally)
@@ -128,8 +130,8 @@ sourceLocation stmt = case stmt of
   WhileStatement s _ _ -> s
   DoWhileStatement s _ _ -> s
   For s _ _ -> s
-  ContinueStatement s -> s
-  BreakStatement s -> s
+  ContinueStatement s _ -> s
+  BreakStatement s _ -> s
   Return s _ -> s
   ThrowStatement s _ -> s
   TryStatement s _ _ _ -> s

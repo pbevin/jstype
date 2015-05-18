@@ -17,14 +17,15 @@ testParse input =
       overrideAll = map overrideSrcLoc
       overrideSrcLoc stmt = case stmt of
         Block _ sts            ->  Block s $ overrideAll sts
+        LabelledStatement _ label st -> LabelledStatement s label $ overrideSrcLoc st
         VarDecl _ a            ->  VarDecl s a
         ExprStmt _ a           ->  ExprStmt s a
         IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
         WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
         DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
         For _ a b              ->  For s a $ overrideSrcLoc b
-        ContinueStatement _    ->  ContinueStatement s
-        BreakStatement _       ->  BreakStatement s
+        ContinueStatement _ l  ->  ContinueStatement s l
+        BreakStatement _ l     ->  BreakStatement s l
         Return _ a             ->  Return s a
         ThrowStatement _ a     ->  ThrowStatement s a
         TryStatement _ a b c   ->  TryStatement s a b c
@@ -155,12 +156,29 @@ spec = do
       testParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt s (Num 2)]
 
     it "resolves the if-then-else ambiguity" $ do
-      testParse "if (a) if (b) continue; else break" `shouldBe`
+      testParse "if (a) if (b) 1; else 2" `shouldBe`
         Program [IfStatement s (ReadVar "a")
                                (IfStatement s (ReadVar "b")
-                                            (ContinueStatement s)
-                                            (Just $ BreakStatement s))
+                                              (ExprStmt s $ Num 1)
+                                              (Just $ ExprStmt s $ Num 2))
                                Nothing]
+
+    it "parses a continue statement" $ do
+      testParse "while (false) continue" `shouldBe`
+        Program [WhileStatement s (Boolean False) $
+                   ContinueStatement s Nothing]
+      testParse "retry: while (false) continue retry" `shouldBe`
+        Program [LabelledStatement s "retry" $
+                  WhileStatement s (Boolean False) $
+                    ContinueStatement s $ Just "retry"]
+    it "can break a line before a continue semicolon" $ do
+      testParse "while (false) { continue\n; }" `shouldBe`
+        Program [WhileStatement s (Boolean False) $
+          Block s [ ContinueStatement s Nothing, EmptyStatement s] ]
+
+
+    it "disallows a bare continue statement" $ do
+      evaluate (testParse "continue") `shouldThrow` anyException
 
     it "parses empty statements" $ do
       testParse ";\n;\n" `shouldBe`
@@ -173,6 +191,11 @@ spec = do
     it "parses a for..var..in statement" $ do
       testParse "for (var x in xs) return" `shouldBe`
         Program [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return s Nothing]
+
+    it "parses a labelled statement" $ do
+      testParse "xyz: f()" `shouldBe`
+        Program [ LabelledStatement s "xyz" $
+                   ExprStmt s $ FunCall (ReadVar "f")[] ]
 
     it "parses a new object" $ do
       testParse "new X()" `shouldBe`

@@ -43,8 +43,8 @@ arbStmt n = oneof [ ExprStmt s <$> resize (n-1) arbitrary,
                     ThrowStatement s <$> arbitrary,
                     TryStatement s <$> (block half) <*> (Just <$> Catch s "e" <$> block half) <*> pure Nothing,
                     TryStatement s <$> (block half) <*> pure Nothing <*> (Just <$> (Finally <$> pure s <*> block half)),
-                    pure $ ContinueStatement s,
-                    pure $ BreakStatement s,
+                    pure $ ContinueStatement s Nothing,
+                    pure $ BreakStatement s Nothing,
                     pure $ EmptyStatement s,
                     pure $ DebuggerStatement s ]
   where half = n `div` 2

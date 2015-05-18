@@ -43,8 +43,8 @@ showStatement stmt = case stmt of
   Return _ (Just expr) -> "return " ++ showExpr expr
   EmptyStatement _ -> ";"
   DebuggerStatement _ -> "debugger"
-  BreakStatement _ -> "break"
-  ContinueStatement _ -> "continue"
+  BreakStatement _ _ -> "break"
+  ContinueStatement _ _ -> "continue"
   VarDecl _ decls -> "var " ++ showVarDecls decls
   ThrowStatement _ expr -> "throw " ++ showExpr expr
   TryStatement _ block catch finally ->

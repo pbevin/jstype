@@ -29,4 +29,4 @@ parseExpr str = case jsParse (expr <* eof) "" str of
   Left err -> error (show err)
 
 jsParse :: JSParser a -> SourceName -> String -> Either ParseError a
-jsParse p = runP p (True, Nothing)
+jsParse p = runP p initialParseState

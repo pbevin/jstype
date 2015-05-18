@@ -2,5 +2,9 @@ module Parse.Types where
 
 import Text.Parsec (Parsec)
 
-type ParseState = (Bool, Maybe String) -- "in" allowed, context
+data ParseState = ParseState {
+  inKeywordAllowed :: Bool,
+  insideIteration :: Bool,
+  labelSet :: [String],
+  contextDescription :: Maybe String }
 type JSParser = Parsec String ParseState

@@ -27,14 +27,14 @@ spec = do
   it "shows ambiguous if-then-else statements correctly" $ do
     let a = IfStatement s (ReadVar "a")
                         (IfStatement s (ReadVar "b")
-                                     (ContinueStatement s)
-                                     (Just $ BreakStatement s))
+                                     (ContinueStatement s Nothing)
+                                     (Just $ BreakStatement s Nothing))
                         Nothing
     let b = IfStatement s (ReadVar "a")
                         (IfStatement s (ReadVar "b")
-                                     (ContinueStatement s)
+                                     (ContinueStatement s Nothing)
                                      Nothing)
-                        (Just $ BreakStatement s)
+                        (Just $ BreakStatement s Nothing)
 
     showProg (Program [a]) `shouldBe`
       "if (a) {if (b) {continue} else {break}}"

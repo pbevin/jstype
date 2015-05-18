@@ -130,6 +130,8 @@ runStmt cxt s = case s of
         putVar cxt x v
     return (CTNormal, Nothing, Nothing)
 
+  LabelledStatement loc label stmt -> runStmt cxt stmt
+
   For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
     maybeRunExprStmt cxt e1 >> keepGoing Nothing where
       keepGoing v = do
@@ -191,7 +193,8 @@ runStmt cxt s = case s of
     exc <- runExprStmt cxt e >>= getValue
     return (CTThrow, Just exc, Nothing)
 
-  BreakStatement loc -> return (CTBreak, Nothing, Nothing)
+  BreakStatement loc label -> return (CTBreak, Nothing, label)
+  ContinueStatement loc label -> return (CTBreak, Nothing, label)
   Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return loc (Just e) -> do
     val <- runExprStmt cxt e
