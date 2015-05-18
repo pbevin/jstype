@@ -179,6 +179,23 @@ runStmt cxt s = case s of
           keepGoing v (toBoolean stillIterating)
         _ -> return sval
 
+  WhileStatement loc e stmt -> keepGoing Nothing where -- ref 12.6.2
+    keepGoing :: Maybe JSVal -> JSRuntime StmtReturn
+    keepGoing v = do
+      willEval <- isTruthy <$> (runExprStmt cxt e >>= getValue)
+      
+      if not willEval
+      then return (CTNormal, v, Nothing)
+      else do
+        sval@(stype, v', _) <- runStmt cxt stmt
+        let nextVal = case v' of
+                        Nothing -> v
+                        Just newVal -> Just newVal
+        case stype of
+          CTBreak -> return (CTNormal, v, Nothing)
+          CTContinue -> keepGoing nextVal
+          CTNormal -> keepGoing nextVal
+          _ -> return sval
 
 
   Block loc stmts -> runStmts cxt stmts
@@ -376,6 +393,7 @@ isTruthy :: JSVal -> Bool
 isTruthy (VNum 0)      = False
 isTruthy VUndef        = False
 isTruthy (VBool False) = False
+isTruthy (VStr "")     = False
 isTruthy _             = True
 
 

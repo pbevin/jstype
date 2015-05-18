@@ -67,6 +67,8 @@ spec = do
 
     it "parses escape characters in strings" $ do
       parseExpr "\"a\\u0009b\"" `shouldBe` Str "a\tb"
+      parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
+      parseExpr "'back\\\\quote'" `shouldBe` Str "back\\quote"
 
     it "parses object literals" $ do
       parseExpr "{}" `shouldBe` ObjectLiteral []
