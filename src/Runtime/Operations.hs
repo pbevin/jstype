@@ -11,7 +11,7 @@ jsAdd a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   if isString a' || isString b'
-  then return $ VStr $ toString a' ++ toString b'
+  then fmap VStr $ liftStr (++) a' b'
   else fmap VNum $ liftNum (+) a' b'
 
 -- ref 11.8.5
@@ -20,7 +20,7 @@ compareOp op a b = do
   a' <- toPrimitive HintNumber a
   b' <- toPrimitive HintNumber b
   liftM (VBool . op) $ if isString a' && isString b'
-  then return $ toString a' < toString b'
+  then liftStr (<) a' b'
   else liftNum (<) a' b'
 
 numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> JSRuntime JSVal
@@ -36,6 +36,12 @@ liftNum :: (JSNum -> JSNum -> a) -> JSVal -> JSVal -> JSRuntime a
 liftNum op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
+  return $ n1 `op` n2
+
+liftStr :: (String -> String -> a) -> JSVal -> JSVal -> JSRuntime a
+liftStr op a b = do
+  n1 <- toString a
+  n2 <- toString b
   return $ n1 `op` n2
 
 

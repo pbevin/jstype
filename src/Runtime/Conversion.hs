@@ -34,7 +34,10 @@ isString :: JSVal -> Bool
 isString (VStr _) = True
 isString _ = False
 
-toString :: JSVal -> String
-toString (VStr s) = s
-toString (VNum n) = show n
-toString _ = "???"
+toString :: JSVal -> JSRuntime String
+toString VUndef    = return "undefined"
+toString VNull     = return "null"
+toString (VBool b) = return $ if b then "true" else "false"
+toString (VStr s)  = return s
+toString (VNum n)  = return $ show n
+toString _         = return "???"

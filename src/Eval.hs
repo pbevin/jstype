@@ -70,6 +70,7 @@ initialEnv = do
   number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
                       >>= setCallMethod numConstructor
 
+  boolean <- newObject >>= setCallMethod boolConstructor
 
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
@@ -77,6 +78,7 @@ initialEnv = do
   share $ M.fromList [ ("console", VObj console),
                        ("Function", VObj function),
                        ("Number", VObj number),
+                       ("Boolean", VObj boolean),
                        ("Object", VObj object),
                        ("Error", VObj error),
                        ("eval", VNative objEval),
@@ -376,7 +378,8 @@ getOwnPropertyDescriptor _this xs = do
   let [objVal, propVal] = xs
 
   obj <- getValue objVal
-  val <- getValue (VRef $ JSRef obj (toString propVal) False)
+  str <- toString propVal
+  val <- getValue (VRef $ JSRef obj str False)
 
   result <- newObject
   modifyRef result $ objSetProperty "value" val
@@ -396,19 +399,19 @@ objEscape _this args = case args of
 objEval :: JSFunction
 objEval _this args = case args of
   [] -> return VUndef
-  (prog:args) ->
-    let Program stmts = simpleParse (toString prog)
-    in do
-      cxt <- JSCxt <$> initialEnv
-                   <*> emptyEnv
-                   <*> (VObj <$> getGlobalObject)
+  (prog:args) -> do
+    text <- toString prog
+    let Program stmts = simpleParse text
+    cxt <- JSCxt <$> initialEnv
+                 <*> emptyEnv
+                 <*> (VObj <$> getGlobalObject)
 
-      (stype, sval, _) <- runStmts cxt stmts
-      case stype of
-        CTNormal -> return $ fromMaybe VUndef sval
-        CTThrow ->
-          let Just (VException err) = sval
-          in throwError err
+    (stype, sval, _) <- runStmts cxt stmts
+    case stype of
+      CTNormal -> return $ fromMaybe VUndef sval
+      CTThrow ->
+        let Just (VException err) = sval
+        in throwError err
 
 objIsNaN :: JSFunction
 objIsNaN _this args = case args of
@@ -524,6 +527,26 @@ numConstructor this args = do
       VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
 
+boolConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+boolConstructor this args = do
+  let val = VBool $ if null args
+                    then False
+                    else toBoolean (head args)
+  case this of
+    VObj obj -> do
+      VObj <$> (setClass "Boolean" obj >>= setPrimitiveValue val)
+    _ -> raiseError $ "boolConstructor called with this = " ++ show this
+
+stringConstructor :: JSFunction
+stringConstructor this args = do
+  let val = VBool $ if null args
+                    then False
+                    else toBoolean (head args)
+  case this of
+    VObj obj -> do
+      VObj <$> (setClass "Boolean" obj >>= setPrimitiveValue val)
+    _ -> raiseError $ "boolConstructor called with this = " ++ show this
+
 errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 errConstructor this args =
   let text = head args
@@ -533,13 +556,12 @@ errConstructor this args =
 
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
-funConstructor this [arg] =
-  let body = toString arg
-      params = []
-      Program stmts = simpleParse body
-  in createFunction params stmts =<< JSCxt <$> initialEnv
-                                           <*> emptyEnv
-                                           <*> (VObj <$> getGlobalObject)
+funConstructor this [arg] = do
+  body <- toString arg
+  let Program stmts = simpleParse body
+  createFunction [] stmts =<< JSCxt <$> initialEnv
+                                    <*> emptyEnv
+                                    <*> (VObj <$> getGlobalObject)
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
@@ -598,4 +620,4 @@ objectPrototype =
           primitive = Nothing }
 
 objToString :: JSFunction
-objToString this _args = return $ VStr $ toString this
+objToString this _args = toString this >>= return . VStr
