@@ -72,11 +72,14 @@ initialEnv = do
 
   boolean <- newObject >>= setCallMethod boolConstructor
 
+  string <- newObject >>= setCallMethod stringConstructor
+
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
   share $ M.fromList [ ("console", VObj console),
                        ("Function", VObj function),
+                       ("String", VObj string),
                        ("Number", VObj number),
                        ("Boolean", VObj boolean),
                        ("Object", VObj object),
@@ -431,8 +434,10 @@ showVal other = show other
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp op = case op of
-  "==="        -> \a b -> return $ VBool $ tripleEquals a b
-  "!=="        -> \a b -> return $ VBool $ not $ tripleEquals a b
+  "==="        -> tripleEquals id
+  "!=="        -> tripleEquals not
+  "=="         -> doubleEquals id
+  "!="         -> doubleEquals not
   "instanceof" -> jsInstanceOf
   "+"          -> jsAdd
   "-"          -> numberOp (-)

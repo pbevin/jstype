@@ -70,6 +70,9 @@ spec = do
       jsEvalExpr "2 >= 1" `shouldReturn` VBool True
       jsEvalExpr "1 >= 1" `shouldReturn` VBool True
 
+    it "understands abstract equality with numbers" $ do
+      jsEvalExpr "1 == 1" `shouldReturn` VBool True
+      jsEvalExpr "1 == 2" `shouldReturn` VBool False
 
 
   it "runs loops" $ do

@@ -46,27 +46,32 @@ liftStr op a b = do
 
 
 -- ref 11.9.6, incomplete
-tripleEquals :: JSVal -> JSVal -> Bool
-tripleEquals x y
-  | typeof x /= typeof y        = False
-  | typeof x == TypeUndefined   = True
-  | typeof x == TypeNull        = True
-  | typeof x == TypeNumber      = x == y
-  | typeof x == TypeString      = x == y
-  | typeof x == TypeBoolean     = x == y
-  | typeof x == TypeObject      = x == y
-  | typeof x == TypeFunction    = x == y
-  | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
+tripleEquals :: (Bool->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
+tripleEquals op x y = return $ VBool $ op $ eq x y
+  where eq x y
+          | typeof x /= typeof y        = False
+          | typeof x == TypeUndefined   = True
+          | typeof x == TypeNull        = True
+          | typeof x == TypeNumber      = x == y
+          | typeof x == TypeString      = x == y
+          | typeof x == TypeBoolean     = x == y
+          | typeof x == TypeObject      = x == y
+          | typeof x == TypeFunction    = x == y
+          | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
+doubleEquals :: (Bool->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
+doubleEquals op x y = return $ VBool $ op $ eq x y
+  where eq x y
+          | typeof x == typeof y = eq' x y
+          | typeof x == TypeUndefined && typeof y == TypeNull = True
+          | typeof x == TypeNull && typeof y == TypeUndefined = True
+          | otherwise = False
+        eq' VUndef VUndef = True
+        eq' VNull VNull = True
+        eq' (VNum a) (VNum b) = a == b
+        eq' (VStr a) (VStr b) = a == b
+        eq' (VBool a) (VBool b) = a == b
+        eq' (VObj a) (VObj b) = a == b
 
-
---     if isString a' && isString b'
---     then toString a' `op` toString b'
---     else toNumber a' `op` toNumber b'
-
-
-
-
--- ref 11.8.6, incomplete
 jsInstanceOf :: JSVal -> JSVal -> JSRuntime JSVal
 jsInstanceOf _a _b = return $ VBool True

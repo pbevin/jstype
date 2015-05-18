@@ -29,6 +29,7 @@ instance Show JSVal where
   show (VBool a) = show a
   show (VRef ref) = "(reference " ++ show ref ++ ")"
   show VUndef = "undefined"
+  show VNull  = "null"
   show (VObj _) = "[Object object]"
   show (VMap _) = "(map)"
   show (VNative _) = "(native function)"
@@ -69,15 +70,16 @@ data JSType = TypeUndefined
 
 typeof :: JSVal -> JSType
 typeof v = case v of
-  VNum _ -> TypeNumber
-  VStr _ -> TypeString
-  VBool _ -> TypeBoolean
-  VRef  _ -> TypeReference
-  VUndef  -> TypeUndefined
-  VNative _ -> TypeFunction
-  VObj _  -> TypeObject
+  VNum _       -> TypeNumber
+  VStr _       -> TypeString
+  VBool _      -> TypeBoolean
+  VRef  _      -> TypeReference
+  VUndef       -> TypeUndefined
+  VNull        -> TypeNull
+  VNative _    -> TypeFunction
+  VObj _       -> TypeObject
   VException _ -> TypeOther "Exception"
-  _       -> error $ "No idea what type " ++ show v ++ " is..."
+  _            -> error $ "No idea what type " ++ show v ++ " is..."
 
 instance Eq JSVal where
   VNum a == VNum b       = a == b
