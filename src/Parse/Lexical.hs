@@ -13,7 +13,7 @@ import Expr
 sameLine :: SourcePos -> SourcePos -> Bool
 sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
 
-identStart, identLetter :: [Char]
+identStart, identLetter :: String
 identStart  = ['a'..'z'] ++ ['A'..'Z'] ++ "$_"
 identLetter = identStart ++ ['0'..'9']
 
@@ -41,7 +41,7 @@ reserved word = void $ try $ do
   whiteSpace
 
 comment :: JSParser ()
-comment = void $ try $ (lineComment <|> blockComment)
+comment = void $ try (lineComment <|> blockComment)
   where lineComment = string "//" >> manyTill anyChar (try lineBreak)
         blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
 
@@ -53,7 +53,7 @@ isLineBreak ch = ch == '\n' || ch == '\r' || ch == '\x2028' || ch == '\x2029'
 
 lineBreak :: JSParser ()
 lineBreak = let crlf = try (string "\r\n")
-                breakChar = satisfy isLineBreak >>= \ch -> do
+                breakChar = satisfy isLineBreak >>= \ch ->
                   when (ch /= '\n') $ do
                     pos <- getPosition
                     setPosition $ nextLine pos

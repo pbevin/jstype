@@ -39,11 +39,11 @@ tripleEquals x y
   | typeof x /= typeof y        = False
   | typeof x == TypeUndefined   = True
   | typeof x == TypeNull        = True
-  | typeof x == TypeNumber      = (x == y)
-  | typeof x == TypeString      = (x == y)
-  | typeof x == TypeBoolean     = (x == y)
-  | typeof x == TypeObject      = (x == y)
-  | typeof x == TypeFunction    = (x == y)
+  | typeof x == TypeNumber      = x == y
+  | typeof x == TypeString      = x == y
+  | typeof x == TypeBoolean     = x == y
+  | typeof x == TypeObject      = x == y
+  | typeof x == TypeFunction    = x == y
   | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
 

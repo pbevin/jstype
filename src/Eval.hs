@@ -124,7 +124,7 @@ runStmt cxt s = case s of
         putVar cxt x v
     return (CTNormal, Nothing, Nothing)
 
-  For loc (For3 e1 e2 e3) stmt -> do -- ref 12.6.3
+  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
     maybeRunExprStmt cxt e1 >> keepGoing Nothing where
       keepGoing v = do
         willEval <- case e2 of
@@ -324,8 +324,7 @@ modifyingOp op returnOp cxt e = do
     _ -> raiseError $ show e ++ " is not assignable"
 
 purePrefix :: (JSVal -> JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
-purePrefix f cxt e = do
-  runExprStmt cxt e >>= getValue >>= return . f
+purePrefix f cxt e = liftM f (runExprStmt cxt e >>= getValue)
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
 putVar (JSCxt envref _ _) x v = modifyRef envref $ M.insert x v
@@ -335,7 +334,7 @@ lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
 
 
 updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
-updateRef f lref rref = do
+updateRef f lref rref =
   case lref of
     VRef ref -> do
       lval <- getValue lref
@@ -500,8 +499,7 @@ errConstructor this args =
   let text = head args
   in case this of
     VObj obj -> do
-      x <- return obj >>= setClass "Error"
-                      >>= addOwnProperty "message" text
+      x <- setClass "Error" obj >>= addOwnProperty "message" text
       return (VObj x)
 
 
@@ -548,7 +546,7 @@ makeObjectLiteral cxt nameValueList =
       addProp :: Shared JSObj -> (PropertyName, Expr) -> JSRuntime (Shared JSObj)
       addProp obj (propName, propValue) = do
         val <- runExprStmt cxt propValue >>= getValue
-        return obj >>= addOwnProperty (nameOf propName) val
+        addOwnProperty (nameOf propName) val obj
   in do
     obj <- newObject
     VObj <$> foldM addProp obj nameValueList

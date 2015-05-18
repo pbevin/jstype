@@ -23,7 +23,7 @@ terminated p = do
   result <- p
   pos2 <- getPosition
 
-  when (sameLine pos1 pos2) $ do
+  when (sameLine pos1 pos2) $
     semicolon <|> lookAhead (eof <|> skip "}")
 
   return result
@@ -156,7 +156,7 @@ srcLoc :: JSParser SrcLoc
 srcLoc = do
   pos <- getPosition
   cxt <- currentContext
-  return $ SrcLoc (sourceName pos) (sourceLine pos) (sourceColumn pos) $ cxt
+  return $ SrcLoc (sourceName pos) (sourceLine pos) (sourceColumn pos) cxt
 
 
 
@@ -367,7 +367,7 @@ doubleQuotedString = do
 
 escape :: JSParser Char
 escape = oneOf "'\"\\"
-     <|> (oneOf "bfnrtv" >>= return . singleCharEscape)
+     <|> liftM singleCharEscape (oneOf "bfnrtv")
      <|> (char 'u' >> unicodeEscape)
 
 singleCharEscape :: Char -> Char
@@ -379,7 +379,7 @@ singleCharEscape 'f' = '\f'
 singleCharEscape 'r' = '\r'
 
 unicodeEscape :: JSParser Char
-unicodeEscape = replicateM 4 hexDigit >>= return . chr . fst . head . readHex
+unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit
 
 singleQuotedString :: JSParser String
 singleQuotedString = do
@@ -393,7 +393,7 @@ num :: JSParser Expr
 num = Num <$> numericLiteral
 
 numericLiteral :: JSParser JSNum
-numericLiteral = number >>= return . JSNum . read
+numericLiteral = liftM (JSNum . read) number
 
 assignOp :: JSParser String
 assignOp = choice $ map op $ assignOps jsLang
