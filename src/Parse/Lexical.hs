@@ -6,6 +6,7 @@ import Control.Applicative
 import Data.List (nub, sortBy)
 import Data.Char (isSpace)
 import Parse.Types
+import Data.Maybe
 import Expr
 
 
@@ -17,7 +18,7 @@ identStart  = ['a'..'z'] ++ ['A'..'Z'] ++ "$_"
 identLetter = identStart ++ ['0'..'9']
 
 surround :: String -> String -> JSParser a -> JSParser a
-surround lhs rhs p = lexeme lhs *> p <* lexeme rhs
+surround lhs rhs p = tok lhs *> p <* tok rhs
 
 parens, braces, brackets :: JSParser a -> JSParser a
 parens = surround "(" ")"
@@ -68,8 +69,11 @@ allOps = sortBy reverseLength $ nub allJsOps
 reverseLength :: String -> String -> Ordering
 reverseLength a b = compare (length b) (length a)
 
-lexeme :: String -> JSParser String
-lexeme str = string str <* whiteSpace
+lexeme :: JSParser a -> JSParser a
+lexeme p = p <* whiteSpace
+
+tok :: String -> JSParser String
+tok = lexeme . string
 
 keyword :: String -> JSParser ()
 keyword = reserved
@@ -81,11 +85,20 @@ resOp = do
   return op
 
 skip :: String -> JSParser ()
-skip = void . lexeme
+skip = void . tok
 
 comma, semicolon :: JSParser ()
 comma = skip ","
 semicolon = skip ";"
 
 number :: JSParser String
-number = many1 digit <* whiteSpace
+number =
+  let decimal  = many1 digit
+      fracPart = (:) <$> char '.' <*> decimal
+      expPart  = (:) <$> char 'e' <*> plusminus decimal
+      plusminus p = (:) <$> oneOf "+-" <*> p <|> p
+  in lexeme $ do
+    a <- decimal
+    b <- optional fracPart
+    c <- optional expPart
+    return $ a ++ fromMaybe "" b ++ fromMaybe "" c

@@ -38,6 +38,11 @@ spec = do
   describe "ParseExpr" $ do
     it "parses a number" $ do
       parseExpr "1" `shouldBe` Num (JSNum 1)
+      parseExpr "1.3" `shouldBe` Num (JSNum 1.3)
+      parseExpr "1.3e3" `shouldBe` Num (JSNum 1300)
+      parseExpr "1.3e+3" `shouldBe` Num (JSNum 1300)
+      parseExpr "1.3e-3" `shouldBe` Num (JSNum 0.0013)
+      parseExpr "3e3" `shouldBe` Num (JSNum 3000)
 
     it "parses a negative number" $ do
       parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))

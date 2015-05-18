@@ -269,16 +269,22 @@ runExprStmt cxt expr = case expr of
 
   UnOp op e -> do -- ref 11.4.{4,5}
     lhs <- runExprStmt cxt e
-    lval <- getValue lhs
-    let newVal = postfixUpdate op lval
-    putValue lhs newVal
-    return newVal
+    case lhs of
+      VRef ref -> do
+        lval <- getValue lhs
+        let newVal = postfixUpdate op lval
+        putValue ref newVal
+        return newVal
+      _ -> raiseError $ show e ++ " is not assignable"
 
   PostOp op e -> do -- ref 11.3
     lhs <- runExprStmt cxt e
-    lval <- getValue lhs
-    putValue lhs (postfixUpdate op lval)
-    return lval
+    case lhs of
+      VRef ref -> do
+        lval <- getValue lhs
+        putValue ref (postfixUpdate op lval)
+        return lval
+      _ -> raiseError $ show e ++ " is not assignable"
 
   NewExpr f args -> do
     fun <- runExprStmt cxt f
@@ -318,12 +324,14 @@ lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
 
 updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
 updateRef f lref rref = do
-  lval <- getValue lref
-  rval <- getValue rref
-  let r = f lval rval
-  putValue lref r
-  return r
-
+  case lref of
+    VRef ref -> do
+      lval <- getValue lref
+      rval <- getValue rref
+      let r = f lval rval
+      putValue ref r
+      return r
+    _ -> raiseError $ show lref ++ " is not assignable"
 
 assignOp :: String -> JSVal -> JSVal -> JSVal
 assignOp "=" _ b = b

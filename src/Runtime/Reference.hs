@@ -16,13 +16,11 @@ getValue v
     where ref = unwrapRef v
 
 -- ref 8.7.2
-putValue :: JSVal -> JSVal -> JSRuntime ()
-putValue v w
-  | typeof v /= TypeReference   = raiseError $ "ReferenceError: " ++ show v
+putValue :: JSRef -> JSVal -> JSRuntime ()
+putValue ref w
   | isUnresolvableReference ref = putUnresolvable ref w
   | isPropertyReference ref     = putPropertyReference ref w
   | otherwise                   = putEnvironmentRecord ref w
-    where ref = unwrapRef v
 
 -- ref 8.7
 

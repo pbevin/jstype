@@ -64,7 +64,7 @@ varAssign = do
   name <- identifier
   assign name <|> return (name, Nothing)
     where assign x = do
-            lexeme "="
+            tok "="
             e <- assignmentExpr
             return (x, Just e)
 
@@ -115,8 +115,8 @@ forinvar, forin, for3 :: JSParser ForHeader
 forinvar = keyword "var" >> ForInVar <$> varAssignNoIn <*> (keyword "in" >> expr)
 forin = ForIn <$> exprNoIn <*> (keyword "in" >> expr)
 for3 = For3 <$> optionMaybe exprNoIn <*>
-                (lexeme ";" >> optionMaybe expr) <*>
-                (lexeme ";" >> optionMaybe expr)
+                (tok ";" >> optionMaybe expr) <*>
+                (tok ";" >> optionMaybe expr)
 
 exprStmt :: JSParser Statement
 exprStmt = ExprStmt <$> srcLoc <*> expr
@@ -165,7 +165,7 @@ exprNoIn = withoutInKeyword expr
 
 expr :: JSParser Expr
 expr = assignmentExpr `chainl1` commaExpr
-  where commaExpr = lexeme "," >> return (BinOp ",")
+  where commaExpr = tok "," >> return (BinOp ",")
 
 assignmentExpr :: JSParser Expr
 assignmentExpr = foldr ($) simple [
@@ -240,7 +240,7 @@ postfixExpr p = do
   then try (postfix e) <|> return e
   else return e
     where postfix e = do
-            op <- choice $ map (try . lexeme) $ postfixOps jsLang
+            op <- choice $ map (try . tok) $ postfixOps jsLang
             whiteSpace
             return $ PostOp op e
 
@@ -267,9 +267,9 @@ condExpr p = do
   test <- p
   choice [queryColon test, return test]
     where queryColon test = do
-            lexeme "?"
+            tok "?"
             ifTrue <- expr
-            lexeme ":"
+            tok ":"
             ifFalse <- expr
             return $ Cond test ifTrue ifFalse
 
@@ -280,7 +280,7 @@ assignExpr p = do
 
 assignment :: Expr -> JSParser Expr
 assignment lhs = do
-  op <- lexeme "=" <|> assignOp
+  op <- tok "=" <|> assignOp
   rhs <- expr
   return $ Assign lhs op rhs
 
@@ -313,7 +313,7 @@ objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
       name <- IdentProp <$> identifier
                 <|> StringProp <$> quotedString
                 <|> NumProp <$> numericLiteral
-      lexeme ":"
+      tok ":"
       val <- assignmentExpr
       return (name, val)
 
@@ -397,4 +397,4 @@ numericLiteral = number >>= return . JSNum . read
 
 assignOp :: JSParser String
 assignOp = choice $ map op $ assignOps jsLang
-  where op name = try (lexeme name) >> return name
+  where op name = try (tok name) >> return name
