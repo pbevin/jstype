@@ -37,6 +37,10 @@ spec = do
     runJStr "var a = '5'; console.log(void a); console.log(a)"
       `shouldReturn` Right "(undefined)\n5\n"
 
+  it "does ! prefix" $ do
+    runJStr "console.log(!true); console.log(!false)"
+      `shouldReturn` Right "false\ntrue\n"
+
   it "does pre-increment and pre-decrement" $ do
     runJStr "var a = 5; console.log(--a); console.log(a)"
       `shouldReturn` Right "4\n4\n"

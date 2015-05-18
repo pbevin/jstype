@@ -222,6 +222,7 @@ runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
 runExprStmt cxt expr = case expr of
   Num n          -> return $ VNum n
   Str s          -> return $ VStr s
+  Boolean b      -> return $ VBool b
   ReadVar x      -> lookupVar cxt x
   This           -> return $ thisBinding cxt
 
@@ -276,10 +277,11 @@ runExprStmt cxt expr = case expr of
     let f = case op of
               "++"   -> modifyingOp (+ 1) (+ 1)
               "--"   -> modifyingOp (subtract 1) (subtract 1)
-              "+"    -> purePrefix possitive
-              "-"    -> purePrefix neggative
+              "+"    -> purePrefix numberify
+              "-"    -> purePrefix negNum
+              "!"    -> purePrefix invert
               "void" -> purePrefix (return . const VUndef)
-              _    -> const $ const $ raiseError $ "Prefix op not implemented: " ++ op
+              _    -> const $ const $ raiseError $ "Prefix not implemented: " ++ op
     in f cxt e
 
   PostOp op e -> -- ref 11.3
@@ -307,12 +309,14 @@ runExprStmt cxt expr = case expr of
 evalArguments :: JSCxt -> [Expr] -> JSRuntime [JSVal]
 evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
 
-neggative :: JSVal -> JSRuntime JSVal
-neggative a = toNumber a >>= return . VNum . negate
+negNum :: JSVal -> JSRuntime JSVal
+negNum a = toNumber a >>= return . VNum . negate
 
-possitive :: JSVal -> JSRuntime JSVal
-possitive a = toNumber a >>= return . VNum
+numberify :: JSVal -> JSRuntime JSVal
+numberify a = toNumber a >>= return . VNum
 
+invert :: JSVal -> JSRuntime JSVal
+invert a = return $ VBool $ not $ toBoolean a
 
 computeThisValue :: JSCxt -> JSVal -> JSVal
 computeThisValue cxt v = case v of

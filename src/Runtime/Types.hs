@@ -26,7 +26,7 @@ data JSVal = VNum JSNum
 instance Show JSVal where
   show (VNum a) = show a
   show (VStr a) = show a
-  show (VBool a) = show a
+  show (VBool a) = if a then "true" else "false"
   show (VRef ref) = "(reference " ++ show ref ++ ")"
   show VUndef = "undefined"
   show VNull  = "null"

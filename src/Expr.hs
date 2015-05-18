@@ -59,6 +59,7 @@ data PropertyName = IdentProp String
 
 data Expr = Num JSNum
           | Str String
+          | Boolean Bool
           | This
           | ArrayLiteral [Expr]
           | ObjectLiteral [(PropertyName, Expr)]
