@@ -263,28 +263,22 @@ runExprStmt cxt expr = case expr of
       TypeString    -> "string"
       TypeObject    -> "object"  -- or "function"
 
-  UnOp "+" e -> do
-    val <- runExprStmt cxt e >>= getValue
-    return $ VNum $ toNumber val
 
-  UnOp op e -> do -- ref 11.4.{4,5}
-    lhs <- runExprStmt cxt e
-    case lhs of
-      VRef ref -> do
-        lval <- getValue lhs
-        let newVal = postfixUpdate op lval
-        putValue ref newVal
-        return newVal
-      _ -> raiseError $ show e ++ " is not assignable"
+  UnOp op e -> -- ref 11.4
+    let f = case op of
+              "++"   -> modifyingOp (+ 1) (+ 1)
+              "--"   -> modifyingOp (subtract 1) (subtract 1)
+              "+"    -> purePrefix (VNum . toNumber)
+              "-"    -> purePrefix (VNum . negate . toNumber)
+              "void" -> purePrefix (const VUndef)
+              _    -> const $ const $ raiseError $ "Prefix op not implemented: " ++ op
+    in f cxt e
 
-  PostOp op e -> do -- ref 11.3
-    lhs <- runExprStmt cxt e
-    case lhs of
-      VRef ref -> do
-        lval <- getValue lhs
-        putValue ref (postfixUpdate op lval)
-        return lval
-      _ -> raiseError $ show e ++ " is not assignable"
+  PostOp op e -> -- ref 11.3
+    let f = case op of
+              "++" -> modifyingOp (+1) id
+              "--" -> modifyingOp (subtract 1) id
+    in f cxt e
 
   NewExpr f args -> do
     fun <- runExprStmt cxt f
@@ -314,6 +308,22 @@ computeThisValue cxt v = case v of
 
   _ -> thisBinding cxt
 
+modifyingOp :: (JSNum->JSNum) -> (JSNum->JSNum) -> JSCxt -> Expr -> JSRuntime JSVal
+modifyingOp op returnOp cxt e = do
+  lhs <- runExprStmt cxt e
+  case lhs of
+    VRef ref -> do
+      lval <- getValue lhs
+      let val = toNumber lval
+          newVal = VNum $ op val
+          retVal = VNum $ returnOp val
+      putValue ref newVal
+      return retVal
+    _ -> raiseError $ show e ++ " is not assignable"
+
+purePrefix :: (JSVal -> JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
+purePrefix f cxt e = do
+  runExprStmt cxt e >>= getValue >>= return . f
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
 putVar (JSCxt envref _ _) x v = modifyRef envref $ M.insert x v
@@ -405,11 +415,6 @@ showVal (VNum (JSNum n)) =
   else show n
 showVal VUndef = "(undefined)"
 showVal other = show other
-
-postfixUpdate :: String -> JSVal -> JSVal
-postfixUpdate "++" (VNum v) = VNum (v+1)
-postfixUpdate "--" (VNum v) = VNum (v-1)
-postfixUpdate op v = error $ "No such postfix op " ++ op ++ " on " ++ show v
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp "===" x y = return $ VBool $ tripleEquals x y

@@ -29,6 +29,28 @@ spec = do
     runJStr "a = 10; a *= 3; console.log(a);" `shouldReturn` Right "30\n"
     runJStr "a = 10; a /= 2; console.log(a);" `shouldReturn` Right "5\n"
 
+  it "does +, - and void prefixes" $ do
+    runJStr "var a = '5'; console.log(+a); console.log(a)"
+      `shouldReturn` Right "5\n5\n"
+    runJStr "var a = '5'; console.log(-a); console.log(a)"
+      `shouldReturn` Right "-5\n5\n"
+    runJStr "var a = '5'; console.log(void a); console.log(a)"
+      `shouldReturn` Right "(undefined)\n5\n"
+
+  it "does pre-increment and pre-decrement" $ do
+    runJStr "var a = 5; console.log(--a); console.log(a)"
+      `shouldReturn` Right "4\n4\n"
+    runJStr "var a = 5; console.log(++a); console.log(a)"
+      `shouldReturn` Right "6\n6\n"
+
+  it "does post-increment and post-decrement" $ do
+    runJStr "var a = 5; console.log(a--); console.log(a)"
+      `shouldReturn` Right "5\n4\n"
+    runJStr "var a = 5; console.log(a++); console.log(a)"
+      `shouldReturn` Right "5\n6\n"
+
+
+
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"
 
