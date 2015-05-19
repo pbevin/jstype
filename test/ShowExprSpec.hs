@@ -36,15 +36,15 @@ spec = do
                                      Nothing)
                         (Just $ BreakStatement s Nothing)
 
-    showProg (Program [a]) `shouldBe`
+    showProg (Program NotStrict [a]) `shouldBe`
       "if (a) {if (b) {continue} else {break}}"
-    showProg (Program [b]) `shouldBe`
+    showProg (Program NotStrict [b]) `shouldBe`
       "if (a) {if (b) {continue}} else {break}"
 
   it "parenthesizes {} when needed" $ do
     -- {} could mean a block in some cases.
     let empty = ObjectLiteral []
-    showProg (Program [ExprStmt s empty]) `shouldBe`
+    showProg (Program NotStrict [ExprStmt s empty]) `shouldBe`
       "({})"
-    showProg (Program [VarDecl s [("a", Just $ empty)]]) `shouldBe`
+    showProg (Program NotStrict [VarDecl s [("a", Just $ empty)]]) `shouldBe`
       "var a = {}"

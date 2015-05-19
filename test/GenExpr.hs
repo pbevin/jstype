@@ -27,7 +27,7 @@ instance Arbitrary PropertyName where
   shrink = shrinkPropertyName
 
 arbProg :: Int -> Gen Program
-arbProg n = Program <$> shortListOf n arbitrary
+arbProg n = Program NotStrict <$> shortListOf n arbitrary
 
 arbStmt :: Int -> Gen Statement
 arbStmt 0 = Return s <$> resize 0 arbitrary
@@ -85,10 +85,11 @@ arbExpr n = oneof [ BinOp <$> arbOp <*> subexpr <*> subexpr,
                     FunCall <$> subexpr <*> shortListOf half arbitrary,
                     MemberDot <$> arbitrary <*> arbIdent,
                     MemberGet <$> subexpr <*> subexpr,
-                    FunDef Nothing <$> listOf arbIdent <*> pure [],
+                    FunDef Nothing <$> listOf arbIdent <*> pure NotStrict <*> pure [],
                     FunDef <$>
                       (Just <$> arbIdent) <*>
                       listOf arbIdent <*>
+                      pure NotStrict <*>
                       shortListOf n arbitrary,
                     Cond <$> subexpr3 <*> subexpr3 <*> subexpr3 ]
   where subexpr = resize half arbitrary
@@ -149,7 +150,7 @@ shortListOf1 n a = do
 
 
 shrinkProg :: Program -> [Program]
-shrinkProg (Program stmts) = [Program p | p <- recursivelyShrink stmts]
+shrinkProg (Program strictness stmts) = [Program strictness p | p <- recursivelyShrink stmts]
 
 shrinkStmt :: Statement -> [Statement]
 shrinkStmt expr = case expr of
@@ -218,9 +219,9 @@ shrinkExpr expr = case expr of
       [FunCall f' xs | f' <- shrink f] ++ -- XXX
       [FunCall f xs' | xs' <- shrinkList shrink xs]
 
-  FunDef name params body ->
-    [ FunDef (Just "f") [] body' | body' <- shrinkList shrinkStmt body ] ++
-      [ FunDef name params body' | body' <- shrinkList shrinkStmt body ]
+  FunDef name params strictness body ->
+    [ FunDef (Just "f") [] strictness body' | body' <- shrinkList shrinkStmt body ] ++
+      [ FunDef name params strictness body' | body' <- shrinkList shrinkStmt body ]
 
   NewExpr f args ->
     args ++ [NewExpr f' args' | (f', args') <- shrink (f, args)]

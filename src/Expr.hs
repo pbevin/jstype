@@ -1,6 +1,6 @@
 module Expr where
 
-newtype Program = Program [Statement] deriving (Show, Eq)
+data Program = Program Strictness [Statement] deriving (Show, Eq)
 
 data SrcLoc = SrcLoc {
   srcFilename :: String,
@@ -17,6 +17,7 @@ type Label = String
 type Operator = String
 type ParameterList = [Ident]
 type VarDeclaration = (Ident, Maybe Expr)
+data Strictness = Strict | NotStrict deriving (Show, Eq)
 
 data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
                | For3Var Ident Expr (Maybe Expr) (Maybe Expr)
@@ -69,7 +70,7 @@ data Expr = Num JSNum
           | MemberDot Expr Ident  -- e.g., point.x
           | MemberGet Expr Expr   -- e.g., point["x"]
           | FunCall Expr [Expr]
-          | FunDef (Maybe Ident) ParameterList FunBody
+          | FunDef (Maybe Ident) ParameterList Strictness FunBody
   deriving (Show, Eq)
 
 data Lang = Lang {

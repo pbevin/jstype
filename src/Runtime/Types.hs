@@ -45,7 +45,7 @@ data JSObj = JSObj {
 data JSRef = JSRef {
   getBase :: JSVal,
   getReferencedName :: Ident,
-  isStrictReference :: Bool
+  strictness :: Strictness
   } deriving Show
 
 data JSCxt = JSCxt {
@@ -53,8 +53,6 @@ data JSCxt = JSCxt {
   varEnv :: JSEnv,
   thisBinding :: JSVal
 }
-
-data Strictness = Strict | NotStrict deriving (Show, Eq)
 
 data JSType = TypeUndefined
             | TypeNull

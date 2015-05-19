@@ -12,7 +12,7 @@ import Parse.Lexical
 import Expr
 
 prog :: JSParser Program
-prog = Program <$> statementList
+prog = Program NotStrict <$> statementList
 
 statementList :: JSParser [Statement]
 statementList = many statement
@@ -240,7 +240,7 @@ functionExpr = do
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
   stmts <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
-  return $ FunDef name params stmts
+  return $ FunDef name params NotStrict stmts
 
 callExpr :: JSParser Expr -> JSParser Expr
 callExpr p = do

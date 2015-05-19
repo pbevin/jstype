@@ -32,9 +32,9 @@ instance Code ForHeader where
 
 
 showProg :: Program -> String
-showProg (Program stmts) = intercalate ";" $ map code stmts
+showProg (Program strictness stmts) = intercalate ";" $ map code stmts
 
-ppProg n (Program stmts) = vcat (map (ppdoc n) stmts)
+ppProg n (Program strictness stmts) = vcat (map (ppdoc n) stmts)
 
 showStatement :: Statement -> String
 showStatement stmt = case stmt of
@@ -152,10 +152,10 @@ showExpr expr = case expr of
 
   FunCall fun args -> maybeParens fun ++ argList args
 
-  FunDef Nothing params body ->
+  FunDef Nothing params strictness body ->
     "function" ++ pparens (intercalate "," params) ++ bbraces (mapshow ";" body)
 
-  FunDef (Just name) params body ->
+  FunDef (Just name) params strictness body ->
     "function " ++ name ++ pparens (intercalate "," params) ++ bbraces (mapshow ";" body)
 
   RegularExpression{} -> error "regex"
@@ -164,7 +164,7 @@ ppExpr n expr = case expr of
   Assign lhs op rhs ->
     parensIf (n>0) (ppdoc (n+1) lhs <+> text op <+> ppdoc (n+1) rhs)
 
-  FunDef name params body ->
+  FunDef name params strictness body ->
     ppheader <+> lbrace $$ ppbody $$ rbrace
       where ppheader = text "function"
                    <+> maybe empty text name

@@ -12,7 +12,7 @@ import Eval
 
 testParse :: String -> Program
 testParse input =
-  let Program stmts = simpleParse input
+  let Program strictness stmts = simpleParse input
       srcLoc = SrcLoc "" 0 0
       overrideAll = map overrideSrcLoc
       overrideSrcLoc stmt = case stmt of
@@ -31,7 +31,7 @@ testParse input =
         TryStatement _ a b c   ->  TryStatement s a b c
         EmptyStatement _       ->  EmptyStatement s
         DebuggerStatement _    ->  DebuggerStatement s
-  in Program $ overrideAll stmts
+  in Program strictness $ overrideAll stmts
 
 
 spec :: Spec
@@ -168,29 +168,29 @@ spec = do
 
   describe "Parsing programs" $ do
     it "parses a while statement" $ do
-      testParse "while (a) { }" `shouldBe` Program [WhileStatement s (ReadVar "a") (Block s [])]
+      testParse "while (a) { }" `shouldBe` Program NotStrict [WhileStatement s (ReadVar "a") (Block s [])]
 
     it "parses a do-while statement" $ do
-      testParse "do {} while (a);" `shouldBe` Program [DoWhileStatement s (ReadVar "a") (Block s [])]
+      testParse "do {} while (a);" `shouldBe` Program NotStrict [DoWhileStatement s (ReadVar "a") (Block s [])]
 
 
     it "parses a var declaration" $ do
-      testParse "var a;" `shouldBe` Program [VarDecl s [("a", Nothing)]]
-      testParse "var a, b;" `shouldBe` Program [VarDecl s [("a", Nothing),
+      testParse "var a;" `shouldBe` Program NotStrict [VarDecl s [("a", Nothing)]]
+      testParse "var a, b;" `shouldBe` Program NotStrict [VarDecl s [("a", Nothing),
                                                            ("b", Nothing)]]
-      testParse "var a = 1, b;" `shouldBe` Program [VarDecl s [("a", Just $ Num 1),
+      testParse "var a = 1, b;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ Num 1),
                                                                ("b", Nothing)]]
-      testParse "var a = 1, b = a;" `shouldBe` Program [VarDecl s [("a", Just $ Num 1),
+      testParse "var a = 1, b = a;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ Num 1),
                                                                    ("b", (Just $ ReadVar "a"))]]
 
     it "ignores comments at the start of the file" $ do
-      testParse "" `shouldBe` Program []
-      testParse "// this is a comment\n" `shouldBe` Program []
-      testParse "// a\n//b\n2\n" `shouldBe` Program [ExprStmt s (Num 2)]
+      testParse "" `shouldBe` Program NotStrict []
+      testParse "// this is a comment\n" `shouldBe` Program NotStrict []
+      testParse "// a\n//b\n2\n" `shouldBe` Program NotStrict [ExprStmt s (Num 2)]
 
     it "resolves the if-then-else ambiguity" $ do
       testParse "if (a) if (b) 1; else 2" `shouldBe`
-        Program [IfStatement s (ReadVar "a")
+        Program NotStrict [IfStatement s (ReadVar "a")
                                (IfStatement s (ReadVar "b")
                                               (ExprStmt s $ Num 1)
                                               (Just $ ExprStmt s $ Num 2))
@@ -198,15 +198,15 @@ spec = do
 
     it "parses a continue statement" $ do
       testParse "while (false) continue" `shouldBe`
-        Program [WhileStatement s (Boolean False) $
+        Program NotStrict [WhileStatement s (Boolean False) $
                    ContinueStatement s Nothing]
       testParse "retry: while (false) continue retry" `shouldBe`
-        Program [LabelledStatement s "retry" $
+        Program NotStrict [LabelledStatement s "retry" $
                   WhileStatement s (Boolean False) $
                     ContinueStatement s $ Just "retry"]
     it "can break a line before a continue semicolon" $ do
       testParse "while (false) { continue\n; }" `shouldBe`
-        Program [WhileStatement s (Boolean False) $
+        Program NotStrict [WhileStatement s (Boolean False) $
           Block s [ ContinueStatement s Nothing, EmptyStatement s] ]
 
 
@@ -215,27 +215,27 @@ spec = do
 
     it "parses empty statements" $ do
       testParse ";\n;\n" `shouldBe`
-        Program [ EmptyStatement s, EmptyStatement s ]
+        Program NotStrict [ EmptyStatement s, EmptyStatement s ]
 
     it "parses a for..in statement" $ do
       testParse "for (x in xs) return" `shouldBe`
-        Program [For s (ForIn (ReadVar "x") (ReadVar "xs")) $ Return s Nothing]
+        Program NotStrict [For s (ForIn (ReadVar "x") (ReadVar "xs")) $ Return s Nothing]
 
     it "parses a for..var..in statement" $ do
       testParse "for (var x in xs) return" `shouldBe`
-        Program [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return s Nothing]
+        Program NotStrict [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return s Nothing]
 
     it "parses a labelled statement" $ do
       testParse "xyz: f()" `shouldBe`
-        Program [ LabelledStatement s "xyz" $
+        Program NotStrict [ LabelledStatement s "xyz" $
                    ExprStmt s $ FunCall (ReadVar "f")[] ]
 
     it "parses a new object" $ do
       testParse "new X()" `shouldBe`
-        Program [ ExprStmt s $ NewExpr (ReadVar "X") [] ]
+        Program NotStrict [ ExprStmt s $ NewExpr (ReadVar "X") [] ]
 
     it "doesn't get confused by variables starting with 'new'" $ do
-      testParse "newx" `shouldBe` Program [ ExprStmt s $ ReadVar "newx" ]
+      testParse "newx" `shouldBe` Program NotStrict [ ExprStmt s $ ReadVar "newx" ]
 
   describe "Automatic semicolon insertion" $ do
     it "requires a semicolon on the same line" $ do
@@ -253,27 +253,27 @@ spec = do
       testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
 
     it "is OK with a semicolon in an if" $ do
-      testParse "if (1) { return; }" `shouldBe` Program [IfStatement s (Num 1) (Return s Nothing) Nothing]
+      testParse "if (1) { return; }" `shouldBe` Program NotStrict [IfStatement s (Num 1) (Return s Nothing) Nothing]
 
     it "treats semicolons as optional" $ do
       testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
 
     it "parses a return statement with a value" $ do
       testParse "return 4" `shouldBe`
-        Program [ Return s $ Just $ Num 4 ]
+        Program NotStrict [ Return s $ Just $ Num 4 ]
 
     it "does not let a return statement break onto a newline" $ do
-      testParse "return\n5\n" `shouldBe` Program [Return s Nothing, ExprStmt s (Num 5)]
+      testParse "return\n5\n" `shouldBe` Program NotStrict [Return s Nothing, ExprStmt s (Num 5)]
 
     it "splits a statement on ++ if on a new line" $ do
       testParse "a=b\n++c" `shouldBe`
-        Program [ ExprStmt s (Assign (ReadVar "a") "=" (ReadVar "b")),
+        Program NotStrict [ ExprStmt s (Assign (ReadVar "a") "=" (ReadVar "b")),
                   ExprStmt s (UnOp "++" (ReadVar "c")) ]
 
   describe "Unicode whitespace" $ do
     describe "Newline characters" $ do
       let expectedParse =
-            Program [ ExprStmt (SrcLoc "" 1 1 Nothing) (Num 1),
+            Program NotStrict [ ExprStmt (SrcLoc "" 1 1 Nothing) (Num 1),
                       ExprStmt (SrcLoc "" 2 1 Nothing) (Num 2) ]
 
       it "treats \\n as a line break" $

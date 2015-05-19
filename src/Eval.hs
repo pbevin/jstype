@@ -107,7 +107,7 @@ emptyEnv :: JSRuntime JSEnv
 emptyEnv = share $ LexEnv { outer = Nothing, envRec = EnvRec M.empty }
 
 runProg :: Program -> JSRuntime (Maybe JSVal)
-runProg (Program stmts) = do
+runProg (Program strictness stmts) = do
   createGlobalThis
   cxt <- initialCxt
   result <- runStmts cxt stmts
@@ -256,7 +256,7 @@ runExprStmt cxt expr = case expr of
     lval <- runExprStmt cxt e >>= getValue
     prop <- runExprStmt cxt x >>= getValue >>= toString
     case lval of
-      VObj _ -> return $ VRef (JSRef lval prop False)
+      VObj _ -> return $ VRef (JSRef lval prop NotStrict)
       _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
@@ -327,12 +327,12 @@ runExprStmt cxt expr = case expr of
     argList <- evalArguments cxt args
     liftM VObj (newObjectFromConstructor cxt fun argList)
 
-  FunDef (Just name) params body -> do
-    fun <- createFunction params body cxt
+  FunDef (Just name) params strictness body -> do
+    fun <- createFunction params strictness body cxt
     putVar cxt name fun
     return fun
 
-  FunDef Nothing params body -> createFunction params body cxt
+  FunDef Nothing params strictness body -> createFunction params strictness body cxt
 
   ObjectLiteral nameValueList -> makeObjectLiteral cxt nameValueList
 
@@ -376,11 +376,11 @@ putVar (JSCxt envref _ _) x v = modifyRef envref $ lexInsert x v
 
 
 getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> JSRuntime JSRef
-getIdentifierReference Nothing name strict = return $ JSRef VUndef name (strict == Strict)
+getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
   lex <- deref lexRef
   if hasBinding name (envRec lex)
-  then return $ JSRef (VEnv lexRef) name False
+  then return $ JSRef (VEnv lexRef) name NotStrict
   else do
     getIdentifierReference (outer lex) name strict
 
@@ -415,7 +415,7 @@ getOwnPropertyDescriptor _this xs = do
 
   obj <- getValue objVal
   str <- toString propVal
-  val <- getValue (VRef $ JSRef obj str False)
+  val <- getValue (VRef $ JSRef obj str NotStrict)
 
   result <- newObject
   modifyRef result $ objSetProperty "value" val
@@ -437,7 +437,7 @@ objEval _this args = case args of
   [] -> return VUndef
   (prog:args) -> do
     text <- toString prog
-    let Program stmts = simpleParse text
+    let Program strictness stmts = simpleParse text
     cxt <- JSCxt <$> initialEnv
                  <*> emptyEnv
                  <*> (VObj <$> getGlobalObject)
@@ -496,8 +496,8 @@ noSuchBinop op a b = raiseError $
 
 -------------------------------------------------
 
-createFunction :: [Ident] -> [Statement] -> JSCxt -> JSRuntime JSVal
-createFunction paramList body cxt = do
+createFunction :: [Ident] -> Strictness -> [Statement] -> JSCxt -> JSRuntime JSVal
+createFunction paramList strict body cxt = do
   objref <- newObject
   modifyRef objref $
     \obj -> obj { objClass = "Function",
@@ -530,7 +530,7 @@ createError text =
 -- ref 13.2.1, incomplete
 funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
 funcCall cxt paramList body this args =
-  let makeRef name = JSRef (VEnv (lexEnv cxt)) name False -- XXX is this a getIdentifierReference ?
+  let makeRef name = JSRef (VEnv (lexEnv cxt)) name NotStrict -- XXX is this a getIdentifierReference ?
       refs = map makeRef paramList
       newCxt = cxt { thisBinding = this }
   in do
@@ -618,10 +618,10 @@ errConstructor this args =
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] = do
   body <- toString arg
-  let Program stmts = simpleParse body
-  createFunction [] stmts =<< JSCxt <$> initialEnv
-                                    <*> emptyEnv
-                                    <*> (VObj <$> getGlobalObject)
+  let Program strictness stmts = simpleParse body
+  createFunction [] strictness stmts =<< JSCxt <$> initialEnv
+                                               <*> emptyEnv
+                                               <*> (VObj <$> getGlobalObject)
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
