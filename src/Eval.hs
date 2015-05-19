@@ -8,6 +8,7 @@ import Control.Monad.Writer
 import Control.Applicative
 import Data.Maybe
 import Data.List (intercalate)
+import Data.Bits
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Text.Show.Functions
@@ -471,11 +472,16 @@ evalBinOp op = case op of
   ">"          -> flip (compareOp id)  -- ref 11.8.2
   "<="         -> flip (compareOp not) -- ref 11.8.3
   ">="         -> compareOp not        -- ref 11.8.4
+  "&"          -> bitwise (.&.)        -- ref 11.10
+  "|"          -> bitwise (.|.)        -- ref 11.10
+  "^"          -> bitwise (xor)        -- ref 11.10
+
   _            -> noSuchBinop op
 
 noSuchBinop :: String -> JSVal -> JSVal -> JSRuntime JSVal
 noSuchBinop op a b = raiseError $
   "No binop `" ++ op ++ "' on " ++ show (a, b)
+
 
 
 

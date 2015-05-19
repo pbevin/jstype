@@ -1,12 +1,5 @@
 module Expr where
 
-newtype JSNum = JSNum Double deriving Show
-instance Eq JSNum where
-  JSNum a == JSNum b = abs (a-b) < 0.001
-
-jsNaN :: JSNum
-jsNaN = JSNum $ 0 / 0
-
 newtype Program = Program [Statement] deriving (Show, Eq)
 
 data SrcLoc = SrcLoc {
@@ -106,6 +99,14 @@ jsLang = Lang {
   postfixOps = [ "++", "--" ]
 }
 
+newtype JSNum = JSNum Double deriving Show
+instance Eq JSNum where
+  JSNum a == JSNum b = abs (a-b) < 0.001
+
+jsNaN :: JSNum
+jsNaN = JSNum $ 0 / 0
+
+
 instance Num JSNum where
   (JSNum a) + (JSNum b) = JSNum (a + b)
   (JSNum a) - (JSNum b) = JSNum (a - b)
@@ -120,6 +121,12 @@ instance Fractional JSNum where
 
 instance Ord JSNum where
   compare (JSNum a) (JSNum b) = compare a b
+
+instance Real JSNum where
+  toRational (JSNum a) = toRational a
+
+instance RealFrac JSNum where
+  properFraction (JSNum a) = let (x, y) = properFraction a in (x, JSNum y)
 
 sourceLocation :: Statement -> SrcLoc
 sourceLocation stmt = case stmt of

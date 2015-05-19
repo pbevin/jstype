@@ -1,6 +1,7 @@
 module Runtime.Operations where
 
 import Control.Monad (liftM)
+import Data.Word
 import Expr
 import Runtime.Types
 import Runtime.Conversion
@@ -76,6 +77,12 @@ doubleEquals op x y = return $ VBool $ op $ eq x y
 jsInstanceOf :: JSVal -> JSVal -> JSRuntime JSVal
 jsInstanceOf _a _b = return $ VBool True
 
+-- ref 11.10
+bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal
+bitwise op a b = do
+  n1 <- toNumber a
+  n2 <- toNumber b
+  return $ VNum $ fromIntegral $ (floor n1) `op` (floor n2)
 
 
 -- ref 11.4.6

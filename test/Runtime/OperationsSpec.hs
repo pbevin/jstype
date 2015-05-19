@@ -2,6 +2,7 @@ module Runtime.OperationsSpec where
 
 import Test.Hspec
 
+import Data.Bits
 import Expr
 import Eval
 import Runtime.Types
@@ -37,3 +38,7 @@ spec = do
       eq VUndef VNull  `shouldReturn` True
       eq VNull VUndef  `shouldReturn` True
       eq VNull VNull   `shouldReturn` True
+
+  describe "bitwise" $ do
+    it "can logical-and two numbers" $ do
+      runtime (bitwise (.&.) (VNum 3) (VNum 26)) `shouldReturn` Right (VNum 2)
