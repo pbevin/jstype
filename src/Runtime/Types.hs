@@ -18,7 +18,6 @@ data JSVal = VNum JSNum
            | VUndef
            | VNull
            | VObj (Shared JSObj)
-           | VMap (M.Map Ident JSVal)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VException JSError
            | VCxt JSCxt
@@ -31,7 +30,6 @@ instance Show JSVal where
   show VUndef = "undefined"
   show VNull  = "null"
   show (VObj _) = "[Object object]"
-  show (VMap _) = "(map)"
   show (VNative _) = "(native function)"
   show (VException exc) = "Exception " ++ show exc
   show _ = "???"

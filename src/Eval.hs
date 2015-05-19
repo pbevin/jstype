@@ -238,12 +238,14 @@ runExprStmt cxt expr = case expr of
   This              -> return $ thisBinding cxt
   ArrayLiteral vals -> evalArrayLiteral cxt vals
 
-  MemberDot e x  -> do
+  MemberDot e x -> runExprStmt cxt (MemberGet e (Str x)) -- ref 11.2.1
+
+  MemberGet e x -> do -- ref 11.2.1
     lval <- runExprStmt cxt e >>= getValue
+    prop <- runExprStmt cxt x >>= getValue >>= toString
     case lval of
-      VMap m -> return $ fromMaybe VUndef $ M.lookup x m
-      VObj _ -> return $ VRef (JSRef lval x False)
-      _ -> raiseError $ "Cannot read property '" ++ x ++ "' of " ++ show lval
+      VObj _ -> return $ VRef (JSRef lval prop False)
+      _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt cxt f
