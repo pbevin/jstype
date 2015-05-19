@@ -20,14 +20,14 @@ spec = do
 
   it "evaluates a program" $ do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
-    runJStr "a = 3; console.log(a);" `shouldReturn` Right "3\n"
-    runJStr "a = 3; console.log(a+4);" `shouldReturn` Right "7\n"
+    runJStr "var a = 3; console.log(a);" `shouldReturn` Right "3\n"
+    runJStr "var a = 3; console.log(a+4);" `shouldReturn` Right "7\n"
   
   it "does update-assignments" $ do
-    runJStr "a = 10; a += 1; console.log(a);" `shouldReturn` Right "11\n"
-    runJStr "a = 10; a -= 1; console.log(a);" `shouldReturn` Right "9\n"
-    runJStr "a = 10; a *= 3; console.log(a);" `shouldReturn` Right "30\n"
-    runJStr "a = 10; a /= 2; console.log(a);" `shouldReturn` Right "5\n"
+    runJStr "var a = 10; a += 1; console.log(a);" `shouldReturn` Right "11\n"
+    runJStr "var a = 10; a -= 1; console.log(a);" `shouldReturn` Right "9\n"
+    runJStr "var a = 10; a *= 3; console.log(a);" `shouldReturn` Right "30\n"
+    runJStr "var a = 10; a /= 2; console.log(a);" `shouldReturn` Right "5\n"
 
   it "does +, - and void prefixes" $ do
     runJStr "var a = '5'; console.log(+a); console.log(a)"
@@ -104,7 +104,7 @@ spec = do
     runJStr "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldReturn` Right "hi\n"
 
   it "can set an object property" $ do
-    runJStr "a = function() { }; a.prop = 2; console.log(a.prop);" `shouldReturn` Right "2\n"
+    runJStr "var a = function() { }; a.prop = 2; console.log(a.prop);" `shouldReturn` Right "2\n"
 
   it "can do if-then-else" $ do
     runJStr "if (1) { console.log(\"hi\") }" `shouldReturn` Right "hi\n"
@@ -116,12 +116,18 @@ spec = do
     runJStr "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJStr "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
 
+  it "refuses to read a variable that doesn't exist" $ do
+    Left (err, _) <- runJStr "console.log(x)"
+    err `shouldBe` "ReferenceError: No such variable x"
+
+  it "can still type a variable that doesn't exist" $ do
+    jsEvalExpr "typeof x" `shouldReturn` VStr "undefined"
 
   it "can define a function" $ do
-    runJStr "f = function() { return 2; }; console.log(f())" `shouldReturn` Right "2\n"
+    runJStr "var f = function() { return 2; }; console.log(f())" `shouldReturn` Right "2\n"
 
   it "can define a function via Function(...)" $ do
-    runJStr "f = Function('return 3'); console.log(f());" `shouldReturn` Right "3\n"
+    runJStr "var f = Function('return 3'); console.log(f());" `shouldReturn` Right "3\n"
 
   it "can immediately invoke a constructed function" $ do
     runJStr "console.log(Function('return 42')())" `shouldReturn` Right "42\n"

@@ -20,7 +20,7 @@ data JSVal = VNum JSNum
            | VObj (Shared JSObj)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
            | VException JSError
-           | VCxt JSCxt
+           | VEnv JSEnv
 
 instance Show JSVal where
   show (VNum a) = show a
@@ -44,7 +44,7 @@ data JSObj = JSObj {
 
 data JSRef = JSRef {
   getBase :: JSVal,
-  getReferencedName :: String,
+  getReferencedName :: Ident,
   isStrictReference :: Bool
   } deriving Show
 
@@ -53,6 +53,8 @@ data JSCxt = JSCxt {
   varEnv :: JSEnv,
   thisBinding :: JSVal
 }
+
+data Strictness = Strict | NotStrict deriving (Show, Eq)
 
 data JSType = TypeUndefined
             | TypeNull
@@ -84,12 +86,20 @@ instance Eq JSVal where
   VStr a == VStr b       = a == b
   VObj a == VObj b       = a == b
   VBool a == VBool b     = a == b
-  VNative a == VNative b = True -- XXX
+  VNative _ == VNative _ = True -- XXX
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
+
+
+data LexEnv = LexEnv {
+  envRec :: EnvRec,
+  outer  :: Maybe JSEnv
+}
+
+newtype EnvRec = EnvRec { fromEnvRec :: M.Map Ident JSVal } deriving (Show, Eq)
 
 type JSOutput = String
 type JSError = (String, [SrcLoc])
-type JSEnv = Shared (M.Map Ident JSVal)
+type JSEnv = Shared LexEnv
 type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 newtype JSGlobal = JSGlobal {

@@ -5,12 +5,13 @@ import qualified Data.Map as M
 import Data.Maybe
 import Runtime.Object
 import Runtime.Types
+import Expr
 
 -- ref 8.7.1
 getValue :: JSVal -> JSRuntime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
-  | isUnresolvableReference ref = raiseError $ "ReferenceError: " ++ show ref
+  | isUnresolvableReference ref = raiseError $ "ReferenceError: No such variable " ++ getReferencedName ref
   | isPropertyReference ref     = getValuePropertyReference ref
   | otherwise                   = getValueEnvironmentRecord ref
     where ref = unwrapRef v
@@ -61,9 +62,9 @@ getValuePropertyReference _ = error "Internal error in getValuePropertyReference
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
-getValueEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name _isStrict) = do
-  env <- deref envref
-  return $ fromMaybe VUndef $ M.lookup name env
+getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
+  lexEnv <- deref envRef
+  return $ fromMaybe VUndef $ envLookup name (envRec lexEnv)
 getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
 
 
@@ -77,8 +78,8 @@ putPropertyReference (JSRef (VObj objref) name _isStrict) val = modifyRef objref
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
-putEnvironmentRecord (JSRef (VCxt (JSCxt envref _ _)) name _isStrict) val = modifyRef envref setRef where
-  setRef = M.insert name val
+putEnvironmentRecord (JSRef (VEnv envref) name _isStrict) val = modifyRef envref setRef where
+  setRef lexEnv = lexEnv { envRec = envInsert name val (envRec lexEnv) }
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
@@ -86,3 +87,19 @@ putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 unwrapRef :: JSVal -> JSRef
 unwrapRef (VRef ref) = ref
 unwrapRef v = error $ "Can't unwrap " ++ show v
+
+isReference :: JSVal -> Bool
+isReference (VRef _) = True
+isReference _ = False
+
+hasBinding :: Ident -> EnvRec -> Bool
+hasBinding name envRec = M.member name (fromEnvRec envRec)
+
+envLookup :: Ident -> EnvRec -> Maybe JSVal
+envLookup name envRec = M.lookup name (fromEnvRec envRec)
+
+envInsert :: Ident -> JSVal -> EnvRec -> EnvRec
+envInsert name val envRec = EnvRec $ M.insert name val (fromEnvRec envRec)
+
+lexInsert :: Ident -> JSVal -> LexEnv -> LexEnv
+lexInsert name val lex = lex { envRec = envInsert name val (envRec lex) }

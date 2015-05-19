@@ -91,20 +91,20 @@ initialEnv = do
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
-  share $ M.fromList [ ("console", VObj console),
-                       ("Function", VObj function),
-                       ("String", VObj string),
-                       ("Number", VObj number),
-                       ("Boolean", VObj boolean),
-                       ("Object", VObj object),
-                       ("Array", VObj array),
-                       ("Error", VObj error),
-                       ("eval", VNative objEval),
-                       ("isNaN", VNative objIsNaN) ]
+  let map = M.fromList [ ("console", VObj console),
+                         ("Function", VObj function),
+                         ("String", VObj string),
+                         ("Number", VObj number),
+                         ("Boolean", VObj boolean),
+                         ("Object", VObj object),
+                         ("Array", VObj array),
+                         ("Error", VObj error),
+                         ("eval", VNative objEval),
+                         ("isNaN", VNative objIsNaN) ]
+  share $ LexEnv { outer = Nothing, envRec = EnvRec map }
 
 emptyEnv :: JSRuntime JSEnv
-emptyEnv = share M.empty
-
+emptyEnv = share $ LexEnv { outer = Nothing, envRec = EnvRec M.empty }
 
 runProg :: Program -> JSRuntime (Maybe JSVal)
 runProg (Program stmts) = do
@@ -136,7 +136,7 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
 runStmt :: JSCxt -> Statement -> JSRuntime StmtReturn
 runStmt cxt s = case s of
   ExprStmt loc e -> do
-    val <- runExprStmt cxt e
+    val <- runExprStmt cxt e >>= getValue
     return (CTNormal, Just val, Nothing)
 
   VarDecl loc assignments -> do
@@ -246,7 +246,7 @@ runExprStmt cxt expr = case expr of
   Num n             -> return $ VNum n
   Str s             -> return $ VStr s
   Boolean b         -> return $ VBool b
-  ReadVar x         -> lookupVar cxt x
+  ReadVar name      -> VRef <$> getIdentifierReference (Just $ lexEnv cxt) name NotStrict
   This              -> return $ thisBinding cxt
   ArrayLiteral vals -> evalArrayLiteral cxt vals
 
@@ -289,14 +289,19 @@ runExprStmt cxt expr = case expr of
     evalBinOp op v1 v2
 
   UnOp "typeof" e -> do -- ref 11.4.3
-    val <- runExprStmt cxt e >>= getValue
-    return $ VStr $ case typeof val of
-      TypeUndefined -> "undefined"
-      TypeNull      -> "null"
-      TypeBoolean   -> "boolean"
-      TypeNumber    -> "number"
-      TypeString    -> "string"
-      TypeObject    -> "object"  -- or "function"
+    val <- runExprStmt cxt e
+    if isReference val && isUnresolvableReference (unwrapRef val)
+    then return $ VStr "undefined"
+    else do
+      resolved <- getValue val
+      return $ VStr $ case typeof resolved of
+        TypeUndefined -> "undefined"
+        TypeNull      -> "null"
+        TypeBoolean   -> "boolean"
+        TypeNumber    -> "number"
+        TypeString    -> "string"
+        TypeObject    -> "object"  -- or "function"
+        _ -> showVal resolved
 
 
   UnOp op e -> -- ref 11.4
@@ -367,11 +372,17 @@ purePrefix :: (JSVal -> JSRuntime JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
 purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
-putVar (JSCxt envref _ _) x v = modifyRef envref $ M.insert x v
+putVar (JSCxt envref _ _) x v = modifyRef envref $ lexInsert x v
 
-lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
-lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
 
+getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> JSRuntime JSRef
+getIdentifierReference Nothing name strict = return $ JSRef VUndef name (strict == Strict)
+getIdentifierReference (Just lexRef) name strict = do
+  lex <- deref lexRef
+  if hasBinding name (envRec lex)
+  then return $ JSRef (VEnv lexRef) name False
+  else do
+    getIdentifierReference (outer lex) name strict
 
 updateRef :: String -> JSVal -> JSVal -> JSRuntime JSVal
 updateRef op lref rref =
@@ -519,7 +530,7 @@ createError text =
 -- ref 13.2.1, incomplete
 funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
 funcCall cxt paramList body this args =
-  let makeRef name = JSRef (VCxt cxt) name False
+  let makeRef name = JSRef (VEnv (lexEnv cxt)) name False -- XXX is this a getIdentifierReference ?
       refs = map makeRef paramList
       newCxt = cxt { thisBinding = this }
   in do
