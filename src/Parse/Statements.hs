@@ -435,7 +435,7 @@ bool = try $ (keyword "true" >> return (Boolean True))
                <|> (keyword "false" >> return (Boolean False))
 
 numericLiteral :: JSParser JSNum
-numericLiteral = liftM (JSNum . read) number
+numericLiteral = liftM JSNum number
 
 assignOp :: JSParser String
 assignOp = choice $ map op $ assignOps jsLang

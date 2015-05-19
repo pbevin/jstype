@@ -4,7 +4,8 @@ import Text.Parsec hiding (many, optional, (<|>), crlf)
 import Control.Monad (void, when)
 import Control.Applicative
 import Data.List (nub, sortBy)
-import Data.Char (isSpace)
+import Data.Char (isSpace, chr)
+import Numeric (readHex)
 import Parse.Types
 import Data.Maybe
 import Expr
@@ -91,14 +92,23 @@ comma, semicolon :: JSParser ()
 comma = skip ","
 semicolon = skip ";"
 
-number :: JSParser String
-number =
-  let decimal  = many1 digit
-      fracPart = (:) <$> char '.' <*> decimal
-      expPart  = (:) <$> char 'e' <*> plusminus decimal
-      plusminus p = (:) <$> oneOf "+-" <*> p <|> p
-  in lexeme $ do
-    a <- decimal
-    b <- optional fracPart
-    c <- optional expPart
-    return $ a ++ fromMaybe "" b ++ fromMaybe "" c
+number :: JSParser Double
+number = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
+  where decimal  = many1 digit
+        fracPart = (:) <$> char '.' <*> (decimal <|> return "0")
+        expPart  = (:) <$> oneOf "eE" <*> plusminus decimal
+        plusminus p = (:) <$> oneOf "+-" <*> p <|> p
+        numberWithoutDecimal = do
+          char '.'
+          b <- decimal
+          c <- optional expPart
+          return $ read $ "0." ++ b ++ fromMaybe "" c
+        numberWithDecimal = do
+          a <- decimal
+          b <- optional fracPart
+          c <- optional expPart
+          return $ read $ a ++ fromMaybe "" b ++ fromMaybe "" c
+        hexNumber = do
+          try $ (char '0' >> oneOf "xX")
+          b <- many hexDigit
+          return $ (fst . head . readHex) b

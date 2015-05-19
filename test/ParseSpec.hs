@@ -41,9 +41,16 @@ spec = do
       parseExpr "1" `shouldBe` Num (JSNum 1)
       parseExpr "1.3" `shouldBe` Num (JSNum 1.3)
       parseExpr "1.3e3" `shouldBe` Num (JSNum 1300)
-      parseExpr "1.3e+3" `shouldBe` Num (JSNum 1300)
-      parseExpr "1.3e-3" `shouldBe` Num (JSNum 0.0013)
+      parseExpr "1.4E3" `shouldBe` Num (JSNum 1400)
+      parseExpr "1.5e+3" `shouldBe` Num (JSNum 1500)
+      parseExpr "1.6e-3" `shouldBe` Num (JSNum 0.0016)
       parseExpr "3e3" `shouldBe` Num (JSNum 3000)
+      parseExpr ".5" `shouldBe` Num (JSNum 0.5)
+      parseExpr "5." `shouldBe` Num (JSNum 5)
+      parseExpr "5.e1" `shouldBe` Num (JSNum 50)
+
+    it "doesn't mistake other things for numbers" $ do
+      parseExpr "e1" `shouldBe` ReadVar "e1"
 
     it "parses a negative number" $ do
       parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
