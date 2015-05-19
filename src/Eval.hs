@@ -114,7 +114,7 @@ runProg (Program strictness stmts) = do
   case result of
     (CTNormal, v, _) -> return v
     (CTThrow, Just (VException exc@(err, trace)), _) -> do
-      stackTrace exc; throwError exc
+      printStackTrace exc; throwError exc
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -633,10 +633,12 @@ objCall cxt func this args = case func of
   _ -> raiseError $ "Can't call " ++ show func
 
 
-stackTrace :: JSError -> JSRuntime ()
-stackTrace (err, trace) = liftIO $ do
-  putStrLn $ "Error: " ++ err
-  mapM_ print (reverse trace)
+stackTrace :: JSError -> String
+stackTrace (err, trace) = unlines $ err : map show (reverse trace)
+
+
+printStackTrace :: JSError -> JSRuntime ()
+printStackTrace = liftIO . putStrLn . stackTrace
 
 createGlobalThis :: JSRuntime ()
 createGlobalThis = do

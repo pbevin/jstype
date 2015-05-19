@@ -41,6 +41,6 @@ repl = do
 process :: String -> IO ()
 process line = do
   evalJS "(console)" line >>= \case
-    Right (Just output) -> putStrLn (showVal output)
+    Right (Just val) -> putStrLn (showVal val)
     Right Nothing -> return ()
     Left err -> hPutStrLn stderr ("SyntaxError: " ++ show err)
