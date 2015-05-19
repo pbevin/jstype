@@ -476,6 +476,7 @@ evalBinOp op = case op of
   "&"          -> bitwise (.&.)        -- ref 11.10
   "|"          -> bitwise (.|.)        -- ref 11.10
   "^"          -> bitwise (xor)        -- ref 11.10
+  ","          -> commaOperator
 
   _            -> noSuchBinop op
 

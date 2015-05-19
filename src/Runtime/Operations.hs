@@ -108,6 +108,11 @@ unaryMinus = unaryNumOp negate
 unaryBitwiseNot :: JSVal -> JSRuntime JSVal
 unaryBitwiseNot = unaryOp (VNum . fromIntegral) toWord32 (complement :: Word32 -> Word32)
   where toWord32 = toNumber >=> return . floor
+
 -- ref 11.4.9
 unaryNot :: JSVal -> JSRuntime JSVal
 unaryNot = unaryOp VBool (return . toBoolean) not
+
+-- ref 11.14
+commaOperator :: JSVal -> JSVal -> JSRuntime JSVal
+commaOperator _ b = return b
