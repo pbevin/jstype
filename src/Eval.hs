@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Eval where
 
 import Control.Monad.State
@@ -22,6 +24,12 @@ runJStr :: String -> IO (Either JSError String)
 runJStr = runJS ""
 
 
+evalJS :: String -> String -> IO (Either JSError (Maybe JSVal))
+evalJS sourceName input = do
+  runJS' sourceName input >>= \case
+    ((Left err, _), _) -> return $ Left err
+    ((Right v, _), _)  -> return $ Right v
+
 runJS :: String -> String -> IO (Either JSError String)
 runJS sourceName input = do
   r <- runJS' sourceName input
@@ -29,7 +37,7 @@ runJS sourceName input = do
     ((Left err, _), _)     -> return $ Left err
     ((Right _, output), _) -> return $ Right output
 
-runJS' :: String -> String -> IO ((Either JSError (), String), JSGlobal)
+runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
   Left err -> return ((Left (show err, []), ""), JSGlobal Nothing)
   Right ast -> runJSRuntime (runProg ast)
@@ -96,16 +104,18 @@ emptyEnv :: JSRuntime JSEnv
 emptyEnv = share M.empty
 
 
-runProg :: Program -> JSRuntime ()
+runProg :: Program -> JSRuntime (Maybe JSVal)
 runProg (Program stmts) = do
   createGlobalThis
   cxt <- initialCxt
   result <- runStmts cxt stmts
   case result of
-    (CTNormal, _, _) -> return ()
+    (CTNormal, v, _) -> return v
     (CTThrow, Just (VException exc@(err, trace)), _) -> do
       stackTrace exc; throwError exc
-    _ -> liftIO $ putStrLn $ "Abnormal exit: " ++ show result
+    _ -> do
+      liftIO $ putStrLn $ "Abnormal exit: " ++ show result
+      return Nothing
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
 returnThrow s (err, trace) =
@@ -444,7 +454,6 @@ showVal (VNum (JSNum n)) =
   if n == fromInteger (round n)
   then show (round n :: Integer)
   else show n
-showVal VUndef = "(undefined)"
 showVal other = show other
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal

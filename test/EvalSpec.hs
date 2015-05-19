@@ -35,7 +35,7 @@ spec = do
     runJStr "var a = '5'; console.log(-a); console.log(a)"
       `shouldReturn` Right "-5\n5\n"
     runJStr "var a = '5'; console.log(void a); console.log(a)"
-      `shouldReturn` Right "(undefined)\n5\n"
+      `shouldReturn` Right "undefined\n5\n"
 
   it "does ! prefix" $ do
     runJStr "console.log(!true); console.log(!false)"
