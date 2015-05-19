@@ -268,7 +268,7 @@ runExprStmt cxt expr = case expr of
   Assign lhs op e -> do
     lref <- runExprStmt cxt lhs
     rref <- runExprStmt cxt e
-    updateRef (assignOp op) lref rref
+    updateRef (init op) lref rref
 
   BinOp "&&" e1 e2 -> do
     v1 <- runExprStmt cxt e1 >>= getValue
@@ -372,24 +372,18 @@ lookupVar :: JSCxt -> Ident -> JSRuntime JSVal
 lookupVar envref x = return $ VRef $ JSRef (VCxt envref) x False
 
 
-updateRef :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> JSRuntime JSVal
-updateRef f lref rref =
+updateRef :: String -> JSVal -> JSVal -> JSRuntime JSVal
+updateRef op lref rref =
   case lref of
     VRef ref -> do
       lval <- getValue lref
       rval <- getValue rref
-      let r = f lval rval
-      putValue ref r
-      return r
+      newVal <- if null op
+                then return rval
+                else evalBinOp op lval rval
+      putValue ref newVal
+      return newVal
     _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
-
-assignOp :: String -> JSVal -> JSVal -> JSVal
-assignOp "=" _ b = b
-assignOp "+=" (VNum a) (VNum b) = VNum (a+b)
-assignOp "-=" (VNum a) (VNum b) = VNum (a-b)
-assignOp "*=" (VNum a) (VNum b) = VNum (a*b)
-assignOp "/=" (VNum a) (VNum b) = VNum (a/b)
-assignOp other a b = error $ "No assignOp for " ++ show other ++ " on " ++ show (a,b)
 
 isTruthy :: JSVal -> Bool
 isTruthy (VNum 0)      = False

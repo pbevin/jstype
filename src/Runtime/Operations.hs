@@ -115,4 +115,4 @@ unaryNot = unaryOp VBool (return . toBoolean) not
 
 -- ref 11.14
 commaOperator :: JSVal -> JSVal -> JSRuntime JSVal
-commaOperator _ b = return b
+commaOperator _ = return
