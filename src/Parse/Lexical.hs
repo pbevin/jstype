@@ -41,7 +41,7 @@ reserved word = void $ try $ do
   whiteSpace
 
 comment :: JSParser ()
-comment = void $ try (lineComment <|> blockComment)
+comment = void $ (try lineComment <|> try blockComment)
   where lineComment = string "//" >> manyTill anyChar (try lineBreak)
         blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
 
