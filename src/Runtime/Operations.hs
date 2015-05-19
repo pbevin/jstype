@@ -1,7 +1,9 @@
 module Runtime.Operations where
 
-import Control.Monad (liftM)
+import Control.Monad
+import Control.Applicative
 import Data.Word
+import Data.Bits
 import Expr
 import Runtime.Types
 import Runtime.Conversion
@@ -12,8 +14,8 @@ jsAdd a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   if isString a' || isString b'
-  then fmap VStr $ liftStr (++) a' b'
-  else fmap VNum $ liftNum (+) a' b'
+  then VStr <$> liftStr (++) a' b'
+  else VNum <$> liftNum (+) a' b'
 
 -- ref 11.8.5
 compareOp :: (Bool -> Bool) -> JSVal -> JSVal -> JSRuntime JSVal
@@ -28,7 +30,7 @@ numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> JSRuntime JSVal
 numberOp op a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
-  fmap VNum $ liftNum op a' b'
+  VNum <$> liftNum op a' b'
 
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
 boolOp op a b = return (VBool $ op a b)
@@ -82,17 +84,30 @@ bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal
 bitwise op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
-  return $ VNum $ fromIntegral $ (floor n1) `op` (floor n2)
+  return $ VNum $ fromIntegral $ floor n1 `op` floor n2
 
+
+chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
+chain f g h a = f a >>= g >>= h
+
+unaryOp :: (a -> JSVal) -> (JSVal -> JSRuntime a) -> (a -> a) -> JSVal -> JSRuntime JSVal
+unaryOp toVal fromVal f = chain fromVal (return . f) (return . toVal)
+
+unaryNumOp :: (JSNum->JSNum) -> JSVal -> JSRuntime JSVal
+unaryNumOp = unaryOp VNum toNumber
 
 -- ref 11.4.6
 unaryPlus :: JSVal -> JSRuntime JSVal
-unaryPlus a = liftM VNum (toNumber a)
+unaryPlus = unaryNumOp id
 
 -- ref 11.4.7
 unaryMinus :: JSVal -> JSRuntime JSVal
-unaryMinus a = liftM (VNum . negate) (toNumber a)
+unaryMinus = unaryNumOp negate
 
+-- ref 11.4.8
+unaryBitwiseNot :: JSVal -> JSRuntime JSVal
+unaryBitwiseNot = unaryOp (VNum . fromIntegral) toWord32 (complement :: Word32 -> Word32)
+  where toWord32 = toNumber >=> return . floor
 -- ref 11.4.9
 unaryNot :: JSVal -> JSRuntime JSVal
-unaryNot a = return $ VBool $ not $ toBoolean a
+unaryNot = unaryOp VBool (return . toBoolean) not

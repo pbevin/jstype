@@ -305,6 +305,7 @@ runExprStmt cxt expr = case expr of
               "+"    -> purePrefix unaryPlus
               "-"    -> purePrefix unaryMinus
               "!"    -> purePrefix unaryNot
+              "~"    -> purePrefix unaryBitwiseNot
               "void" -> purePrefix (return . const VUndef)
               _    -> const $ const $ raiseError $ "Prefix not implemented: " ++ op
     in f cxt e
