@@ -75,6 +75,30 @@ spec = do
       parseExpr "{a: 1}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1)]
       parseExpr "{a: 1, b: 2}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1), (IdentProp "b", Num 2)]
 
+    describe "Array literals" $ do
+      it "parses an empty array literal" $ do
+        parseExpr "[]" `shouldBe` ArrayLiteral []
+
+      it "parses an array literal with one element" $ do
+        parseExpr "[1]" `shouldBe` ArrayLiteral [Just $ Num 1]
+
+      it "parses an array literal with 2 elements" $ do
+        parseExpr "[1,2]" `shouldBe` ArrayLiteral [Just $ Num 1, Just $ Num 2]
+
+      it "parses an array literal with elision in the middle" $ do
+        parseExpr "[1,,2]" `shouldBe` ArrayLiteral [Just $ Num 1, Nothing, Just $ Num 2 ]
+
+      it "parses an array literal with elision at the end" $ do
+        parseExpr "[1,2,]" `shouldBe`
+          ArrayLiteral [Just $ Num 1, Just $ Num 2, Nothing ]
+
+      it "parses an array literal with elision at the start" $ do
+        parseExpr "[,1,2]" `shouldBe`
+          ArrayLiteral [Nothing,Just $ Num 1, Just $ Num 2 ]
+
+      it "parses an array literal with only elision" $ do
+        parseExpr "[,,]" `shouldBe` ArrayLiteral [Nothing,Nothing,Nothing]
+
     it "parses regular expression literals" $ do
       parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"
 

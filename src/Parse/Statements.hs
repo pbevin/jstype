@@ -331,7 +331,18 @@ var :: JSParser Expr
 var = liftM ReadVar identifier
 
 arrayLiteral :: JSParser Expr
-arrayLiteral = ArrayLiteral <$> brackets (expr `sepBy` comma)
+arrayLiteral = ArrayLiteral <$> brackets arrayContents
+
+arrayContents :: JSParser [Maybe Expr]
+arrayContents = nonEmptyContents <|> elisionFirst <|> return []
+  where nonEmptyContents = do
+          first <- assignmentExpr
+          rest <- many (tok "," >> optional assignmentExpr)
+          return $ (Just first) : rest
+        elisionFirst = do
+          rest <- many1 (tok "," >> optional assignmentExpr)
+          return $ Nothing : rest
+
 
 objectLiteral :: JSParser Expr
 objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)

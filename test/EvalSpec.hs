@@ -53,6 +53,21 @@ spec = do
     runJStr "var a = 5; console.log(a++); console.log(a)"
       `shouldReturn` Right "5\n6\n"
 
+  describe "an empty array" $ do
+    it "has length 0" $ do
+      jsEvalExpr "[].length" `shouldReturn` VNum 0
+
+    it "has type object" $ do
+      jsEvalExpr "typeof []" `shouldReturn` VStr "object"
+
+  describe "an array with 5 elements" $ do
+    it "has length 5" $ do
+      jsEvalExpr "[1,2,3,4,5].length" `shouldReturn` VNum 5
+
+  describe "an array with 3 elisions" $ do
+    it "has length 3" $ do
+      jsEvalExpr "[,,].length" `shouldReturn` VNum 3
+
   describe "comparison" $ do
     it "understands <" $ do
       jsEvalExpr "1 < 2" `shouldReturn` VBool True
@@ -77,7 +92,6 @@ spec = do
     it "understands abstract equality with numbers" $ do
       jsEvalExpr "1 == 1" `shouldReturn` VBool True
       jsEvalExpr "1 == 2" `shouldReturn` VBool False
-
 
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"

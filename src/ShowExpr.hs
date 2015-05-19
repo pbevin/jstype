@@ -121,7 +121,7 @@ showExpr expr = case expr of
     "new " ++ maybeParens cls ++ argList args
 
   ArrayLiteral exprs ->
-    bbrackets (intercalate "," $ map showExpr exprs)
+    bbrackets (intercalate "," $ map (maybe "" showExpr) exprs)
 
   ObjectLiteral assignments ->
     bbraces (intercalate "," $ map showAssignment assignments)

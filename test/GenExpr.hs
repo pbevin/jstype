@@ -190,7 +190,7 @@ shrinkExpr expr = case expr of
     shrink e1 ++ shrink e2 ++ [BinOp op e1' e2' | (e1', e2') <- shrinkPair (e1, e2)]
 
   ArrayLiteral exprs ->
-    [ArrayLiteral exprs' | exprs' <- shrinkList shrink exprs] ++ exprs
+    [ArrayLiteral exprs' | exprs' <- shrinkList shrink exprs]
 
   ObjectLiteral assigns ->
     [ObjectLiteral a' | a' <- shrinkList shrink assigns] ++ map snd assigns

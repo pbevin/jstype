@@ -63,7 +63,7 @@ data Expr = Num JSNum
           | Str String
           | Boolean Bool
           | This
-          | ArrayLiteral [Expr]
+          | ArrayLiteral [Maybe Expr]
           | ObjectLiteral [(PropertyName, Expr)]
           | RegularExpression String String
           | BinOp Operator Expr Expr
@@ -124,6 +124,7 @@ instance Ord JSNum where
 sourceLocation :: Statement -> SrcLoc
 sourceLocation stmt = case stmt of
   Block s _ -> s
+  LabelledStatement s _ _ -> s
   VarDecl s _ -> s
   ExprStmt s _ -> s
   IfStatement s _ _ _ -> s

@@ -75,3 +75,17 @@ doubleEquals op x y = return $ VBool $ op $ eq x y
 
 jsInstanceOf :: JSVal -> JSVal -> JSRuntime JSVal
 jsInstanceOf _a _b = return $ VBool True
+
+
+
+-- ref 11.4.6
+unaryPlus :: JSVal -> JSRuntime JSVal
+unaryPlus a = liftM VNum (toNumber a)
+
+-- ref 11.4.7
+unaryMinus :: JSVal -> JSRuntime JSVal
+unaryMinus a = liftM (VNum . negate) (toNumber a)
+
+-- ref 11.4.9
+unaryNot :: JSVal -> JSRuntime JSVal
+unaryNot a = return $ VBool $ not $ toBoolean a

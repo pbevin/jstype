@@ -36,7 +36,9 @@ runJS' sourceName input = case parseJS' input sourceName of
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
-  result <- runtime (initialCxt >>= \cxt -> runExprStmt cxt $ parseExpr input)
+  result <- runtime $ do
+    cxt <- initialCxt
+    runExprStmt cxt (parseExpr input) >>= getValue
   case result of
     Left err  -> error (show err)
     Right val -> return val
@@ -74,6 +76,8 @@ initialEnv = do
 
   string <- newObject >>= setCallMethod stringConstructor
 
+  array <- newObject >>= setCallMethod arrayConstructor
+
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
@@ -83,6 +87,7 @@ initialEnv = do
                        ("Number", VObj number),
                        ("Boolean", VObj boolean),
                        ("Object", VObj object),
+                       ("Array", VObj array),
                        ("Error", VObj error),
                        ("eval", VNative objEval),
                        ("isNaN", VNative objIsNaN) ]
@@ -132,30 +137,6 @@ runStmt cxt s = case s of
 
   LabelledStatement loc label stmt -> runStmt cxt stmt
 
-  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
-    maybeRunExprStmt cxt e1 >> keepGoing Nothing where
-      keepGoing v = do
-        willEval <- case e2 of
-          Nothing  -> pure True
-          Just e2' -> isTruthy <$> (runExprStmt cxt e2' >>= getValue)
-
-        if not willEval
-        then return (CTNormal, v, Nothing)
-        else do
-          sval@(stype, v', _) <- runStmt cxt stmt
-          let nextVal = case v' of
-                          Nothing -> v
-                          Just newVal -> Just newVal
-          case stype of
-            CTBreak -> return (CTNormal, v, Nothing)
-            CTContinue -> do
-              maybeRunExprStmt cxt e3
-              keepGoing nextVal
-            CTNormal -> do
-              maybeRunExprStmt cxt e3
-              keepGoing nextVal
-            _ -> return sval
-
   IfStatement loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt cxt predicate >>= getValue
     if toBoolean v
@@ -164,26 +145,14 @@ runStmt cxt s = case s of
            Nothing -> return (CTNormal, Nothing, Nothing)
            Just s  -> runStmt cxt s
 
-  DoWhileStatement loc e s -> keepGoing Nothing True where -- ref 12.6.1
-    keepGoing :: Maybe JSVal -> Bool -> JSRuntime StmtReturn
-    keepGoing v False = return (CTNormal, v, Nothing)
-    keepGoing v True = do
-      sval@(stype, v', _) <- runStmt cxt s
-      let nextVal = case v' of
-                      Nothing -> v
-                      Just newVal -> Just newVal
-      case stype of
-        CTBreak -> return (CTNormal, v, Nothing)
-        CTNormal -> do
-          stillIterating <- runExprStmt cxt e >>= getValue
-          keepGoing v (toBoolean stillIterating)
-        _ -> return sval
+  DoWhileStatement loc e s -> -- ref 12.6.1
+    runStmt cxt $ transformDoWhileToWhile loc e s
 
   WhileStatement loc e stmt -> keepGoing Nothing where -- ref 12.6.2
     keepGoing :: Maybe JSVal -> JSRuntime StmtReturn
     keepGoing v = do
       willEval <- isTruthy <$> (runExprStmt cxt e >>= getValue)
-      
+
       if not willEval
       then return (CTNormal, v, Nothing)
       else do
@@ -197,6 +166,8 @@ runStmt cxt s = case s of
           CTNormal -> keepGoing nextVal
           _ -> return sval
 
+  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt cxt $ transformFor3ToWhile loc e1 e2 e3 stmt
 
   Block loc stmts -> runStmts cxt stmts
 
@@ -221,9 +192,26 @@ runStmt cxt s = case s of
 
   _ -> error ("Unimplemented stmt: " ++ show s)
 
-maybeRunExprStmt :: JSCxt -> Maybe Expr -> JSRuntime ()
-maybeRunExprStmt _ Nothing  = return ()
-maybeRunExprStmt cxt (Just e) = void (runExprStmt cxt e)
+-- |
+-- Turn "for (e1; e2; e3) { s }" into
+-- "e1; while (e2) { s; e3 }"
+-- with sensible defaults for missing statements
+transformFor3ToWhile :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
+transformFor3ToWhile loc e1 e2 e3 stmt =
+  let e = fromMaybe (Boolean True) e2
+      s1 = maybe (EmptyStatement loc) (ExprStmt loc) e1
+      s2 = [ stmt, maybe (EmptyStatement loc) (ExprStmt loc) e3 ]
+  in Block loc [ s1, WhileStatement loc e (Block loc s2) ]
+
+-- |
+-- Turn "do { s } while (e)" into
+-- "while (true) { s; if (!e) break; }"
+transformDoWhileToWhile :: SrcLoc -> Expr -> Statement -> Statement
+transformDoWhileToWhile loc e s =
+  let esc = IfStatement loc (UnOp "!" e)
+              (BreakStatement loc Nothing)
+              Nothing
+  in WhileStatement loc (Boolean True) $ Block loc [ s, esc ]
 
 
 -- ref 12.14
@@ -234,17 +222,21 @@ runCatch cxt (Just (Catch _loc var stmt)) exc = do
   putVar cxt var exc
   runStmt cxt stmt
 
-
-
-
+maybeValList :: JSCxt -> [Maybe Expr] -> JSRuntime [Maybe JSVal]
+maybeValList cxt = mapM (evalOne cxt)
+  where
+    evalOne cxt v = case v of
+      Nothing -> return Nothing
+      Just e  -> Just <$> (runExprStmt cxt e >>= getValue)
 
 runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
 runExprStmt cxt expr = case expr of
-  Num n          -> return $ VNum n
-  Str s          -> return $ VStr s
-  Boolean b      -> return $ VBool b
-  ReadVar x      -> lookupVar cxt x
-  This           -> return $ thisBinding cxt
+  Num n             -> return $ VNum n
+  Str s             -> return $ VStr s
+  Boolean b         -> return $ VBool b
+  ReadVar x         -> lookupVar cxt x
+  This              -> return $ thisBinding cxt
+  ArrayLiteral vals -> evalArrayLiteral cxt vals
 
   MemberDot e x  -> do
     lval <- runExprStmt cxt e >>= getValue
@@ -297,9 +289,9 @@ runExprStmt cxt expr = case expr of
     let f = case op of
               "++"   -> modifyingOp (+ 1) (+ 1)
               "--"   -> modifyingOp (subtract 1) (subtract 1)
-              "+"    -> purePrefix numberify
-              "-"    -> purePrefix negNum
-              "!"    -> purePrefix invert
+              "+"    -> purePrefix unaryPlus
+              "-"    -> purePrefix unaryMinus
+              "!"    -> purePrefix unaryNot
               "void" -> purePrefix (return . const VUndef)
               _    -> const $ const $ raiseError $ "Prefix not implemented: " ++ op
     in f cxt e
@@ -326,17 +318,13 @@ runExprStmt cxt expr = case expr of
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
+evalArrayLiteral :: JSCxt -> [Maybe Expr] -> JSRuntime JSVal
+evalArrayLiteral cxt vals = createArray =<< mapM evalMaybe vals
+  where evalMaybe Nothing = return Nothing
+        evalMaybe (Just e) = Just <$> (runExprStmt cxt e >>= getValue)
+
 evalArguments :: JSCxt -> [Expr] -> JSRuntime [JSVal]
 evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
-
-negNum :: JSVal -> JSRuntime JSVal
-negNum a = toNumber a >>= return . VNum . negate
-
-numberify :: JSVal -> JSRuntime JSVal
-numberify a = toNumber a >>= return . VNum
-
-invert :: JSVal -> JSRuntime JSVal
-invert a = return $ VBool $ not $ toBoolean a
 
 computeThisValue :: JSCxt -> JSVal -> JSVal
 computeThisValue cxt v = case v of
@@ -568,14 +556,30 @@ boolConstructor this args = do
     _ -> raiseError $ "boolConstructor called with this = " ++ show this
 
 stringConstructor :: JSFunction
-stringConstructor this args = do
+stringConstructor this args =
   let val = VBool $ if null args
                     then False
                     else toBoolean (head args)
-  case this of
+  in case this of
     VObj obj -> do
       VObj <$> (setClass "Boolean" obj >>= setPrimitiveValue val)
     _ -> raiseError $ "boolConstructor called with this = " ++ show this
+
+arrayConstructor :: JSFunction
+arrayConstructor this args =
+  let len = VNum $ fromIntegral $ length args
+  in case this of
+    VObj obj -> do
+      VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
+    _ -> raiseError $ "boolConstructor called with this = " ++ show this
+
+createArray :: [Maybe JSVal] -> JSRuntime JSVal
+createArray vals =
+  let len = VNum $ fromIntegral $ length vals
+  in do
+    obj <- newObject
+    VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
+
 
 errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 errConstructor this args =
