@@ -9,6 +9,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.List (intercalate)
 import Data.Bits
+import Data.Fixed
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import Text.Show.Functions
@@ -463,6 +464,7 @@ evalBinOp op = case op of
   "-"          -> numberOp (-)
   "*"          -> numberOp (*)
   "/"          -> numberOp (/)
+  "%"          -> numberOp $ mod'
   "<"          -> compareOp id         -- ref 11.8.1
   ">"          -> flip (compareOp id)  -- ref 11.8.2
   "<="         -> flip (compareOp not) -- ref 11.8.3
