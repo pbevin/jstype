@@ -12,10 +12,22 @@ import Parse.Lexical
 import Expr
 
 prog :: JSParser Program
-prog = Program NotStrict <$> statementList
+prog = do
+  (strictness, statements) <- statementList
+  return $ Program strictness statements
 
-statementList :: JSParser [Statement]
-statementList = many statement
+statementList :: JSParser (Strictness, [Statement])
+statementList = do
+  strictness <- directivePrefix
+  statements <- many statement
+  return (strictness, statements)
+
+directivePrefix :: JSParser Strictness
+directivePrefix = do
+  directives <- many (terminated quotedString)
+  return $ if "use strict" `elem` directives
+           then Strict
+           else NotStrict
 
 terminated :: JSParser a -> JSParser a
 terminated p = do
@@ -48,13 +60,13 @@ statement = choice [ block <?> "block",
 block :: JSParser Statement
 block = do
   loc <- srcLoc
-  stmts <- braces statementList
+  stmts <- braces (many statement)
   return $ case stmts of
     [single] -> single
     _ -> Block loc stmts
 
 realblock :: JSParser Statement
-realblock = Block <$> srcLoc <*> braces statementList
+realblock = Block <$> srcLoc <*> braces (many statement)
 
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
@@ -245,8 +257,8 @@ functionExpr = do
   try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  stmts <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
-  return $ FunDef name params NotStrict stmts
+  (strictness, stmts) <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
+  return $ FunDef name params strictness stmts
 
 callExpr :: JSParser Expr -> JSParser Expr
 callExpr p = do

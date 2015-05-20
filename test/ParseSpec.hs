@@ -171,6 +171,9 @@ spec = do
       parseExpr "!!x" `shouldBe` UnOp "!" (UnOp "!" (ReadVar "x"))
 
   describe "Parsing programs" $ do
+    it "parses a strict-mode program" $ do
+      testParse "'use strict';\nvar a;" `shouldBe`
+        Program Strict [VarDecl s [("a", Nothing)]]
     it "parses a while statement" $ do
       testParse "while (a) { }" `shouldBe` Program NotStrict [WhileStatement s (ReadVar "a") (Block s [])]
 
