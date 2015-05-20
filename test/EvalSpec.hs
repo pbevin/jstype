@@ -93,6 +93,10 @@ spec = do
       jsEvalExpr "1 == 1" `shouldReturn` VBool True
       jsEvalExpr "1 == 2" `shouldReturn` VBool False
 
+  it "does bitshift operations" $ do
+    jsEvalExpr "3 << 2" `shouldReturn` VNum 12
+    jsEvalExpr "12 >> 2" `shouldReturn` VNum 3
+
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"
 

@@ -99,6 +99,7 @@ initialEnv = do
                          ("Object", VObj object),
                          ("Array", VObj array),
                          ("Error", VObj error),
+                         ("ReferenceError", VObj error),
                          ("undefined", VUndef),
                          ("null", VNull),
                          ("eval", VNative objEval),
@@ -503,7 +504,10 @@ evalBinOp op = case op of
   ">="         -> compareOp not        -- ref 11.8.4
   "&"          -> bitwise (.&.)        -- ref 11.10
   "|"          -> bitwise (.|.)        -- ref 11.10
-  "^"          -> bitwise (xor)        -- ref 11.10
+  "^"          -> bitwise xor          -- ref 11.10
+  "<<"         -> bitshift shiftL
+  ">>"         -> bitshift shiftR
+  ">>>"        -> bitshift shiftR
   ","          -> commaOperator
 
   _            -> noSuchBinop op

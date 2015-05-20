@@ -86,6 +86,9 @@ bitwise op a b = do
   n2 <- toNumber b
   return $ VNum $ fromIntegral $ floor n1 `op` floor n2
 
+bitshift :: (Word32 -> Int -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal
+bitshift op = bitwise bop
+  where bop a b = a `op` (fromIntegral b)
 
 chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
 chain f g h a = f a >>= g >>= h
