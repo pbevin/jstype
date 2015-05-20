@@ -103,6 +103,7 @@ initialEnv = do
                          ("null", VNull),
                          ("eval", VNative objEval),
                          ("Infinity", VNum $ read "Infinity"),
+                         ("NaN", VNum $ read "NaN"),
                          ("isNaN", VNative objIsNaN) ]
   share $ LexEnv { outer = Nothing, envRec = EnvRec map }
 
@@ -386,7 +387,7 @@ modifyingOp op returnOp cxt e = do
           retVal = VNum $ returnOp val
       putValue ref newVal
       return retVal
-    _ -> raiseError $ show e ++ " is not assignable"
+    _ -> raiseError $ "ReferenceError: " ++ show e ++ " is not assignable"
 
 purePrefix :: (JSVal -> JSRuntime JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
 purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f

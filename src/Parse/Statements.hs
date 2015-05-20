@@ -157,7 +157,13 @@ continueStmt = ifInsideIteration $ do
 
 
 throwStmt :: JSParser Statement
-throwStmt = try (keyword "throw") >> ThrowStatement <$> srcLoc <*> expr
+throwStmt = do
+  pos1 <- getPosition
+  keyword "throw"
+  pos2 <- getPosition
+  if sameLine pos1 pos2
+  then ThrowStatement <$> srcLoc <*> expr
+  else unexpected "newline"
 
 tryStmt :: JSParser Statement
 tryStmt = try (keyword "try") >> TryStatement <$> srcLoc <*> realblock
