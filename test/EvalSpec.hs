@@ -122,7 +122,7 @@ spec = do
 
   it "refuses to read a variable that doesn't exist" $ do
     Left (err, _) <- runJStr "console.log(x)"
-    err `shouldBe` "ReferenceError: No such variable x"
+    err `shouldBe` VStr "ReferenceError: No such variable x"
 
   it "can still type a variable that doesn't exist" $ do
     jsEvalExpr "typeof x" `shouldReturn` VStr "undefined"
@@ -155,11 +155,11 @@ spec = do
     `shouldReturn` Right "hi\n";
 
   it "raises an error to the top level" $ do
-    runJStr "throw 'hi'" `shouldReturn` Left ("hi", []) -- XXX not sure about ("hi", [])
+    runJStr "throw 'hi'" `shouldReturn` Left (VStr "hi", [])
 
   it "raises runtime exceptions" $ do
     Left (message, _stack) <- runJStr "var a; a();"
-    message `shouldBe` "Can't call undefined"
+    message `shouldBe` VStr "Can't call undefined"
 
   describe "The eval function" $ do
     it "can eval code" $ do

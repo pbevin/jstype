@@ -41,7 +41,7 @@ runJS sourceName input = do
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left (show err, []), ""), JSGlobal Nothing)
+  Left err -> return ((Left (VStr $ show err, []), ""), JSGlobal Nothing)
   Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal
@@ -122,7 +122,7 @@ runProg (Program strictness stmts) = do
       printStackTrace exc; throwError exc
     (CTThrow, Just v, _) -> do
       msg <- toString v
-      throwError (msg, [])
+      throwError (VStr msg, [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -478,14 +478,6 @@ objIsNaN _this args = case args of
     VNum a -> a /= a
     _      -> False
 
-showVal :: JSVal -> String
-showVal (VStr s) = s
-showVal (VNum (JSNum n)) =
-  if n == fromInteger (round n)
-  then show (round n :: Integer)
-  else show n
-showVal other = show other
-
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp op = case op of
   "==="        -> tripleEquals id
@@ -562,8 +554,8 @@ funcCall cxt paramList body this args =
     zipWithM_ putEnvironmentRecord refs args
     result <- runStmts newCxt body
     case result of
-      (CTReturn, Just v, _)  -> return v
-      (CTThrow, Just (VException (err, trace)), _) -> throwError (err, trace)
+      (CTReturn, Just v, _) -> return v
+      (CTThrow, Just v, _)  -> throwError (v, [])
       _ -> return VUndef
 
 -- ref 13.2.2, incomplete
@@ -659,7 +651,7 @@ objCall cxt func this args = case func of
 
 
 stackTrace :: JSError -> String
-stackTrace (err, trace) = unlines $ err : map show (reverse trace)
+stackTrace (err, trace) = unlines $ show err : map show (reverse trace)
 
 
 printStackTrace :: JSError -> JSRuntime ()

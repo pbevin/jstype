@@ -7,6 +7,7 @@ import System.Exit
 import System.IO
 import System.Environment
 import Test.QuickCheck
+import Runtime.Conversion
 import Parse
 import Expr
 import Eval

@@ -11,14 +11,18 @@ import Runtime.Operations
 spec :: Spec
 spec = do
   describe "jsAdd" $ do
+    let testAdd a b = runtime $ jsAdd a b
     it "adds two strings" $ do
-      runtime (jsAdd (VStr "a") (VStr "b")) `shouldReturn` Right (VStr "ab")
+      testAdd (VStr "a") (VStr "b") `shouldReturn` Right (VStr "ab")
 
     it "adds two numbers" $ do
-      runtime (jsAdd (VNum 1) (VNum 3)) `shouldReturn` Right (VNum 4)
+      testAdd (VNum 1) (VNum 3) `shouldReturn` Right (VNum 4)
 
     it "adds a bool and a number" $ do
-      runtime (jsAdd (VBool True) (VNum 1)) `shouldReturn` Right (VNum 2)
+      testAdd (VBool True) (VNum 1) `shouldReturn` Right (VNum 2)
+
+    it "adds a number and a string" $ do
+      testAdd (VNum 1) (VStr "3") `shouldReturn` Right (VStr "13")
 
 
   describe "doubleEquals" $ do

@@ -96,7 +96,7 @@ data LexEnv = LexEnv {
 newtype EnvRec = EnvRec { fromEnvRec :: M.Map Ident JSVal } deriving (Show, Eq)
 
 type JSOutput = String
-type JSError = (String, [SrcLoc])
+type JSError = (JSVal, [SrcLoc])
 type JSEnv = Shared LexEnv
 type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
@@ -129,6 +129,6 @@ newtype JSRuntime a = JS {
 
 
 raiseError :: String -> JSRuntime a
-raiseError s = throwError (s, [])
+raiseError s = throwError (VStr s, [])
 
 data PrimitiveHint = HintNone | HintNumber
