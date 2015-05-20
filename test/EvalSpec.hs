@@ -150,6 +150,9 @@ spec = do
     runJStr "try { throw new Error('hi') } catch (e) { console.log(e.message); }"
     `shouldReturn` Right "hi\n";
 
+  it "raises an error to the top level" $ do
+    runJStr "throw 'hi'" `shouldReturn` Left ("hi", []) -- XXX not sure about ("hi", [])
+
   it "raises runtime exceptions" $ do
     Left (message, _stack) <- runJStr "var a; a();"
     message `shouldBe` "Can't call undefined"

@@ -99,7 +99,10 @@ initialEnv = do
                          ("Object", VObj object),
                          ("Array", VObj array),
                          ("Error", VObj error),
+                         ("undefined", VUndef),
+                         ("null", VNull),
                          ("eval", VNative objEval),
+                         ("Infinity", VNum $ read "Infinity"),
                          ("isNaN", VNative objIsNaN) ]
   share $ LexEnv { outer = Nothing, envRec = EnvRec map }
 
@@ -115,6 +118,9 @@ runProg (Program strictness stmts) = do
     (CTNormal, v, _) -> return v
     (CTThrow, Just (VException exc@(err, trace)), _) -> do
       printStackTrace exc; throwError exc
+    (CTThrow, Just v, _) -> do
+      msg <- toString v
+      throwError (msg, [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -181,6 +187,9 @@ runStmt cxt s = case s of
   For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
     runStmt cxt $ transformFor3ToWhile loc e1 e2 e3 stmt
 
+  For loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt cxt $ transformFor3VarToWhile loc x e1 e2 e3 stmt
+
   Block loc stmts -> runStmts cxt stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
@@ -212,6 +221,17 @@ transformFor3ToWhile :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Stat
 transformFor3ToWhile loc e1 e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
       s1 = maybe (EmptyStatement loc) (ExprStmt loc) e1
+      s2 = [ stmt, maybe (EmptyStatement loc) (ExprStmt loc) e3 ]
+  in Block loc [ s1, WhileStatement loc e (Block loc s2) ]
+
+-- |
+-- Turn "for (var x = e1; e2; e3) { s }" into
+-- "var x = e1; while (e2) { s; e3 }"
+-- with sensible defaults for missing statements
+transformFor3VarToWhile :: SrcLoc -> Ident -> Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
+transformFor3VarToWhile loc x e1 e2 e3 stmt =
+  let e = fromMaybe (Boolean True) e2
+      s1 = VarDecl loc [(x, Just e1)]
       s2 = [ stmt, maybe (EmptyStatement loc) (ExprStmt loc) e3 ]
   in Block loc [ s1, WhileStatement loc e (Block loc s2) ]
 

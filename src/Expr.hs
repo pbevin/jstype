@@ -100,7 +100,7 @@ jsLang = Lang {
   postfixOps = [ "++", "--" ]
 }
 
-newtype JSNum = JSNum Double deriving Show
+newtype JSNum = JSNum Double deriving (Show, Read)
 instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
 
