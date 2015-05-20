@@ -1,13 +1,15 @@
 module ParseSpec where
 
 import Control.Exception (evaluate)
+import Data.Either
 import Test.Hspec
-import Test.QuickCheck
 
 import GenExpr
 import Expr
 import Parse
 import Eval
+
+
 
 
 testParse :: String -> Program
@@ -33,6 +35,8 @@ testParse input =
         DebuggerStatement _    ->  DebuggerStatement s
   in Program strictness $ overrideAll stmts
 
+unparseable :: String -> IO ()
+unparseable str = parseJS str `shouldSatisfy` isLeft
 
 spec :: Spec
 spec = do
@@ -211,7 +215,7 @@ spec = do
 
 
     it "disallows a bare continue statement" $ do
-      evaluate (testParse "continue") `shouldThrow` anyException
+      unparseable "continue"
 
     it "parses empty statements" $ do
       testParse ";\n;\n" `shouldBe`
@@ -239,7 +243,7 @@ spec = do
 
   describe "Automatic semicolon insertion" $ do
     it "requires a semicolon on the same line" $ do
-      evaluate (testParse "{ 1 2 } 3") `shouldThrow` anyException
+      unparseable "{ 1 2 } 3"
 
     it "does not require a semicolon with a line break" $ do
       testParse "{ 1\n2 } 3" `shouldBe` testParse "{ 1; 2 } 3"

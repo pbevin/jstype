@@ -1,7 +1,8 @@
 module Parse ( parseJS
              , parseJS'
              , simpleParse
-             , parseExpr) where
+             , parseExpr
+             , ParseError) where
 
 import Control.Applicative
 import Text.Parsec
