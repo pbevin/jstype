@@ -24,7 +24,6 @@ putValue ref w
   | otherwise                   = putEnvironmentRecord ref w
 
 -- ref 8.7
-
 hasPrimitiveBase :: JSRef -> Bool
 hasPrimitiveBase ref =
   case getBase ref of
@@ -34,18 +33,19 @@ hasPrimitiveBase ref =
     _       -> False
 
 
+-- ref 8.7
 isPropertyReference :: JSRef -> Bool
 isPropertyReference ref =
   case getBase ref of
     VObj _ -> True
     _      -> hasPrimitiveBase ref
 
+-- ref 8.7
 isUnresolvableReference :: JSRef -> Bool
 isUnresolvableReference ref =
   case getBase ref of
     VUndef -> True
     _      -> False
-
 
 
 getValuePropertyReference :: JSRef -> JSRuntime JSVal

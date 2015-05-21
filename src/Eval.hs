@@ -121,11 +121,21 @@ runProg (Program strictness stmts) = do
     (CTThrow, Just (VException exc@(err, trace)), _) -> do
       printStackTrace exc; throwError exc
     (CTThrow, Just v, _) -> do
-      msg <- toString v
-      throwError (VStr msg, [])
+      v' <- callToString cxt v
+      throwError (v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
+
+callToString :: JSCxt -> JSVal -> JSRuntime JSVal
+callToString _ (VStr str) = return (VStr str)
+callToString cxt v = do
+  obj <- toObject cxt v
+  ref <- memberGet obj "toString"
+  funCall cxt ref []
+
+
+
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
 returnThrow s (err, trace) =
@@ -263,6 +273,19 @@ maybeValList cxt = mapM (evalOne cxt)
       Nothing -> return Nothing
       Just e  -> Just <$> (runExprStmt cxt e >>= getValue)
 
+memberGet :: JSVal -> String -> JSRuntime JSVal
+memberGet lval prop =
+  case lval of
+    VObj _ -> return $ VRef (JSRef lval prop NotStrict)
+    _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
+
+funCall :: JSCxt -> JSVal -> [JSVal] -> JSRuntime JSVal
+funCall cxt ref argList = do
+    func <- getValue ref
+    let thisValue = computeThisValue cxt ref
+    objCall cxt func thisValue argList
+
+
 runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
 runExprStmt cxt expr = case expr of
   Num n             -> return $ VNum n
@@ -277,16 +300,12 @@ runExprStmt cxt expr = case expr of
   MemberGet e x -> do -- ref 11.2.1
     lval <- runExprStmt cxt e >>= getValue
     prop <- runExprStmt cxt x >>= getValue >>= toString
-    case lval of
-      VObj _ -> return $ VRef (JSRef lval prop NotStrict)
-      _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
+    memberGet lval prop
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt cxt f
-    func <- getValue ref
     argList <- evalArguments cxt args
-    let thisValue = computeThisValue cxt ref
-    objCall cxt func thisValue argList
+    funCall cxt ref argList
 
   Assign lhs op e -> do
     lref <- runExprStmt cxt lhs
@@ -605,7 +624,7 @@ stringConstructor this args =
                     else toBoolean (head args)
   in case this of
     VObj obj -> do
-      VObj <$> (setClass "Boolean" obj >>= setPrimitiveValue val)
+      VObj <$> (setClass "String" obj >>= setPrimitiveValue val)
     _ -> raiseError $ "boolConstructor called with this = " ++ show this
 
 arrayConstructor :: JSFunction
@@ -629,8 +648,15 @@ errConstructor this args =
   let text = head args
   in case this of
     VObj obj -> do
-      VObj <$> (setClass "Error" obj >>= addOwnProperty "message" text)
+      setClass "Error" obj >>= addOwnProperty "message" text
+                           >>= addOwnProperty "toString" (VNative errorToString)
+                           >>= return . VObj
 
+errorToString :: JSFunction
+errorToString (VObj this) _args = do
+  obj <- deref this
+  msg <- objGetProperty "message" obj
+  return $ fromMaybe VUndef msg
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] = do
@@ -700,3 +726,7 @@ objectPrototype =
 
 objToString :: JSFunction
 objToString this _args = toString this >>= return . VStr
+
+toObject :: JSCxt -> JSVal -> JSRuntime JSVal
+toObject _ v@(VObj obj) = return v
+toObject cxt (VStr str) = runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
