@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module EvalSpec where
 
 import Test.Hspec
@@ -6,6 +8,11 @@ import qualified Data.Map as M
 import Expr
 import Eval
 import Runtime.Types
+
+shouldError :: Show b => IO (Either (JSVal, a) b) -> String -> Expectation
+shouldError val error = val >>= \case
+  Left (s, _) -> s `shouldBe` VStr error
+  Right v     -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
 
 spec :: Spec
 spec = do
@@ -28,6 +35,12 @@ spec = do
     runJStr "var a = 10; a -= 1; console.log(a);" `shouldReturn` Right "9\n"
     runJStr "var a = 10; a *= 3; console.log(a);" `shouldReturn` Right "30\n"
     runJStr "var a = 10; a /= 2; console.log(a);" `shouldReturn` Right "5\n"
+
+  it "can assign an undeclared var in non-strict mode" $ do
+    runJStr "a = 10; console.log(a)" `shouldReturn` Right "10\n"
+
+  it "will not assign an undeclared var in strict mode" $ do
+    runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: No such variable a"
 
   it "does +, - and void prefixes" $ do
     runJStr "var a = '5'; console.log(+a); console.log(a)"
@@ -120,10 +133,6 @@ spec = do
     runJStr "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJStr "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
 
-  it "refuses to read a variable that doesn't exist" $ do
-    Left (err, _) <- runJStr "console.log(x)"
-    err `shouldBe` VStr "ReferenceError: No such variable x"
-
   it "can still type a variable that doesn't exist" $ do
     jsEvalExpr "typeof x" `shouldReturn` VStr "undefined"
 
@@ -162,15 +171,13 @@ spec = do
     runJStr "console.log(false || 2)" `shouldReturn` Right "2\n"
 
   it "raises runtime exceptions" $ do
-    Left (message, _stack) <- runJStr "var a; a();"
-    message `shouldBe` VStr "Can't call undefined"
+    runJStr "var a; a();" `shouldError` "Can't call undefined"
 
   it "can throw an exception from a function" $ do
     let prog = unlines [
                  " function f(m) { throw new Error(m); } " ,
                  " f('abc'); " ]
-    Left (message, _stack) <- runJStr prog
-    message `shouldBe` VStr "Error: abc"
+    runJStr prog `shouldError` "Error: abc"
 
 
   describe "The eval function" $ do

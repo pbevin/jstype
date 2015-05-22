@@ -417,6 +417,7 @@ putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
 putVar (JSCxt envref _ _) x v = modifyRef envref $ lexInsert x v
 
 
+-- ref 10.2.2.1
 getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> JSRuntime JSRef
 getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
