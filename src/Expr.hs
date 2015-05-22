@@ -106,6 +106,9 @@ newtype JSNum = JSNum Double deriving (Show, Read)
 instance Eq JSNum where
   JSNum a == JSNum b = abs (a-b) < 0.001
 
+fromJSNum :: JSNum -> Double
+fromJSNum (JSNum a) = a
+
 jsNaN :: JSNum
 jsNaN = JSNum $ 0 / 0
 

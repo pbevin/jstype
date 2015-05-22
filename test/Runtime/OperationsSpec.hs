@@ -46,3 +46,16 @@ spec = do
   describe "bitwise" $ do
     it "can logical-and two numbers" $ do
       runtime (bitwise (.&.) (VNum 3) (VNum 26)) `shouldReturn` Right (VNum 2)
+
+
+  describe "Math" $ do
+    it "can get the maximum" $ do
+      runtime (mathMaxFunc maximum VUndef [VNum 1, VNum 3, VNum 2]) `shouldReturn` Right (VNum 3)
+
+    it "can run an arbitrary floating point function" $ do
+      let f a = a * 2.5
+      runtime (mathFunc f VUndef [VNum 3]) `shouldReturn` Right (VNum 7.5)
+
+    it "can run a 2-arg FP function" $ do
+      let pow a b = a ** b
+      runtime (mathFunc2 pow VUndef [VNum 3, VNum 2]) `shouldReturn` Right (VNum 9)

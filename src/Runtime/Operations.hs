@@ -119,3 +119,16 @@ unaryNot = unaryOp VBool (return . toBoolean) not
 -- ref 11.14
 commaOperator :: JSVal -> JSVal -> JSRuntime JSVal
 commaOperator _ = return
+
+
+mathFunc :: (Double -> Double) -> JSFunction
+mathFunc f _this args = toNumber (head args) >>= return . VNum . JSNum . f . fromJSNum
+
+mathFunc2 :: (Double -> Double -> Double) -> JSFunction
+mathFunc2 f _this args = do
+  a <- toNumber (args !! 0)
+  b <- toNumber (args !! 1)
+  return $ VNum $ JSNum $ f (fromJSNum a) (fromJSNum b)
+
+mathMaxFunc :: ([JSNum] -> JSNum) -> JSFunction
+mathMaxFunc f _this args = mapM toNumber args >>= return . VNum . f

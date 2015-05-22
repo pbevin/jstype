@@ -691,8 +691,16 @@ createGlobalThis = do
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
                     >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
+                    >>= addOwnProperty "LN2" (VNum $ JSNum (log 2 :: Double))
+                    >>= addOwnProperty "abs" (VNative $ mathFunc abs)
+                    >>= addOwnProperty "log" (VNative $ mathFunc log)
+                    >>= addOwnProperty "ceil" (VNative $ mathFunc $ fromIntegral . ceiling)
+                    >>= addOwnProperty "round" (VNative $ mathFunc $ fromIntegral . round)
+                    >>= addOwnProperty "floor" (VNative $ mathFunc $ fromIntegral . floor)
+                    >>= addOwnProperty "max" (VNative $ mathMaxFunc maximum)
+                    >>= addOwnProperty "min" (VNative $ mathMaxFunc minimum)
+                    >>= addOwnProperty "pow" (VNative $ mathFunc2 (**))
 
-  -- share $ LexEnv { outer = Nothing, envRec = DeclEnvRec map }
   this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
                     >>= addOwnProperty "console" (VObj console)
                     >>= addOwnProperty "Function" (VObj function)
