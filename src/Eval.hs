@@ -716,7 +716,7 @@ createGlobalThis = do
                     >>= addOwnProperty "null" (VNull)
                     >>= addOwnProperty "eval" (VNative objEval)
                     >>= addOwnProperty "Infinity" (VNum $ 1 / 0)
-                    >>= addOwnProperty "NaN" (VNum $ read "NaN")
+                    >>= addOwnProperty "NaN" (VNum $ jsNaN)
                     >>= addOwnProperty "isNaN" (VNative objIsNaN)
   put $ JSGlobal (Just this)
 
