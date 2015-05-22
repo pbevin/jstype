@@ -317,12 +317,12 @@ runExprStmt cxt expr = case expr of
     v1 <- runExprStmt cxt e1 >>= getValue
     if toBoolean v1
     then runExprStmt cxt e2 >>= getValue
-    else return $ VBool False
+    else return v1
 
   BinOp "||" e1 e2 -> do
     v1 <- runExprStmt cxt e1 >>= getValue
     if toBoolean v1
-    then return $ VBool True
+    then return v1
     else runExprStmt cxt e2 >>= getValue
 
   BinOp op e1 e2 -> do

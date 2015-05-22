@@ -157,6 +157,10 @@ spec = do
   it "raises an error to the top level" $ do
     runJStr "throw 'hi'" `shouldReturn` Left (VStr "hi", [])
 
+  it "evaluates || properly" $ do
+    runJStr "console.log(1 || 2)" `shouldReturn` Right "1\n"
+    runJStr "console.log(false || 2)" `shouldReturn` Right "2\n"
+
   it "raises runtime exceptions" $ do
     Left (message, _stack) <- runJStr "var a; a();"
     message `shouldBe` VStr "Can't call undefined"
