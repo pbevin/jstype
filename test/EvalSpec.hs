@@ -194,3 +194,10 @@ spec = do
 
     it "can construct a wrapped number" $ do
       runJStr "console.log(+(new Number(1.4)))" `shouldReturn` Right "1.4\n"
+
+  describe "Math" $ do
+    it "understands infinity and NaN" $ do
+      runJStr "console.log(Infinity)" `shouldReturn` Right "Infinity\n"
+      runJStr "console.log(-Infinity)" `shouldReturn` Right "-Infinity\n"
+      runJStr "console.log(Math.abs(-Infinity))" `shouldReturn` Right "Infinity\n"
+      runJStr "console.log(NaN)" `shouldReturn` Right "NaN\n"

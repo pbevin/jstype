@@ -132,3 +132,17 @@ mathFunc2 f _this args = do
 
 mathMaxFunc :: ([JSNum] -> JSNum) -> JSFunction
 mathMaxFunc f _this args = mapM toNumber args >>= return . VNum . f
+
+hypot :: Floating a => a -> a -> a
+hypot a b = sqrt (a*a + b*b)
+
+pow :: RealFloat a => a -> a -> a
+pow x y
+  | abs x == 1 && isInfinite y = 0/0
+  | isNegativeZero x && y < 0 && isOddInteger y = -1/0
+  | isNegativeZero x && y < 0 && not (isOddInteger y) = 1/0
+  | x == 0 && y < 0 = 1/0
+  | otherwise = x ** y
+
+isOddInteger :: RealFloat a => a -> Bool
+isOddInteger y = not (isInfinite y) && isInteger ((y+1)/2) && abs y < 1e20

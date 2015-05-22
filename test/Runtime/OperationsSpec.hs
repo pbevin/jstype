@@ -43,10 +43,20 @@ spec = do
       eq VNull VUndef  `shouldReturn` True
       eq VNull VNull   `shouldReturn` True
 
+
+  describe "tripleEquals" $ do
+    let fromRight (Right (VBool a)) = a
+    let eqq a b = runtime (doubleEquals id a b) >>= return . fromRight
+
+    it "compares two numbers" $ do
+      eqq (VNum 1) (VNum 1) `shouldReturn` True
+      eqq (VNum 1) (VNum 2) `shouldReturn` False
+      eqq (VNum $ 1/0) (VNum $ 1/0) `shouldReturn` True
+
+
   describe "bitwise" $ do
     it "can logical-and two numbers" $ do
       runtime (bitwise (.&.) (VNum 3) (VNum 26)) `shouldReturn` Right (VNum 2)
-
 
   describe "Math" $ do
     it "can get the maximum" $ do
@@ -57,5 +67,31 @@ spec = do
       runtime (mathFunc f VUndef [VNum 3]) `shouldReturn` Right (VNum 7.5)
 
     it "can run a 2-arg FP function" $ do
-      let pow a b = a ** b
-      runtime (mathFunc2 pow VUndef [VNum 3, VNum 2]) `shouldReturn` Right (VNum 9)
+      let pow a b = a + b
+      runtime (mathFunc2 pow VUndef [VNum 3.14, VNum 2.72]) `shouldReturn` Right (VNum 5.86)
+
+    describe "Math.pow" $ do
+      let inf = 1/0
+      let nan = 0/0
+
+      it "raises one number to the power of another" $ do
+        pow 3 2 `shouldBe` 9
+
+      it "is NaN for +/-1 and +/-Infinity" $ do
+        pow 1 (-inf) `shouldSatisfy` isNaN
+        pow (-1) (-inf) `shouldSatisfy` isNaN
+        pow 1 inf `shouldSatisfy` isNaN
+        pow (-1) inf `shouldSatisfy` isNaN
+
+      it "is +Infinity when x is +0 and y < 0" $ do
+        pow 0 (-1) `shouldBe` inf
+        pow 0 (-2) `shouldBe` inf
+
+      it "is -Infinity when x is -0, y < 0, and y is an odd integer" $ do
+        -- yes indeed
+        pow (-0) (-11111) `shouldBe` -inf
+
+      it "is +Infinity when x is -0, y < 0, and y not an odd integer" $ do
+        pow (-0) (-2) `shouldBe` inf
+        pow (-0) (-inf) `shouldBe` inf
+        pow (-0) (-1.79e308) `shouldBe` inf

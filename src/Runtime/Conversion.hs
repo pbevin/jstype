@@ -38,10 +38,7 @@ isString _ = False
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
-showVal (VNum (JSNum n)) =
-  if n == fromInteger (round n)
-  then show (round n :: Integer)
-  else show n
+showVal (VNum (JSNum n)) = numberToString n
 showVal other = show other
 
 toString :: JSVal -> JSRuntime String
@@ -49,8 +46,19 @@ toString VUndef    = return "undefined"
 toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
-toString (VNum n)  = return $ showVal (VNum n)
+toString (VNum n)  = return $ numberToString $ fromJSNum n
 toString (VRef _) = return "(??ref)"
 toString (VObj _) = return "(??obj)"
 toString (VNative _) = return "(??native)"
 toString (VException _) = return "(??exception)"
+
+numberToString :: Double -> String
+numberToString n
+  | n == 0/0  = "NaN"
+  | n == 1/0  = "Infinity"
+  | n < 0     = "-" ++ numberToString (negate n)
+  | isInteger n = show (round n :: Integer)
+  | otherwise = show n
+
+isInteger :: RealFloat a => a -> Bool
+isInteger n = n == fromInteger (round n)
