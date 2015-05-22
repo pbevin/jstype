@@ -41,7 +41,7 @@ runJS sourceName input = do
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left (VStr $ show err, []), ""), JSGlobal Nothing)
+  Left err -> return ((Left (VStr $ "SyntaxError: " ++ show err, []), ""), JSGlobal Nothing)
   Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal

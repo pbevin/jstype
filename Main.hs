@@ -25,7 +25,7 @@ runFile filename = do
   input <- readFile filename
   runJS filename input >>= \case
     Right output -> putStr output
-    Left err -> hPutStrLn stderr ("SyntaxError: " ++ show err) >> exitFailure
+    Left err -> hPutStrLn stderr (show err) >> exitFailure
 
 
 repl :: IO ()
