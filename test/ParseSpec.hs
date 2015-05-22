@@ -4,7 +4,6 @@ import Control.Exception (evaluate)
 import Data.Either
 import Test.Hspec
 
-import GenExpr
 import Expr
 import Parse
 import Eval
