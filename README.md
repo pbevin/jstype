@@ -1,4 +1,4 @@
-# Javascript Type Inferencer
+# My Toy Javascript Compiler
 
 ## Setup
 
@@ -26,7 +26,7 @@ cabal test
 
 ### Automatic Tests
 
-For this you need Ruby and the `guard-shell` gem installed.
+For this you need Ruby and the `guard-haskell` gem installed.
 
 ```bash
 guard
