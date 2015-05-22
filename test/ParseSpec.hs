@@ -58,9 +58,10 @@ spec = do
     it "parses a negative number" $ do
       parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
 
-    it "parses a boolean" $ do
+    it "parses literals" $ do
       parseExpr "true" `shouldBe` Boolean True
       parseExpr "false" `shouldBe` Boolean False
+      parseExpr "null" `shouldBe` LiteralNull
 
     it "parses a variable" $ do
       parseExpr "a" `shouldBe` (ReadVar "a")

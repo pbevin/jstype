@@ -340,7 +340,7 @@ simple = parens expr
      <|> objectLiteral
      <|> regexLiteral
      <|> this
-     <|> bool
+     <|> literal
      <|> num
      <|> var
      <|> Str <$> quotedString
@@ -454,9 +454,10 @@ singleQuotedString = do
 num :: JSParser Expr
 num = Num <$> numericLiteral
 
-bool :: JSParser Expr
-bool = try $ (keyword "true" >> return (Boolean True))
-               <|> (keyword "false" >> return (Boolean False))
+literal :: JSParser Expr
+literal = try $ (keyword "true"  >> return (Boolean True))
+            <|> (keyword "false" >> return (Boolean False))
+            <|> (keyword "null"  >> return LiteralNull)
 
 numericLiteral :: JSParser JSNum
 numericLiteral = liftM JSNum number

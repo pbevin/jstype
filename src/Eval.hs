@@ -260,13 +260,14 @@ readVar cxt name strictness =
 
 runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
 runExprStmt cxt expr = case expr of
-  Num n             -> return $ VNum n
-  Str s             -> return $ VStr s
-  Boolean b         -> return $ VBool b
-  ReadVar name      -> readVar cxt name NotStrict
+  Num n              -> return $ VNum n
+  Str s              -> return $ VStr s
+  Boolean b          -> return $ VBool b
+  LiteralNull        -> return VNull
+  ReadVar name       -> readVar cxt name NotStrict
   ReadVarStrict name -> readVar cxt name Strict
-  This              -> return $ thisBinding cxt
-  ArrayLiteral vals -> evalArrayLiteral cxt vals
+  This               -> return $ thisBinding cxt
+  ArrayLiteral vals  -> evalArrayLiteral cxt vals
 
   MemberDot e x -> runExprStmt cxt (MemberGet e (Str x)) -- ref 11.2.1
 
@@ -465,19 +466,21 @@ objEscape _this args = case args of
 objEval :: JSFunction
 objEval _this args = case args of
   [] -> return VUndef
-  (prog:args) -> do
+  (prog:_) -> do
     text <- toString prog
-    let Program strictness stmts = simpleParse text
-    cxt <- JSCxt <$> initialEnv
-                 <*> emptyEnv
-                 <*> (VObj <$> getGlobalObject)
+    case parseJS' text "(eval)" of
+      Left err -> raiseError $ "SyntaxError: " ++ show err
+      Right (Program strictness stmts) -> do
+        cxt <- JSCxt <$> initialEnv
+                     <*> emptyEnv
+                     <*> (VObj <$> getGlobalObject)
 
-    (stype, sval, _) <- runStmts cxt stmts
-    case stype of
-      CTNormal -> return $ fromMaybe VUndef sval
-      CTThrow ->
-        let Just (VException err) = sval
-        in throwError err
+        (stype, sval, _) <- runStmts cxt stmts
+        case stype of
+          CTNormal -> return $ fromMaybe VUndef sval
+          CTThrow ->
+            let Just (VException err) = sval
+            in throwError err
 
 objIsNaN :: JSFunction
 objIsNaN _this args = case args of
