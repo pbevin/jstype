@@ -24,7 +24,7 @@ data JSVal = VNum JSNum
 
 instance Show JSVal where
   show (VNum a) = show a
-  show (VStr a) = show a
+  show (VStr a) = a
   show (VBool a) = if a then "true" else "false"
   show (VRef ref) = "(reference " ++ show ref ++ ")"
   show VUndef = "undefined"
@@ -94,6 +94,9 @@ data LexEnv = LexEnv {
 }
 
 newtype EnvRec = EnvRec { fromEnvRec :: M.Map Ident JSVal } deriving (Show, Eq)
+
+newEnv :: JSEnv -> JSRuntime JSEnv
+newEnv parent = share $ LexEnv { envRec = EnvRec M.empty, outer = Just parent }
 
 type JSOutput = String
 type JSError = (JSVal, [SrcLoc])

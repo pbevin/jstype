@@ -161,6 +161,14 @@ spec = do
     Left (message, _stack) <- runJStr "var a; a();"
     message `shouldBe` VStr "Can't call undefined"
 
+  it "can throw an exception from a function" $ do
+    let prog = unlines [
+                 " function f(m) { throw new Error(m); } " ,
+                 " f('abc'); " ]
+    Left (message, _stack) <- runJStr prog
+    message `shouldBe` VStr "Error: abc"
+
+
   describe "The eval function" $ do
     it "can eval code" $ do
       runJStr "eval(\"console.log('hi')\")" `shouldReturn` Right "hi\n"

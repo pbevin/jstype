@@ -119,7 +119,8 @@ runProg (Program strictness stmts) = do
   case result of
     (CTNormal, v, _) -> return v
     (CTThrow, Just (VException exc@(err, trace)), _) -> do
-      printStackTrace exc; throwError exc
+      msg <- callToString cxt err
+      printStackTrace (msg, trace); throwError (msg, trace)
     (CTThrow, Just v, _) -> do
       v' <- callToString cxt v
       throwError (v', [])
@@ -218,7 +219,7 @@ runStmt cxt s = case s of
   ContinueStatement loc label -> return (CTBreak, Nothing, label)
   Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return loc (Just e) -> do
-    val <- runExprStmt cxt e
+    val <- runExprStmt cxt e >>= getValue
     return (CTReturn, Just val, Nothing)
 
   EmptyStatement loc -> return (CTNormal, Nothing, Nothing)
@@ -566,12 +567,14 @@ createError text =
 -- ref 13.2.1, incomplete
 funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
 funcCall cxt paramList body this args =
-  let makeRef name = JSRef (VEnv (lexEnv cxt)) name NotStrict -- XXX is this a getIdentifierReference ?
-      refs = map makeRef paramList
-      newCxt = cxt { thisBinding = this }
+  let makeRef env name = JSRef (VEnv env) name NotStrict
+      newCxt env = cxt { thisBinding = this, lexEnv = env }
+      addToNewEnv :: JSEnv -> Ident -> JSVal -> JSRuntime ()
+      addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
   in do
-    zipWithM_ putEnvironmentRecord refs args
-    result <- runStmts newCxt body
+    env <- newEnv (lexEnv cxt)
+    zipWithM_ (addToNewEnv env) paramList args
+    result <- runStmts (newCxt env) body
     case result of
       (CTReturn, Just v, _) -> return v
       (CTThrow, Just v, _)  -> throwError (v, [])
@@ -656,7 +659,7 @@ errorToString :: JSFunction
 errorToString (VObj this) _args = do
   obj <- deref this
   msg <- objGetProperty "message" obj
-  return $ fromMaybe VUndef msg
+  return $ VStr $ objClass obj ++ ": " ++ showVal (fromMaybe VUndef msg)
 
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] = do
