@@ -47,6 +47,7 @@ runJS' sourceName input = case parseJS' input sourceName of
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
   result <- runtime $ do
+    createGlobalThis
     cxt <- initialCxt
     runExprStmt cxt (parseExpr input) >>= getValue
   case result of
@@ -69,47 +70,14 @@ initialCxt = JSCxt <$> initialEnv
 
 initialEnv :: JSRuntime JSEnv
 initialEnv = do
-  console <- newObject
-  modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
+  global <- getGlobalObject
+  share $ LexEnv (ObjEnvRec global) Nothing
 
-  function <- newObject
-  modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
-
-  object <- newObject
-  modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
-  modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
-
-  number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
-                      >>= setCallMethod numConstructor
-
-  boolean <- newObject >>= setCallMethod boolConstructor
-
-  string <- newObject >>= setCallMethod stringConstructor
-
-  array <- newObject >>= setCallMethod arrayConstructor
-
-  error <- newObject
-  modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
-
-  let map = M.fromList [ ("console", VObj console),
-                         ("Function", VObj function),
-                         ("String", VObj string),
-                         ("Number", VObj number),
-                         ("Boolean", VObj boolean),
-                         ("Object", VObj object),
-                         ("Array", VObj array),
-                         ("Error", VObj error),
-                         ("ReferenceError", VObj error),
-                         ("undefined", VUndef),
-                         ("null", VNull),
-                         ("eval", VNative objEval),
-                         ("Infinity", VNum $ read "Infinity"),
-                         ("NaN", VNum $ read "NaN"),
-                         ("isNaN", VNative objIsNaN) ]
-  share $ LexEnv { outer = Nothing, envRec = EnvRec map }
 
 emptyEnv :: JSRuntime JSEnv
-emptyEnv = share $ LexEnv { outer = Nothing, envRec = EnvRec M.empty }
+emptyEnv = do
+  m <- share M.empty
+  share $ LexEnv (DeclEnvRec m) Nothing
 
 runProg :: Program -> JSRuntime (Maybe JSVal)
 runProg (Program strictness stmts) = do
@@ -286,13 +254,17 @@ funCall cxt ref argList = do
     let thisValue = computeThisValue cxt ref
     objCall cxt func thisValue argList
 
+readVar :: JSCxt -> Ident -> Strictness -> JSRuntime JSVal
+readVar cxt name strictness =
+  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name strictness
 
 runExprStmt :: JSCxt -> Expr -> JSRuntime JSVal
 runExprStmt cxt expr = case expr of
   Num n             -> return $ VNum n
   Str s             -> return $ VStr s
   Boolean b         -> return $ VBool b
-  ReadVar name      -> VRef <$> getIdentifierReference (Just $ lexEnv cxt) name NotStrict
+  ReadVar name      -> readVar cxt name NotStrict
+  ReadVarStrict name -> readVar cxt name Strict
   This              -> return $ thisBinding cxt
   ArrayLiteral vals -> evalArrayLiteral cxt vals
 
@@ -311,7 +283,9 @@ runExprStmt cxt expr = case expr of
   Assign lhs op e -> do
     lref <- runExprStmt cxt lhs
     rref <- runExprStmt cxt e
-    updateRef (init op) lref rref
+    case op of
+      "=" -> assignRef lref rref
+      _   -> updateRef (init op) lref rref
 
   BinOp "&&" e1 e2 -> do
     v1 <- runExprStmt cxt e1 >>= getValue
@@ -414,7 +388,8 @@ purePrefix :: (JSVal -> JSRuntime JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
 purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f
 
 putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
-putVar (JSCxt envref _ _) x v = modifyRef envref $ lexInsert x v
+putVar (JSCxt envref _ _) x v = putValue ref v where
+ ref = JSRef (VEnv envref) x NotStrict
 
 
 -- ref 10.2.2.1
@@ -422,20 +397,32 @@ getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> JSRuntime JSRef
 getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
   lex <- deref lexRef
-  if hasBinding name (envRec lex)
+  bound <- hasBinding name (envRec lex)
+  if bound
   then return $ JSRef (VEnv lexRef) name NotStrict
   else do
     getIdentifierReference (outer lex) name strict
+
+
+-- ref 11.13.1
+assignRef :: JSVal -> JSVal -> JSRuntime JSVal
+assignRef lref rref =
+  case lref of
+    VRef ref -> do
+      rval <- getValue rref
+      putValue ref rval
+      return rval
+    _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
+
+
 
 updateRef :: String -> JSVal -> JSVal -> JSRuntime JSVal
 updateRef op lref rref =
   case lref of
     VRef ref -> do
-      lval <- getValue lref
-      rval <- getValue rref
-      newVal <- if null op
-                then return rval
-                else evalBinOp op lval rval
+      lval   <- getValue lref
+      rval   <- getValue rref
+      newVal <- evalBinOp op lval rval
       putValue ref newVal
       return newVal
     _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
@@ -541,24 +528,6 @@ createFunction paramList strict body cxt = do
     \obj -> obj { objClass = "Function",
                   callMethod = Just (funcCall cxt paramList body) }
   return $ VObj objref
-
-
-type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
-
-updateObj :: (JSObj -> JSObj) -> ObjectModifier
-updateObj f objRef = modifyRef' objRef f
-
-setClass :: String -> ObjectModifier
-setClass cls = updateObj $ \obj -> obj { objClass = cls }
-
-setCallMethod :: JSFunction -> ObjectModifier
-setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
-
-setPrimitiveValue :: JSVal -> ObjectModifier
-setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
-
-addOwnProperty :: String -> JSVal -> ObjectModifier
-addOwnProperty name val = updateObj $ objSetProperty name val
 
 createError :: JSVal -> JSRuntime JSVal
 createError text =
@@ -689,13 +658,46 @@ printStackTrace = liftIO . putStrLn . stackTrace
 
 createGlobalThis :: JSRuntime ()
 createGlobalThis = do
-  this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
-  put $ JSGlobal (Just this)
+  console <- newObject
+  modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
-getGlobalObject :: JSRuntime (Shared JSObj)
-getGlobalObject = do
-  global <- get
-  return $ fromJust $ globalObject global
+  function <- newObject
+  modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
+
+  object <- newObject
+  modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+  modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
+
+  number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
+                      >>= setCallMethod numConstructor
+
+  boolean <- newObject >>= setCallMethod boolConstructor
+
+  string <- newObject >>= setCallMethod stringConstructor
+
+  array <- newObject >>= setCallMethod arrayConstructor
+
+  error <- newObject
+  modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
+
+  -- share $ LexEnv { outer = Nothing, envRec = DeclEnvRec map }
+  this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
+                    >>= addOwnProperty "console" (VObj console)
+                    >>= addOwnProperty "Function" (VObj function)
+                    >>= addOwnProperty "String" (VObj string)
+                    >>= addOwnProperty "Number" (VObj number)
+                    >>= addOwnProperty "Boolean" (VObj boolean)
+                    >>= addOwnProperty "Object" (VObj object)
+                    >>= addOwnProperty "Array" (VObj array)
+                    >>= addOwnProperty "Error" (VObj error)
+                    >>= addOwnProperty "ReferenceError" (VObj error)
+                    >>= addOwnProperty "undefined" (VUndef)
+                    >>= addOwnProperty "null" (VNull)
+                    >>= addOwnProperty "eval" (VNative objEval)
+                    >>= addOwnProperty "Infinity" (VNum $ read "Infinity")
+                    >>= addOwnProperty "NaN" (VNum $ read "NaN")
+                    >>= addOwnProperty "isNaN" (VNative objIsNaN)
+  put $ JSGlobal (Just this)
 
 makeObjectLiteral :: JSCxt -> [(PropertyName, Expr)] -> JSRuntime JSVal
 makeObjectLiteral cxt nameValueList =
@@ -734,3 +736,5 @@ objToString this _args = toString this >>= return . VStr
 toObject :: JSCxt -> JSVal -> JSRuntime JSVal
 toObject _ v@(VObj obj) = return v
 toObject cxt (VStr str) = runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
+toObject cxt (VException (v, _)) = return v
+toObject cxt v = toString v >>= toObject cxt . VStr

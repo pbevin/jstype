@@ -50,9 +50,19 @@ data JSRef = JSRef {
 
 data JSCxt = JSCxt {
   lexEnv :: JSEnv,
-  varEnv :: JSEnv,
+  varEnv :: JSEnv, -- never changes, might not need to be shared?
   thisBinding :: JSVal
 }
+
+type JSEnv = Shared LexEnv
+
+data LexEnv = LexEnv {
+  envRec :: EnvRec,
+  outer  :: Maybe JSEnv
+}
+
+data EnvRec = DeclEnvRec (Shared (M.Map Ident JSVal))
+            | ObjEnvRec (Shared JSObj)
 
 data JSType = TypeUndefined
             | TypeNull
@@ -88,19 +98,14 @@ instance Eq JSVal where
   a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
 
 
-data LexEnv = LexEnv {
-  envRec :: EnvRec,
-  outer  :: Maybe JSEnv
-}
-
-newtype EnvRec = EnvRec { fromEnvRec :: M.Map Ident JSVal } deriving (Show, Eq)
 
 newEnv :: JSEnv -> JSRuntime JSEnv
-newEnv parent = share $ LexEnv { envRec = EnvRec M.empty, outer = Just parent }
+newEnv parent = do
+  m <- share M.empty
+  share $ LexEnv (DeclEnvRec m) (Just parent)
 
 type JSOutput = String
 type JSError = (JSVal, [SrcLoc])
-type JSEnv = Shared LexEnv
 type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 newtype JSGlobal = JSGlobal {

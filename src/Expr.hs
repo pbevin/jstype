@@ -65,6 +65,7 @@ data Expr = Num JSNum
           | PostOp Operator Expr
           | NewExpr Expr [Expr]
           | ReadVar Ident
+          | ReadVarStrict Ident
           | Assign Expr String Expr
           | Cond Expr Expr Expr
           | MemberDot Expr Ident  -- e.g., point.x
@@ -131,21 +132,21 @@ instance RealFrac JSNum where
 
 sourceLocation :: Statement -> SrcLoc
 sourceLocation stmt = case stmt of
-  Block s _ -> s
-  LabelledStatement s _ _ -> s
-  VarDecl s _ -> s
-  ExprStmt s _ -> s
-  IfStatement s _ _ _ -> s
-  WhileStatement s _ _ -> s
-  DoWhileStatement s _ _ -> s
-  For s _ _ -> s
-  ContinueStatement s _ -> s
-  BreakStatement s _ -> s
-  Return s _ -> s
-  ThrowStatement s _ -> s
-  TryStatement s _ _ _ -> s
-  EmptyStatement s -> s
-  DebuggerStatement s -> s
+  Block loc _ -> loc
+  LabelledStatement loc _ _ -> loc
+  VarDecl loc _ -> loc
+  ExprStmt loc _ -> loc
+  IfStatement loc _ _ _ -> loc
+  WhileStatement loc _ _ -> loc
+  DoWhileStatement loc _ _ -> loc
+  For loc _ _ -> loc
+  ContinueStatement loc _ -> loc
+  BreakStatement loc _ -> loc
+  Return loc _ -> loc
+  ThrowStatement loc _ -> loc
+  TryStatement loc _ _ _ -> loc
+  EmptyStatement loc -> loc
+  DebuggerStatement loc -> loc
 
 
 s :: SrcLoc

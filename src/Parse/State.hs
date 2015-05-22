@@ -1,6 +1,6 @@
 module Parse.State where
 
-import Text.Parsec
+import Text.Parsec (getState, putState)
 import Control.Applicative
 import Data.List
 import Data.Maybe
@@ -12,6 +12,7 @@ import Parse.Types
 initialParseState :: ParseState
 initialParseState = ParseState { inKeywordAllowed = True,
                                  insideIteration = False,
+                                 strictness = NotStrict,
                                  labelSet = [],
                                  contextDescription = Nothing }
 
@@ -25,6 +26,9 @@ removeIn ops = do
 withLabel :: Label -> JSParser a -> JSParser a
 withLabel label = recurseState addLabel
   where addLabel st = st { labelSet = label : labelSet st }
+
+withStrictness :: Strictness -> JSParser a -> JSParser a
+withStrictness isStrict = recurseState $ \st -> st { strictness = isStrict }
 
 withoutInKeyword :: JSParser a -> JSParser a
 withoutInKeyword = recurseState $ \st -> st { inKeywordAllowed = False }
@@ -56,6 +60,9 @@ fromLabelSet p = do
 
 currentContext :: JSParser (Maybe String)
 currentContext = contextDescription <$> getState
+
+getStrictness :: JSParser Strictness
+getStrictness = strictness <$> getState
 
 
 

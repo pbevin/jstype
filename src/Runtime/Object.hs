@@ -2,9 +2,11 @@ module Runtime.Object where
 
 import Data.Functor
 import Control.Monad.Except
+import Control.Monad.State
 import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Types
+import Debug.Trace
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
@@ -23,6 +25,33 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> JSObj -> JSRuntime JSVal
 objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
+
+type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
+
+updateObj :: (JSObj -> JSObj) -> ObjectModifier
+updateObj f objRef = modifyRef' objRef f
+
+setClass :: String -> ObjectModifier
+setClass cls = updateObj $ \obj -> obj { objClass = cls }
+
+setCallMethod :: JSFunction -> ObjectModifier
+setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
+
+setPrimitiveValue :: JSVal -> ObjectModifier
+setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
+
+addOwnProperty :: String -> JSVal -> ObjectModifier
+addOwnProperty name val = updateObj $ objSetProperty name val
+
+
+getGlobalObject :: JSRuntime (Shared JSObj)
+getGlobalObject = do
+  global <- get
+  case globalObject global of
+    Nothing -> raiseError "No global object"
+    Just obj -> return obj
+  -- return $ fromJust $ globalObject global
+  -- maybe (raiseError "No global object") return (globalObject global)
 
 fromHint :: PrimitiveHint -> JSVal
 fromHint HintNone = VUndef

@@ -11,7 +11,6 @@ import Runtime.Conversion
 import Parse
 import Expr
 import Eval
-import ShowExpr
 
 main :: IO ()
 main = do

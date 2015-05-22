@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Parse.Statements where
 
 import Text.Parsec hiding (many, (<|>), optional)
@@ -19,8 +21,9 @@ prog = do
 statementList :: JSParser (Strictness, [Statement])
 statementList = do
   strictness <- directivePrefix
-  statements <- many statement
-  return (strictness, statements)
+  withStrictness strictness $ do
+    statements <- many statement
+    return (strictness, statements)
 
 directivePrefix :: JSParser Strictness
 directivePrefix = do
@@ -346,7 +349,10 @@ this :: JSParser Expr
 this = try $ keyword "this" >> return This
 
 var :: JSParser Expr
-var = liftM ReadVar identifier
+var = do
+  getStrictness >>= \case
+    Strict -> ReadVarStrict <$> identifier
+    NotStrict -> ReadVar <$> identifier
 
 arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets arrayContents

@@ -29,7 +29,7 @@ spec = do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
     runJStr "var a = 3; console.log(a);" `shouldReturn` Right "3\n"
     runJStr "var a = 3; console.log(a+4);" `shouldReturn` Right "7\n"
-  
+
   it "does update-assignments" $ do
     runJStr "var a = 10; a += 1; console.log(a);" `shouldReturn` Right "11\n"
     runJStr "var a = 10; a -= 1; console.log(a);" `shouldReturn` Right "9\n"
@@ -40,7 +40,7 @@ spec = do
     runJStr "a = 10; console.log(a)" `shouldReturn` Right "10\n"
 
   it "will not assign an undeclared var in strict mode" $ do
-    runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: No such variable a"
+    runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: a is not defined"
 
   it "does +, - and void prefixes" $ do
     runJStr "var a = '5'; console.log(+a); console.log(a)"
@@ -133,7 +133,7 @@ spec = do
     runJStr "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJStr "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
 
-  it "can still type a variable that doesn't exist" $ do
+  it "can still typeof a variable that doesn't exist" $ do
     jsEvalExpr "typeof x" `shouldReturn` VStr "undefined"
 
   it "can define a function" $ do
