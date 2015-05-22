@@ -9,9 +9,9 @@ import Expr
 import Eval
 import Runtime.Types
 
-shouldError :: Show b => IO (Either (JSVal, a) b) -> String -> Expectation
+shouldError :: Show b => IO (Either JSError b) -> String -> Expectation
 shouldError val error = val >>= \case
-  Left (s, _) -> s `shouldBe` VStr error
+  Left (_, s, _) -> s `shouldBe` VStr error
   Right v     -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
 
 spec :: Spec
@@ -164,14 +164,14 @@ spec = do
     `shouldReturn` Right "hi\n";
 
   it "raises an error to the top level" $ do
-    runJStr "throw 'hi'" `shouldReturn` Left (VStr "hi", [])
+    runJStr "throw 'hi'" `shouldReturn` Left ("Error", VStr "hi", [])
 
   it "evaluates || properly" $ do
     runJStr "console.log(1 || 2)" `shouldReturn` Right "1\n"
     runJStr "console.log(false || 2)" `shouldReturn` Right "2\n"
 
   it "raises runtime exceptions" $ do
-    runJStr "var a; a();" `shouldError` "Can't call undefined"
+    runJStr "var a; a();" `shouldError` "Function a is undefined"
 
   it "can throw an exception from a function" $ do
     let prog = unlines [

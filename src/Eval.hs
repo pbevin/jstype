@@ -41,7 +41,7 @@ runJS sourceName input = do
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left (VStr $ "SyntaxError: " ++ show err, []), ""), JSGlobal Nothing)
+  Left err -> return ((Left ("SyntaxError", VStr $ show err, []), ""), JSGlobal Nothing)
   Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal
@@ -86,12 +86,13 @@ runProg (Program strictness stmts) = do
   result <- runStmts cxt stmts
   case result of
     (CTNormal, v, _) -> return v
-    (CTThrow, Just (VException exc@(err, trace)), _) -> do
+    (CTThrow, Just (VException exc@(excType, err, trace)), _) -> do
       msg <- callToString cxt err
-      printStackTrace (msg, trace); throwError (msg, trace)
+      printStackTrace exc
+      throwError (excType, msg, trace)
     (CTThrow, Just v, _) -> do
       v' <- callToString cxt v
-      throwError (v', [])
+      throwError ("Error", v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -107,8 +108,8 @@ callToString cxt v = do
 
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
-returnThrow s (err, trace) =
- let exc = VException (err, sourceLocation s : trace)
+returnThrow s (excType, err, trace) =
+ let exc = VException (excType, err, sourceLocation s : trace)
  in return (CTThrow, Just exc, Nothing)
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
@@ -250,9 +251,12 @@ memberGet lval prop =
 
 funCall :: JSCxt -> JSVal -> [JSVal] -> JSRuntime JSVal
 funCall cxt ref argList = do
-    func <- getValue ref
-    let thisValue = computeThisValue cxt ref
-    objCall cxt func thisValue argList
+  func <- getValue ref
+  if typeof func == TypeUndefined
+  then raiseError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
+  else let thisValue = computeThisValue cxt ref
+       in objCall cxt func thisValue argList
+
 
 readVar :: JSCxt -> Ident -> Strictness -> JSRuntime JSVal
 readVar cxt name strictness =
@@ -550,7 +554,8 @@ funcCall cxt paramList body this args =
     result <- runStmts (newCxt env) body
     case result of
       (CTReturn, Just v, _) -> return v
-      (CTThrow, Just v, _)  -> throwError (v, [])
+      (CTThrow, Just (VException v), _) -> throwError v
+      (CTThrow, Just v, _)  -> throwError ("", v, [])
       _ -> return VUndef
 
 -- ref 13.2.2, incomplete
@@ -649,11 +654,12 @@ objCall cxt func this args = case func of
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
+  VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
 
 stackTrace :: JSError -> String
-stackTrace (err, trace) = unlines $ show err : map show (reverse trace)
+stackTrace (excType, err, trace) = unlines $ show err : map show (reverse trace)
 
 
 printStackTrace :: JSError -> JSRuntime ()
@@ -684,7 +690,7 @@ createGlobalThis = do
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
-                    >>= addOwnProperty "e" (VNum $ JSNum (exp 1 :: Double))
+                    >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
 
   -- share $ LexEnv { outer = Nothing, envRec = DeclEnvRec map }
   this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
@@ -701,7 +707,7 @@ createGlobalThis = do
                     >>= addOwnProperty "undefined" (VUndef)
                     >>= addOwnProperty "null" (VNull)
                     >>= addOwnProperty "eval" (VNative objEval)
-                    >>= addOwnProperty "Infinity" (VNum $ read "Infinity")
+                    >>= addOwnProperty "Infinity" (VNum $ 1 / 0)
                     >>= addOwnProperty "NaN" (VNum $ read "NaN")
                     >>= addOwnProperty "isNaN" (VNative objIsNaN)
   put $ JSGlobal (Just this)
@@ -743,5 +749,5 @@ objToString this _args = toString this >>= return . VStr
 toObject :: JSCxt -> JSVal -> JSRuntime JSVal
 toObject _ v@(VObj obj) = return v
 toObject cxt (VStr str) = runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
-toObject cxt (VException (v, _)) = return v
+toObject cxt (VException (_, v, _)) = return v
 toObject cxt v = toString v >>= toObject cxt . VStr
