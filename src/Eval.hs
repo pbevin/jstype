@@ -683,6 +683,9 @@ createGlobalThis = do
   error <- newObject
   modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
 
+  math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
+                    >>= addOwnProperty "e" (VNum $ JSNum (exp 1 :: Double))
+
   -- share $ LexEnv { outer = Nothing, envRec = DeclEnvRec map }
   this <- newObject >>= addOwnProperty "escape" (VNative objEscape)
                     >>= addOwnProperty "console" (VObj console)
@@ -694,6 +697,7 @@ createGlobalThis = do
                     >>= addOwnProperty "Array" (VObj array)
                     >>= addOwnProperty "Error" (VObj error)
                     >>= addOwnProperty "ReferenceError" (VObj error)
+                    >>= addOwnProperty "Math" (VObj math)
                     >>= addOwnProperty "undefined" (VUndef)
                     >>= addOwnProperty "null" (VNull)
                     >>= addOwnProperty "eval" (VNative objEval)
