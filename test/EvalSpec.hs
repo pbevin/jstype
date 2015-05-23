@@ -18,6 +18,10 @@ shouldError val error = val >>= \case
 runJStr :: String -> IO (Either JSError String)
 runJStr = runJS ""
 
+isObj :: JSVal -> Bool
+isObj (VObj _) = True
+isObj _ = False
+
 
 spec :: Spec
 spec = do
@@ -159,7 +163,15 @@ spec = do
     runJStr "if (console === this) console.log(\"wrong\")" `shouldReturn` Right ""
 
   it "can define a simple object" $ do
-    runJStr "function Counter() { this.val = 0; }; Counter.prototype.inc = function() { this.val++ }; var counter = new Counter(); counter.inc(); counter.inc(); console.log(counter.val);" `shouldReturn` Right "2\n"
+    let prog = unlines [
+          "function Counter() { this.val = 0; };",
+          "Counter.prototype.inc = function() { this.val++ };",
+          "var counter = new Counter();",
+          "counter.inc();",
+          "counter.inc();",
+          "console.log(counter.val);" ]
+
+    runJStr prog `shouldReturn` Right "2\n"
 
   it "can create a new object" $ do
     runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
@@ -192,6 +204,13 @@ spec = do
     it "treats white space with respect" $ do
       -- test262: 11.6.1_A1
       jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VNum 2
+
+  describe "Boolean" $ do
+    it "can be called as a function" $ do
+      jsEvalExpr "Boolean(true)" `shouldReturn` VBool True
+    it "can be called as a constructor" $ do
+      v <- jsEvalExpr "new Boolean(true)"
+      v `shouldSatisfy` isObj
 
   describe "Number" $ do
     it "has a NaN property" $ do

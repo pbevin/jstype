@@ -39,6 +39,7 @@ data JSObj = JSObj {
   objClass :: String,
   ownProperties :: M.Map Ident JSVal,
   callMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal),
+  cstrMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal),
   primitive :: Maybe JSVal
 }
 
@@ -47,7 +48,7 @@ data JSRef = JSRef {
   getBase :: JSVal,
   getReferencedName :: Ident,
   strictness :: Strictness
-  } deriving Show
+} deriving Show
 
 data JSCxt = JSCxt {
   lexEnv :: JSEnv,

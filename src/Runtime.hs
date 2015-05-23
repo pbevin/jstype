@@ -14,6 +14,7 @@ import Control.Monad.Writer
 import Control.Applicative
 import Data.Maybe
 import qualified Data.Map as M
+import Safe
 
 import Runtime.Reference
 import Runtime.Types
@@ -45,10 +46,11 @@ emptyEnv = do
 
 newObject :: JSRuntime (Shared JSObj)
 newObject = do
-  prototype <- share objectPrototype
+  prototype <- share objectPrototype -- XXX
   share JSObj { objClass = "Object",
                 ownProperties = M.fromList [("prototype", VObj prototype)],
                 callMethod = Nothing,
+                cstrMethod = Nothing,
                 primitive = Nothing }
 
 objectPrototype :: JSObj
@@ -56,12 +58,19 @@ objectPrototype =
   JSObj { objClass = "Object",
           ownProperties =
             M.fromList [ ("prototype", VUndef),
-                         ("toString", VNative objToString) ],
+                         ("toString", VNative objToString),
+                         ("prim", VNative objPrimitive) ],
           callMethod = Nothing,
+          cstrMethod = Nothing,
           primitive = Nothing }
 
 objToString :: JSFunction
 objToString this _args = toString this >>= return . VStr
+
+objPrimitive :: JSFunction
+objPrimitive (VObj this) _args = do
+  obj <- deref this
+  objDefaultValue HintNone obj
 
 toObject :: JSCxt -> JSVal -> JSRuntime JSVal
 toObject _ v@(VObj obj) = return v
@@ -99,9 +108,17 @@ newObjectFromConstructor cxt fun args = case fun of
         f <- deref funref
         prototype <- objGetProperty "prototype" f
         modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
-        objCall cxt (VObj funref) (VObj obj) args
+        objCstr cxt (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
+
+-- ref 15.2.1.1
+objFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
+objFunction this args =
+  let arg = headDef VUndef args
+  in if arg == VUndef || arg == VNull
+     then VObj <$> newObject
+     else initialCxt >>= flip toObject (head args)
 
 objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 objConstructor _this _args = VObj <$> newObject
@@ -115,16 +132,6 @@ numConstructor this args = do
     VObj obj -> do
       VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
-
-boolConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
-boolConstructor this args = do
-  let val = VBool $ if null args
-                    then False
-                    else toBoolean (head args)
-  case this of
-    VObj obj -> do
-      VObj <$> (setClass "Boolean" obj >>= setPrimitiveValue val)
-    _ -> raiseError $ "boolConstructor called with this = " ++ show this
 
 stringConstructor :: JSFunction
 stringConstructor this args = do
@@ -181,7 +188,8 @@ createFunction paramList strict body cxt = do
   objref <- newObject
   modifyRef objref $
     \obj -> obj { objClass = "Function",
-                  callMethod = Just (funcCall cxt paramList body) }
+                  callMethod = Just (funcCall cxt paramList body),
+                  cstrMethod = Just (funcCall cxt paramList body) }
   return $ VObj objref
 
 -- ref 13.2.1, incomplete
@@ -206,6 +214,15 @@ objCall cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> raiseError "Can't call function: no callMethod"
+    Just method -> method this args
+  VUndef -> raiseError "Undefined function"
+  _ -> raiseError $ "Can't call " ++ show func
+
+objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCstr cxt func this args = case func of
+  VNative f -> f this args
+  VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
+    Nothing -> raiseError "Can't call function: no cstrMethod"
     Just method -> method this args
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
@@ -239,22 +256,23 @@ createGlobalThis = do
   function <- newObject
   modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
 
-  object <- newObject
-  modifyRef object $ objSetProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
-  modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
+  object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+                      >>= setCallMethod objFunction
+                      >>= setCstrMethod objConstructor
 
-  number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
+  string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") "String"
+  boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) "Boolean"
+  number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) "Number"
+                      >>= addOwnProperty "NaN" (VNum jsNaN)
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
-                      >>= setCallMethod numConstructor
 
-  boolean <- newObject >>= setCallMethod boolConstructor
-
-  string <- newObject >>= setCallMethod stringConstructor
 
   array <- newObject >>= setCallMethod arrayConstructor
 
-  error <- newObject
-  modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
+  -- error <- newObject
+  -- modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
+  error <- newObject >>= setCallMethod errConstructor
+                     >>= setCstrMethod errConstructor
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
                     >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
@@ -301,7 +319,7 @@ createGlobalThis = do
             >>= addOwnProperty "Infinity" (VNum $ 1 / 0)
             >>= addOwnProperty "NaN" (VNum $ jsNaN)
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
-  -- modify $ \st -> st { globalObject = Just this }
+
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction

@@ -37,11 +37,28 @@ setClass cls = updateObj $ \obj -> obj { objClass = cls }
 setCallMethod :: JSFunction -> ObjectModifier
 setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
 
+setCstrMethod :: JSFunction -> ObjectModifier
+setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
+
 setPrimitiveValue :: JSVal -> ObjectModifier
 setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
+
+isWrapperFor :: (JSVal -> JSRuntime JSVal) -> JSVal -> String -> ObjectModifier
+isWrapperFor f defaultValue name = updateObj $ \obj -> obj { objClass = name,
+                                                callMethod = Just call,
+                                                cstrMethod = Just cstr }
+  where
+    call _this args =
+      if null args then return defaultValue else f (head args)
+    cstr this args = do
+      val <- call this args
+      case this of
+        VObj obj -> do
+          VObj <$> (setClass name obj >>= setPrimitiveValue val)
+        _ -> raiseError $ name ++ " constructor called with this = " ++ show this
 
 
 fromHint :: PrimitiveHint -> JSVal
