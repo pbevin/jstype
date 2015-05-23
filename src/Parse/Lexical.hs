@@ -9,6 +9,7 @@ import Numeric (readHex)
 import Parse.Types
 import Data.Maybe
 import Expr
+import Parse.State
 
 
 sameLine :: SourcePos -> SourcePos -> Bool
@@ -30,10 +31,18 @@ brackets = surround "[" "]"
 identifier :: JSParser String
 identifier = try $ do
   name <- ident
-  if name `elem` reservedWords jsLang
+  reserved <- currentReservedWords
+  if name `elem` reserved
   then unexpected $ "reserved word " ++ name
   else whiteSpace >> return name
   where ident = (:) <$> oneOf identStart <*> many (oneOf identLetter)
+
+currentReservedWords :: JSParser [String]
+currentReservedWords = do
+  strict <- getStrictness
+  if strict == NotStrict
+  then return $ reservedWords jsLang
+  else return $ reservedWords jsLang ++ reservedWordsStrict jsLang
 
 reserved :: String -> JSParser ()
 reserved word = void $ try $ do

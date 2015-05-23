@@ -78,6 +78,7 @@ data Expr = Num JSNum
 
 data Lang = Lang {
   reservedWords :: [String],
+  reservedWordsStrict :: [String],
   assignOps :: [String],
   unaryOps :: [String],
   binaryOps :: [String],
@@ -86,12 +87,13 @@ data Lang = Lang {
 
 jsLang :: Lang
 jsLang = Lang {
-  reservedWords  =
+  reservedWords =
     words "break do instanceof typeof case else new var catch finally" ++
       words "return void continue for switch while debugger" ++
       words "function this with default if throw delete in try" ++
-      words "class enum extends super const export import" ++
-      words "implements let private public yield interface package protected static",
+      words "class enum extends super const export import",
+  reservedWordsStrict =
+    words "implements let private public yield interface package protected static",
   assignOps = [ "=", "+=", "-=", "*=", "/=", "%=",
                 "<<=", ">>=", ">>>=", "&=", "^=", "|="],
   unaryOps  = [ "delete", "void", "typeof",

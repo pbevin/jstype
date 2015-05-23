@@ -178,6 +178,10 @@ spec = do
     it "parses a while statement" $ do
       testParse "while (a) { }" `shouldBe` Program NotStrict [WhileStatement s (ReadVar "a") (Block s [])]
 
+    it "treats extra words as reserved when in strict mode" $ do
+      testParse "var public;" `shouldBe` Program NotStrict [VarDecl s [("public", Nothing)]]
+      unparseable "'use strict'; var public = 1;"
+
     it "parses a do-while statement" $ do
       testParse "do {} while (a);" `shouldBe` Program NotStrict [DoWhileStatement s (ReadVar "a") (Block s [])]
 
