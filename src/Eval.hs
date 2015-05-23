@@ -486,38 +486,31 @@ objEval _this args = case args of
             let Just (VException err) = sval
             in throwError err
 
-objIsNaN :: JSFunction
-objIsNaN _this args = case args of
-  [] -> return VUndef
-  (num:args) -> return $ VBool $ case num of
-    VNum a -> a /= a
-    _      -> False
-
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp op = case op of
-  "==="        -> tripleEquals id
-  "!=="        -> tripleEquals not
-  "=="         -> doubleEquals id
-  "!="         -> doubleEquals not
+  "==="        -> tripleEquals
+  "!=="        -> invert tripleEquals
+  "=="         -> doubleEquals
+  "!="         -> invert doubleEquals
   "instanceof" -> jsInstanceOf
   "+"          -> jsAdd
   "-"          -> numberOp (-)
   "*"          -> numberOp (*)
   "/"          -> numberOp (/)
   "%"          -> numberOp $ mod'
-  "<"          -> compareOp id         -- ref 11.8.1
-  ">"          -> flip (compareOp id)  -- ref 11.8.2
-  "<="         -> flip (compareOp not) -- ref 11.8.3
-  ">="         -> compareOp not        -- ref 11.8.4
-  "&"          -> bitwise (.&.)        -- ref 11.10
-  "|"          -> bitwise (.|.)        -- ref 11.10
-  "^"          -> bitwise xor          -- ref 11.10
+  "<"          -> lessThan                -- ref 11.8.1
+  ">"          -> flip (lessThan)         -- ref 11.8.2
+  "<="         -> flip (invert lessThan)  -- ref 11.8.3
+  ">="         -> invert lessThan         -- ref 11.8.4
+  "&"          -> bitwise (.&.)           -- ref 11.10
+  "|"          -> bitwise (.|.)           -- ref 11.10
+  "^"          -> bitwise xor             -- ref 11.10
   "<<"         -> bitshift shiftL
   ">>"         -> bitshift shiftR
   ">>>"        -> bitshift shiftR
   ","          -> commaOperator
-
   _            -> noSuchBinop op
+  where invert op x y = unaryNot =<< op x y
 
 noSuchBinop :: String -> JSVal -> JSVal -> JSRuntime JSVal
 noSuchBinop op a b = raiseError $

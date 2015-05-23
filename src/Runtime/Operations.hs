@@ -18,11 +18,11 @@ jsAdd a b = do
   else VNum <$> liftNum (+) a' b'
 
 -- ref 11.8.5
-compareOp :: (Bool -> Bool) -> JSVal -> JSVal -> JSRuntime JSVal
-compareOp op a b = do
+lessThan :: JSVal -> JSVal -> JSRuntime JSVal
+lessThan a b = do
   a' <- toPrimitive HintNumber a
   b' <- toPrimitive HintNumber b
-  liftM (VBool . op) $ if isString a' && isString b'
+  liftM VBool $ if isString a' && isString b'
   then liftStr (<) a' b'
   else liftNum (<) a' b'
 
@@ -49,8 +49,8 @@ liftStr op a b = do
 
 
 -- ref 11.9.6, incomplete
-tripleEquals :: (Bool->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
-tripleEquals op x y = return $ VBool $ op $ eq x y
+tripleEquals :: JSVal -> JSVal -> JSRuntime JSVal
+tripleEquals x y = return $ VBool $ eq x y
   where eq x y
           | typeof x /= typeof y        = False
           | typeof x == TypeUndefined   = True
@@ -62,8 +62,8 @@ tripleEquals op x y = return $ VBool $ op $ eq x y
           | typeof x == TypeFunction    = x == y
           | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
-doubleEquals :: (Bool->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
-doubleEquals op x y = return $ VBool $ op $ eq x y
+doubleEquals :: JSVal -> JSVal -> JSRuntime JSVal
+doubleEquals x y = return $ VBool $ eq x y
   where eq x y
           | typeof x == typeof y = eq' x y
           | typeof x == TypeUndefined && typeof y == TypeNull = True
@@ -146,3 +146,10 @@ pow x y
 
 isOddInteger :: RealFloat a => a -> Bool
 isOddInteger y = not (isInfinite y) && isInteger ((y+1)/2) && abs y < 1e20
+
+objIsNaN :: JSFunction
+objIsNaN _this args = case args of
+  [] -> return VUndef
+  (num:args) -> do
+    a <- toNumber num
+    return $ VBool (a /= a)
