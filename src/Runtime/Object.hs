@@ -44,15 +44,6 @@ addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
 
 
-getGlobalObject :: JSRuntime (Shared JSObj)
-getGlobalObject = do
-  global <- get
-  case globalObject global of
-    Nothing -> raiseError "No global object"
-    Just obj -> return obj
-  -- return $ fromJust $ globalObject global
-  -- maybe (raiseError "No global object") return (globalObject global)
-
 fromHint :: PrimitiveHint -> JSVal
 fromHint HintNone = VUndef
 fromHint HintNumber = VNum 0

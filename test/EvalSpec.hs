@@ -7,12 +7,17 @@ import Test.Hspec
 import qualified Data.Map as M
 import Expr
 import Eval
-import Runtime.Types
+import Runtime
 
 shouldError :: Show b => IO (Either JSError b) -> String -> Expectation
 shouldError val error = val >>= \case
   Left (_, s, _) -> s `shouldBe` VStr error
   Right v     -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
+
+
+runJStr :: String -> IO (Either JSError String)
+runJStr = runJS ""
+
 
 spec :: Spec
 spec = do

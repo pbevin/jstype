@@ -27,7 +27,7 @@ spec = do
 
   describe "doubleEquals" $ do
     let fromRight (Right (VBool a)) = a
-    let eq a b = runtime (doubleEquals id a b) >>= return . fromRight
+    let eq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
       eq (VNum 1) (VNum 1) `shouldReturn` True
@@ -46,7 +46,7 @@ spec = do
 
   describe "tripleEquals" $ do
     let fromRight (Right (VBool a)) = a
-    let eqq a b = runtime (doubleEquals id a b) >>= return . fromRight
+    let eqq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
       eqq (VNum 1) (VNum 1) `shouldReturn` True

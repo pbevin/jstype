@@ -5,11 +5,12 @@ module Runtime.Types where
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
+import Data.Maybe
 import Data.IORef
 import qualified Data.Map as M
 import Control.Applicative
-
 import Expr
+import JSNum
 
 data JSVal = VNum JSNum
            | VStr String
@@ -95,7 +96,7 @@ instance Eq JSVal where
   VObj a == VObj b       = a == b
   VBool a == VBool b     = a == b
   VNative _ == VNative _ = True -- XXX
-  a == b = error $ "Can't compare " ++ show a ++ " and " ++ show b
+  a == b = False
 
 
 
@@ -109,9 +110,6 @@ type ExceptionType = String
 type JSError = (ExceptionType, JSVal, [SrcLoc])
 type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
-newtype JSGlobal = JSGlobal {
-  globalObject :: Maybe (Shared JSObj)
-}
 
 newtype Shared a = Shared (IORef a) deriving Eq
 
@@ -136,6 +134,13 @@ newtype JSRuntime a = JS {
             Functor,
             Applicative)
 
+
+data JSGlobal = JSGlobal {
+  globalObject    :: Maybe (Shared JSObj),
+  globalEvaluator :: Maybe (String -> JSRuntime StmtReturn),
+  globalRun       :: Maybe (JSCxt -> [Statement] -> JSRuntime StmtReturn)
+  -- globalParser    :: Maybe (String -> Program)
+}
 
 raiseError :: String -> JSRuntime a
 raiseError s = throwError ("Error", VStr s, [])

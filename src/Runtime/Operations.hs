@@ -4,9 +4,43 @@ import Control.Monad
 import Control.Applicative
 import Data.Word
 import Data.Bits
+import Data.Fixed (mod')
 import Expr
+import JSNum
 import Runtime.Types
 import Runtime.Conversion
+
+evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
+evalBinOp op = case op of
+  "==="        -> tripleEquals
+  "!=="        -> invert tripleEquals
+  "=="         -> doubleEquals
+  "!="         -> invert doubleEquals
+  "instanceof" -> jsInstanceOf
+  "+"          -> jsAdd
+  "-"          -> numberOp (-)
+  "*"          -> numberOp (*)
+  "/"          -> numberOp (/)
+  "%"          -> numberOp $ mod'
+  "<"          -> lessThan                -- ref 11.8.1
+  ">"          -> flip (lessThan)         -- ref 11.8.2
+  "<="         -> flip (invert lessThan)  -- ref 11.8.3
+  ">="         -> invert lessThan         -- ref 11.8.4
+  "&"          -> bitwise (.&.)           -- ref 11.10
+  "|"          -> bitwise (.|.)           -- ref 11.10
+  "^"          -> bitwise xor             -- ref 11.10
+  "<<"         -> bitshift shiftL
+  ">>"         -> bitshift shiftR
+  ">>>"        -> bitshift shiftR
+  ","          -> commaOperator
+  _            -> noSuchBinop op
+  where invert op x y = unaryNot =<< op x y
+
+noSuchBinop :: String -> JSVal -> JSVal -> JSRuntime JSVal
+noSuchBinop op a b = raiseError $
+  "No binop `" ++ op ++ "' on " ++ show (a, b)
+
+
 
 -- ref 11.6.1, incomplete
 jsAdd :: JSVal -> JSVal -> JSRuntime JSVal

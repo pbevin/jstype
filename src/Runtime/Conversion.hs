@@ -2,7 +2,7 @@ module Runtime.Conversion where
 
 import Data.Maybe
 import Safe
-import Expr
+import JSNum
 import Runtime.Types
 import Runtime.Object
 

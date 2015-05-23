@@ -5,6 +5,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Runtime.Object
 import Runtime.Types
+import Runtime.Global (getGlobalObject)
 import Expr
 
 import Debug.Trace

@@ -7,10 +7,8 @@ import System.Exit
 import System.IO
 import System.Environment
 import Test.QuickCheck
-import Runtime.Conversion
-import Parse
-import Expr
-import Eval
+import Runtime.Conversion (showVal)
+import Eval (runJS, evalJS)
 
 main :: IO ()
 main = do

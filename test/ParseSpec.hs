@@ -7,6 +7,7 @@ import Test.Hspec
 import Expr
 import Parse
 import Eval
+import JSNum
 
 
 
