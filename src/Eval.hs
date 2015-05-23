@@ -678,6 +678,7 @@ createGlobalThis = do
   modifyRef object $ \obj -> obj { callMethod = Just objConstructor }
 
   number <- newObject >>= addOwnProperty "NaN" (VNum jsNaN)
+                      >>= addOwnProperty "isNaN" (VNative objIsNaN)
                       >>= setCallMethod numConstructor
 
   boolean <- newObject >>= setCallMethod boolConstructor
