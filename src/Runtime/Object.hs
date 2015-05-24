@@ -35,7 +35,6 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
 
 valGetProperty :: String -> JSVal -> JSRuntime (Maybe JSVal)
 valGetProperty name (VObj objRef) = deref objRef >>= objGetProperty name
-valGetProperty name (VException (obj, _)) = valGetProperty name obj
 valGetProperty _ _ = return Nothing
 
 -- ref 8.12.8, incomplete

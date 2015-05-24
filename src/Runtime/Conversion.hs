@@ -50,7 +50,7 @@ toString (VNum n)  = return $ numberToString $ fromJSNum n
 toString (VRef _) = return "(??ref)"
 toString (VObj _) = return "(??obj)"
 toString (VNative _) = return "(??native)"
-toString (VException _) = return "(??exception)"
+toString (VStacktrace st) = return $ unlines (map show st)
 toString (VEnv _) = return "(??env)"
 
 numberToString :: Double -> String

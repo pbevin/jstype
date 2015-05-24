@@ -20,7 +20,7 @@ data JSVal = VNum JSNum
            | VNull
            | VObj (Shared JSObj)
            | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
-           | VException JSError
+           | VStacktrace [SrcLoc]
            | VEnv JSEnv
 
 instance Show JSVal where
@@ -32,7 +32,7 @@ instance Show JSVal where
   show VNull  = "null"
   show (VObj _) = "[Object object]"
   show (VNative _) = "(native function)"
-  show (VException exc) = "Exception " ++ show exc
+  show (VStacktrace st) = "Stacktrace " ++ show st
   show _ = "???"
 
 data JSObj = JSObj {
@@ -80,16 +80,16 @@ data JSType = TypeUndefined
 
 typeof :: JSVal -> JSType
 typeof v = case v of
-  VNum _       -> TypeNumber
-  VStr _       -> TypeString
-  VBool _      -> TypeBoolean
-  VRef  _      -> TypeReference
-  VUndef       -> TypeUndefined
-  VNull        -> TypeNull
-  VNative _    -> TypeFunction
-  VObj _       -> TypeObject
-  VException _ -> TypeOther "Exception"
-  _            -> error $ "No idea what type " ++ show v ++ " is..."
+  VNum _        -> TypeNumber
+  VStr _        -> TypeString
+  VBool _       -> TypeBoolean
+  VRef  _       -> TypeReference
+  VUndef        -> TypeUndefined
+  VNull         -> TypeNull
+  VNative _     -> TypeFunction
+  VObj _        -> TypeObject
+  VStacktrace _ -> TypeOther "Stacktrace"
+  _             -> error $ "No idea what type " ++ show v ++ " is..."
 
 instance Eq JSVal where
   VNum a == VNum b       = a == b

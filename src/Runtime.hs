@@ -1,4 +1,4 @@
-module Runtime (module Runtime, module X) where 
+module Runtime (module Runtime, module X) where
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
@@ -51,7 +51,6 @@ toObject cxt (VStr str) = do
   obj <- newObject
   stringConstructor (VObj obj) [VStr str]
   -- runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
-toObject cxt (VException (v, _)) = return v
 toObject cxt v = toString v >>= toObject cxt . VStr
 
 
@@ -142,8 +141,7 @@ funcCall cxt paramList body this args =
     result <- jsRunStmts (newCxt env) body
     case result of
       (CTReturn, Just v, _) -> return v
-      (CTThrow, Just (VException v), _) -> throwError v
-      (CTThrow, Just v, _)  -> throwError (v, [])
+      (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
       _ -> return VUndef
 
 
@@ -156,8 +154,7 @@ objEval _this args = case args of
     result <- jsEvalCode text
     case result of
       (CTNormal, Just v, _) -> return v
-      (CTThrow, Just (VException v), _) -> throwError v
-      (CTThrow, Just v, _)  -> throwError (v, [])
+      (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
       _ -> return VUndef
 
 stackTrace :: JSError -> String
@@ -180,6 +177,7 @@ createGlobalObjectPrototype =
 
 createGlobalThis :: JSRuntime (Shared JSObj)
 createGlobalThis = do
+  objPrototype <- getGlobalObjectPrototype
   console <- newObject
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
@@ -204,6 +202,7 @@ createGlobalThis = do
 
   errorPrototype <- newObject >>= setClass "Error"
                               >>= addOwnProperty "toString" (VNative errorToString)
+                              >>= addOwnProperty "prototype" (VObj objPrototype)
 
   error <- newObject >>= setCallMethod errFunction
                      >>= setCstrMethod errConstructor

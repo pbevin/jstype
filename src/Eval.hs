@@ -113,9 +113,15 @@ debug a = do
   liftIO $ print a
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
-returnThrow s (err, trace) =
- let exc = VException (err, sourceLocation s : trace)
- in return (CTThrow, Just exc, Nothing)
+returnThrow s (err, trace) = do
+  setStacktrace err (sourceLocation s : trace)
+  return (CTThrow, Just err, Nothing)
+
+setStacktrace :: JSVal -> [SrcLoc] -> JSRuntime ()
+setStacktrace v@(VObj objRef) stack = do
+  void $ addOwnProperty "stack" (VStacktrace stack) objRef
+setStacktrace x stack = return ()
+
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
 runStmts = runStmts' (CTNormal, Nothing, Nothing) where

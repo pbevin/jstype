@@ -141,7 +141,6 @@ jsInstanceOf val cls =
   let typeError = raiseError "TypeError"
   in case cls of
     VObj objRef -> do
-      printVal val
       obj <- deref objRef
       if isJust (callMethod obj)
       then VBool <$> hasInstance obj val
@@ -225,8 +224,10 @@ objIsNaN _this args = case args of
 printVal :: JSVal -> JSRuntime ()
 printVal (VObj objRef) = do
   obj <- deref objRef
-  liftIO $ print $ "Object (class=" ++ objClass obj ++ ")"
+  liftIO $ print $ "***** ***** ***** Object (class=" ++ objClass obj ++ ")"
   mapM_ printProperty (M.toList (ownProperties obj))
-    where printProperty (key, val) = do liftIO $ print $ key ++ ":"
-                                        printVal val
+    where printProperty (key, val) =
+            if key == "prototype"
+            then liftIO (print $ key ++ ":") >> printVal val
+            else return ()
 printVal v = liftIO $ print ("aa", showVal v)
