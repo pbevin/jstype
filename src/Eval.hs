@@ -52,7 +52,7 @@ toRuntimeError (VStr err, stack) = RuntimeError err (map show stack)
 evalCode :: String -> JSRuntime StmtReturn
 evalCode text = do
   case parseJS' text "(eval)" of
-    Left err -> raiseError $ "SyntaxError: " ++ show err
+    Left err -> raiseSyntaxError (show err)
     Right (Program strictness stmts) -> do
       cxt <- JSCxt <$> initialEnv
                    <*> emptyEnv

@@ -14,17 +14,29 @@ raise :: JSVal -> JSRuntime a
 raise err = throwError (err, [])
 
 raiseReferenceError :: String -> JSRuntime a
-raiseReferenceError msg = createReferenceError msg >>= raise
+raiseReferenceError msg = createReferenceError (VStr msg) >>= raise
 
-createReferenceError :: String -> JSRuntime JSVal
-createReferenceError message = do
-  obj <- newObject >>= addOwnProperty "name" (VStr "ReferenceError")
-  errConstructor (VObj obj) [VStr message]
+createReferenceError :: JSVal -> JSRuntime JSVal
+createReferenceError = createError "ReferenceError"
+
+raiseSyntaxError :: String -> JSRuntime a
+raiseSyntaxError msg = createSyntaxError (VStr msg) >>= raise
 
 createSyntaxError :: JSVal -> JSRuntime JSVal
-createSyntaxError text =
-  VObj <$> (newObject >>= addOwnProperty "name" (VStr "SyntaxError")
-                      >>= addOwnProperty "message" text)
+createSyntaxError = createError "SyntaxError"
+
+createError :: String -> JSVal -> JSRuntime JSVal
+-- createError = do
+--   prototype <- getGlobalProperty name
+--   newObjectFromConstructor
+createError name message = do
+  prototype <- getGlobalProperty name
+           >>= valGetProperty "prototype"
+           >>= dflt VUndef
+
+  obj <- newObject >>= addOwnProperty "name" (VStr name)
+                   >>= addOwnProperty "prototype" prototype
+  errConstructor (VObj obj) [message]
 
 errFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
 errFunction this args = do

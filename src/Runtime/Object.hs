@@ -35,6 +35,7 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
 
 valGetProperty :: String -> JSVal -> JSRuntime (Maybe JSVal)
 valGetProperty name (VObj objRef) = deref objRef >>= objGetProperty name
+valGetProperty name (VException (obj, _)) = valGetProperty name obj
 valGetProperty _ _ = return Nothing
 
 -- ref 8.12.8, incomplete
@@ -45,6 +46,11 @@ type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
 
 updateObj :: (JSObj -> JSObj) -> ObjectModifier
 updateObj f objRef = modifyRef' objRef f
+
+getGlobalProperty :: String -> JSRuntime JSVal
+getGlobalProperty name = do
+  obj <- getGlobalObject
+  deref obj >>= return . fromMaybe (VUndef) . flip objGetOwnProperty name
 
 objClassName :: Shared JSObj -> JSRuntime String
 objClassName objRef = liftM objClass (deref objRef)

@@ -3,6 +3,7 @@ module Runtime.Operations where
 import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
+import qualified Data.Map as M
 import Data.Word
 import Data.Bits
 import Data.Fixed (mod')
@@ -119,7 +120,7 @@ hasInstance f val = do
   fun <- objGetProperty "prototype" f
   case fun  of
     Nothing -> raiseError "Object has no prototype"
-    Just o -> 
+    Just o ->
       if typeof o /= TypeObject
       then raiseError "TypeError"
       else searchPrototypes o val
@@ -140,6 +141,7 @@ jsInstanceOf val cls =
   let typeError = raiseError "TypeError"
   in case cls of
     VObj objRef -> do
+      printVal val
       obj <- deref objRef
       if isJust (callMethod obj)
       then VBool <$> hasInstance obj val
@@ -219,3 +221,12 @@ objIsNaN _this args = case args of
   (num:args) -> do
     a <- toNumber num
     return $ VBool (a /= a)
+
+printVal :: JSVal -> JSRuntime ()
+printVal (VObj objRef) = do
+  obj <- deref objRef
+  liftIO $ print $ "Object (class=" ++ objClass obj ++ ")"
+  mapM_ printProperty (M.toList (ownProperties obj))
+    where printProperty (key, val) = do liftIO $ print $ key ++ ":"
+                                        printVal val
+printVal v = liftIO $ print ("aa", showVal v)

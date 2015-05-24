@@ -64,23 +64,6 @@ computeThisValue cxt v = case v of
 
   _ -> thisBinding cxt
 
--- ref 13.2.2, incomplete
-newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
-newObjectFromConstructor cxt fun args = case fun of
-  VRef (JSRef _ name _) -> create name =<< getValue fun
-  _                     -> create (show fun) fun
-  where
-    create :: String -> JSVal -> JSRuntime (Shared JSObj)
-    create name f = case f of
-      VObj funref -> do
-        obj <- newObject
-        f <- deref funref
-        prototype <- objGetProperty "prototype" f
-        modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
-        objCstr cxt (VObj funref) (VObj obj) args
-        return obj
-      _ -> raiseError $ "Can't invoke constructor " ++ name
-
 -- ref 15.2.1.1
 objFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
 objFunction this args =
@@ -162,24 +145,6 @@ funcCall cxt paramList body this args =
       (CTThrow, Just (VException v), _) -> throwError v
       (CTThrow, Just v, _)  -> throwError (v, [])
       _ -> return VUndef
-
-objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
-objCall cxt func this args = case func of
-  VNative f -> f this args
-  VObj objref -> deref objref >>= \obj -> case callMethod obj of
-    Nothing -> raiseError "Can't call function: no callMethod"
-    Just method -> method this args
-  VUndef -> raiseError "Undefined function"
-  _ -> raiseError $ "Can't call " ++ show func
-
-objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
-objCstr cxt func this args = case func of
-  VNative f -> f this args
-  VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
-    Nothing -> raiseError "Can't call function: no cstrMethod"
-    Just method -> method this args
-  VUndef -> raiseError "Undefined function"
-  _ -> raiseError $ "Can't call " ++ show func
 
 
 -- ref 15.1.2.1
@@ -297,10 +262,15 @@ createGlobalThis = do
 
 
 errorType :: String -> JSVal -> JSRuntime (Shared JSObj)
-errorType name prototype = do
+errorType name parentPrototype = do
+  prototype <-
+    newObject >>= setClass "Error"
+              >>= addOwnProperty "prototype" parentPrototype
+              >>= addOwnProperty "name" (VStr name)
+
   newObject >>= setCallMethod errFunction
             >>= setCstrMethod errConstructor
-            >>= addOwnProperty "prototype" prototype
+            >>= addOwnProperty "prototype" (VObj prototype)
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
@@ -388,3 +358,42 @@ funCall cxt ref argList = do
   then raiseReferenceError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
   else let thisValue = computeThisValue cxt ref
        in objCall cxt func thisValue argList
+
+
+
+
+
+-- ref 13.2.2, incomplete
+newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
+newObjectFromConstructor cxt fun args = case fun of
+  VRef (JSRef _ name _) -> create name =<< getValue fun
+  _                     -> create (show fun) fun
+  where
+    create :: String -> JSVal -> JSRuntime (Shared JSObj)
+    create name f = case f of
+      VObj funref -> do
+        obj <- newObject
+        f <- deref funref
+        prototype <- objGetProperty "prototype" f
+        modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+        objCstr cxt (VObj funref) (VObj obj) args
+        return obj
+      _ -> raiseError $ "Can't invoke constructor " ++ name
+
+objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCall cxt func this args = case func of
+  VNative f -> f this args
+  VObj objref -> deref objref >>= \obj -> case callMethod obj of
+    Nothing -> raiseError "Can't call function: no callMethod"
+    Just method -> method this args
+  VUndef -> raiseError "Undefined function"
+  _ -> raiseError $ "Can't call " ++ show func
+
+objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCstr cxt func this args = case func of
+  VNative f -> f this args
+  VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
+    Nothing -> raiseError "Can't call function: no cstrMethod"
+    Just method -> method this args
+  VUndef -> raiseError "Undefined function"
+  _ -> raiseError $ "Can't call " ++ show func
