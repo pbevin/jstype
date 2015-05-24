@@ -1,14 +1,17 @@
 module Runtime.Operations where
 
 import Control.Monad
+import Control.Monad.Trans
 import Control.Applicative
 import Data.Word
 import Data.Bits
 import Data.Fixed (mod')
+import Data.Maybe
 import Expr
 import JSNum
 import Runtime.Types
 import Runtime.Conversion
+import Runtime.Object
 
 evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
 evalBinOp op = case op of
@@ -110,8 +113,38 @@ doubleEquals x y = return $ VBool $ eq x y
         eq' (VBool a) (VBool b) = a == b
         eq' (VObj a) (VObj b) = a == b
 
+-- ref 15.3.5.3
+hasInstance :: JSObj -> JSVal -> JSRuntime Bool
+hasInstance f val = do
+  fun <- objGetProperty "prototype" f
+  case fun  of
+    Nothing -> raiseError "Object has no prototype"
+    Just o -> 
+      if typeof o /= TypeObject
+      then raiseError "TypeError"
+      else searchPrototypes o val
+  where
+    searchPrototypes o v = do
+      po <- toString o
+      pv <- toString v
+      v' <- valGetProperty "prototype" v
+      case v' of
+        Nothing -> return False
+        Just p  -> if o == p
+                   then return True
+                   else searchPrototypes o p
+
+-- ref 11.8.6
 jsInstanceOf :: JSVal -> JSVal -> JSRuntime JSVal
-jsInstanceOf _a _b = return $ VBool True
+jsInstanceOf val cls =
+  let typeError = raiseError "TypeError"
+  in case cls of
+    VObj objRef -> do
+      obj <- deref objRef
+      if isJust (callMethod obj)
+      then VBool <$> hasInstance obj val
+      else typeError
+    _ -> typeError
 
 -- ref 11.10
 bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal

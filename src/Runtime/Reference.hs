@@ -6,6 +6,7 @@ import Data.Maybe
 import Runtime.Object
 import Runtime.Types
 import Runtime.Global (getGlobalObject)
+import Runtime.Error
 import Expr
 
 import Debug.Trace
@@ -75,7 +76,7 @@ getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmen
 putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
 putUnresolvable ref val =
   if isStrictReference ref
-  then raiseError $ "ReferenceError: " ++ getReferencedName ref ++ " is not defined"
+  then raiseReferenceError $ getReferencedName ref ++ " is not defined"
   else void $ getGlobalObject >>= addOwnProperty (getReferencedName ref) val
 
 isStrictReference :: JSRef -> Bool

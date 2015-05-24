@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Eval (runJS, evalJS, jsEvalExpr, runtime) where
+module Eval (runJS, evalJS, jsEvalExpr, runtime, RuntimeError(..)) where
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -19,24 +19,22 @@ import Runtime
 
 import Debug.Trace
 
+data RuntimeError = RuntimeError {
+  errorMessage :: String,
+  errorStack :: [String]
+} deriving (Show, Eq)
 
-evalJS :: String -> String -> IO (Either JSError (Maybe JSVal))
+evalJS :: String -> String -> IO (Either RuntimeError (Maybe JSVal))
 evalJS sourceName input = do
   runJS' sourceName input >>= \case
-    ((Left err, _), _) -> return $ Left err
+    ((Left err, _), _) -> return $ Left $ toRuntimeError err
     ((Right v, _), _)  -> return $ Right v
 
-runJS :: String -> String -> IO (Either JSError String)
+runJS :: String -> String -> IO (Either RuntimeError String)
 runJS sourceName input = do
-  r <- runJS' sourceName input
-  case r of
-    ((Left err, _), _)     -> return $ Left err
+  runJS' sourceName input >>= \case
+    ((Left err, _), _)     -> return $ Left $ toRuntimeError err
     ((Right _, output), _) -> return $ Right output
-
-runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
-runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left ("SyntaxError", VStr $ show err, []), ""), emptyGlobal)
-  Right ast -> runJSRuntime (runProg ast)
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
@@ -47,6 +45,9 @@ jsEvalExpr input = do
   case result of
     Left err  -> error (show err)
     Right val -> return val
+
+toRuntimeError :: JSError -> RuntimeError
+toRuntimeError (VStr err, stack) = RuntimeError err (map show stack)
 
 evalCode :: String -> JSRuntime StmtReturn
 evalCode text = do
@@ -59,6 +60,11 @@ evalCode text = do
 
       runStmts cxt stmts
 
+runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
+runJS' sourceName input = case parseJS' input sourceName of
+  Left err -> return ((Left (VStr $ "SyntaxError: " ++ show err, []), ""), emptyGlobal)
+  Right ast -> runJSRuntime (runProg ast)
+
 runtime :: JSRuntime a -> IO (Either JSError a)
 runtime p = do
   result <- runJSRuntime p
@@ -70,6 +76,9 @@ runJSRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
 
 initGlobals :: JSRuntime ()
 initGlobals = do
+  objProto <- createGlobalObjectPrototype
+  modify $ \st -> st { globalObjectPrototype = Just objProto }
+
   newGlobalObject <- createGlobalThis
   modify $ \st -> st { globalObject = Just newGlobalObject,
                        globalEvaluator = Just evalCode,
@@ -83,13 +92,9 @@ runProg (Program strictness stmts) = do
   result <- runStmts cxt stmts
   case result of
     (CTNormal, v, _) -> return v
-    (CTThrow, Just (VException exc@(excType, err, trace)), _) -> do
-      msg <- callToString cxt err
-      printStackTrace exc
-      throwError (excType, msg, trace)
     (CTThrow, Just v, _) -> do
       v' <- callToString cxt v
-      throwError ("Error", v', [])
+      throwError (VStr $ show v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -103,10 +108,13 @@ callToString cxt v = do
 
 
 
+debug :: Show a => a -> JSRuntime ()
+debug a = do
+  liftIO $ print a
 
 returnThrow :: Statement -> JSError -> JSRuntime StmtReturn
-returnThrow s (excType, err, trace) =
- let exc = VException (excType, err, sourceLocation s : trace)
+returnThrow s (err, trace) =
+ let exc = VException (err, sourceLocation s : trace)
  in return (CTThrow, Just exc, Nothing)
 
 runStmts :: JSCxt -> [Statement] -> JSRuntime StmtReturn
@@ -346,7 +354,7 @@ modifyingOp op returnOp cxt e = do
           retVal = VNum $ returnOp val
       putValue ref newVal
       return retVal
-    _ -> raiseError $ "ReferenceError: " ++ show e ++ " is not assignable"
+    _ -> raiseReferenceError $ show e ++ " is not assignable"
 
 purePrefix :: (JSVal -> JSRuntime JSVal) -> JSCxt -> Expr -> JSRuntime JSVal
 purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f

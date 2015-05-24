@@ -3,6 +3,7 @@ module Runtime ( module Runtime.Types
                , module Runtime.Object
                , module Runtime.Operations
                , module Runtime.Conversion
+               , module Runtime.Error
                , getGlobalObject
                , emptyGlobal
                , module Runtime) where
@@ -22,6 +23,7 @@ import Runtime.Object
 import Runtime.Operations
 import Runtime.Conversion
 import Runtime.Global
+import Runtime.Error
 import Parse
 import Expr
 import JSNum
@@ -44,28 +46,8 @@ emptyEnv = do
   m <- share M.empty
   share $ LexEnv (DeclEnvRec m) Nothing
 
-newObject :: JSRuntime (Shared JSObj)
-newObject = do
-  prototype <- share objectPrototype -- XXX
-  share JSObj { objClass = "Object",
-                ownProperties = M.fromList [("prototype", VObj prototype)],
-                callMethod = Nothing,
-                cstrMethod = Nothing,
-                primitive = Nothing }
-
-objectPrototype :: JSObj
-objectPrototype =
-  JSObj { objClass = "Object",
-          ownProperties =
-            M.fromList [ ("prototype", VUndef),
-                         ("toString", VNative objToString),
-                         ("prim", VNative objPrimitive) ],
-          callMethod = Nothing,
-          cstrMethod = Nothing,
-          primitive = Nothing }
-
 objToString :: JSFunction
-objToString this _args = toString this >>= return . VStr
+objToString this _args = return $ VStr "[object Object]"
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
@@ -78,7 +60,7 @@ toObject cxt (VStr str) = do
   obj <- newObject
   stringConstructor (VObj obj) [VStr str]
   -- runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
-toObject cxt (VException (_, v, _)) = return v
+toObject cxt (VException (v, _)) = return v
 toObject cxt v = toString v >>= toObject cxt . VStr
 
 
@@ -90,10 +72,6 @@ computeThisValue cxt v = case v of
     else thisBinding cxt
 
   _ -> thisBinding cxt
-createError :: JSVal -> JSRuntime JSVal
-createError text =
-  VObj <$> (newObject >>= setClass "Error"
-                      >>= addOwnProperty "message" text)
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
@@ -159,21 +137,6 @@ createArray vals =
     VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
 
 
-errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
-errConstructor this args =
-  let text = head args
-  in case this of
-    VObj obj -> do
-      setClass "Error" obj >>= addOwnProperty "message" text
-                           >>= addOwnProperty "toString" (VNative errorToString)
-                           >>= return . VObj
-
-errorToString :: JSFunction
-errorToString (VObj this) _args = do
-  obj <- deref this
-  msg <- objGetProperty "message" obj
-  return $ VStr $ objClass obj ++ ": " ++ showVal (fromMaybe VUndef msg)
-
 funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
 funConstructor this [arg] = do
   body <- toString arg
@@ -206,7 +169,7 @@ funcCall cxt paramList body this args =
     case result of
       (CTReturn, Just v, _) -> return v
       (CTThrow, Just (VException v), _) -> throwError v
-      (CTThrow, Just v, _)  -> throwError ("", v, [])
+      (CTThrow, Just v, _)  -> throwError (v, [])
       _ -> return VUndef
 
 objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
@@ -238,15 +201,26 @@ objEval _this args = case args of
     case result of
       (CTNormal, Just v, _) -> return v
       (CTThrow, Just (VException v), _) -> throwError v
-      (CTThrow, Just v, _)  -> throwError ("", v, [])
+      (CTThrow, Just v, _)  -> throwError (v, [])
       _ -> return VUndef
 
 stackTrace :: JSError -> String
-stackTrace (excType, err, trace) = unlines $ show err : map show (reverse trace)
+stackTrace (err, trace) = unlines $ show err : map show (reverse trace)
 
 
 printStackTrace :: JSError -> JSRuntime ()
 printStackTrace = liftIO . putStrLn . stackTrace
+
+createGlobalObjectPrototype :: JSRuntime (Shared JSObj)
+createGlobalObjectPrototype =
+  share $ JSObj { objClass = "Object",
+                  ownProperties =
+                    M.fromList [ ("prototype", VUndef),
+                                 ("toString", VNative objToString),
+                                 ("prim", VNative objPrimitive) ],
+                  callMethod = Nothing,
+                  cstrMethod = Nothing,
+                  primitive = Nothing }
 
 createGlobalThis :: JSRuntime (Shared JSObj)
 createGlobalThis = do
@@ -271,8 +245,17 @@ createGlobalThis = do
 
   -- error <- newObject
   -- modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
-  error <- newObject >>= setCallMethod errConstructor
+
+  errorPrototype <- newObject >>= setClass "Error"
+                              >>= addOwnProperty "toString" (VNative errorToString)
+
+  error <- newObject >>= setCallMethod errFunction
                      >>= setCstrMethod errConstructor
+                     >>= addOwnProperty "prototype" (VObj errorPrototype)
+
+
+  referenceError <- errorType "ReferenceError" (VObj errorPrototype)
+  syntaxError    <- errorType "SyntaxError" (VObj errorPrototype)
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
                     >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
@@ -311,7 +294,8 @@ createGlobalThis = do
             >>= addOwnProperty "Object" (VObj object)
             >>= addOwnProperty "Array" (VObj array)
             >>= addOwnProperty "Error" (VObj error)
-            >>= addOwnProperty "ReferenceError" (VObj error)
+            >>= addOwnProperty "ReferenceError" (VObj referenceError)
+            >>= addOwnProperty "SyntaxError" (VObj syntaxError)
             >>= addOwnProperty "Math" (VObj math)
             >>= addOwnProperty "undefined" (VUndef)
             >>= addOwnProperty "null" (VNull)
@@ -320,6 +304,12 @@ createGlobalThis = do
             >>= addOwnProperty "NaN" (VNum $ jsNaN)
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
 
+
+errorType :: String -> JSVal -> JSRuntime (Shared JSObj)
+errorType name prototype = do
+  newObject >>= setCallMethod errFunction
+            >>= setCstrMethod errConstructor
+            >>= addOwnProperty "prototype" prototype
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
@@ -385,7 +375,7 @@ updateRef op lref rref =
       newVal <- evalBinOp op lval rval
       putValue ref newVal
       return newVal
-    _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
+    _ -> raiseReferenceError $ show lref ++ " is not assignable"
 
 isTruthy :: JSVal -> Bool
 isTruthy (VNum 0)      = False
@@ -404,7 +394,6 @@ funCall :: JSCxt -> JSVal -> [JSVal] -> JSRuntime JSVal
 funCall cxt ref argList = do
   func <- getValue ref
   if typeof func == TypeUndefined
-  then raiseError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
+  then raiseReferenceError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
   else let thisValue = computeThisValue cxt ref
        in objCall cxt func thisValue argList
-

@@ -9,13 +9,13 @@ import Expr
 import Eval
 import Runtime
 
-shouldError :: Show b => IO (Either JSError b) -> String -> Expectation
+shouldError :: Show b => IO (Either RuntimeError b) -> String -> Expectation
 shouldError val error = val >>= \case
-  Left (_, s, _) -> s `shouldBe` VStr error
-  Right v     -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
+  Left err -> errorMessage err `shouldBe` error
+  Right v  -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
 
 
-runJStr :: String -> IO (Either JSError String)
+runJStr :: String -> IO (Either RuntimeError String)
 runJStr = runJS ""
 
 isObj :: JSVal -> Bool
@@ -181,14 +181,14 @@ spec = do
     `shouldReturn` Right "hi\n";
 
   it "raises an error to the top level" $ do
-    runJStr "throw 'hi'" `shouldReturn` Left ("Error", VStr "hi", [])
+    runJStr "throw 'hi'" `shouldError` "hi"
 
   it "evaluates || properly" $ do
     runJStr "console.log(1 || 2)" `shouldReturn` Right "1\n"
     runJStr "console.log(false || 2)" `shouldReturn` Right "2\n"
 
   it "raises runtime exceptions" $ do
-    runJStr "var a; a();" `shouldError` "Function a is undefined"
+    runJStr "var a; a();" `shouldError` "ReferenceError: Function a is undefined"
 
   it "can throw an exception from a function" $ do
     let prog = unlines [
@@ -204,6 +204,12 @@ spec = do
     it "treats white space with respect" $ do
       -- test262: 11.6.1_A1
       jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VNum 2
+
+    it "throws a SyntaxError if parsing fails" $ do
+      runJStr "try { eval('var'); } catch (e) { if (e instanceof SyntaxError) { console.log('OK 1') } }" `shouldReturn` Right "OK 1\n"
+
+    it "does not throw SyntaxError if the code fails to run" $ do
+      runJStr "try { eval('x.a.b'); } catch (e) { if (e instanceof SyntaxError) {} else { console.log('OK 2') } }" `shouldReturn` Right "OK 2\n"
 
   describe "Boolean" $ do
     it "can be called as a function" $ do

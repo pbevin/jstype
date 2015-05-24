@@ -5,7 +5,7 @@ import Runtime.Types
 import Expr
 
 emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal Nothing Nothing Nothing
+emptyGlobal = JSGlobal Nothing Nothing Nothing Nothing
 
 type SourceName = String
 type SourceCode = String
@@ -24,5 +24,12 @@ getGlobalObject :: JSRuntime (Shared JSObj)
 getGlobalObject = do
   global <- get
   case globalObject global of
+    Nothing -> raiseError "No global object"
+    Just obj -> return obj
+
+getGlobalObjectPrototype :: JSRuntime (Shared JSObj)
+getGlobalObjectPrototype = do
+  global <- get
+  case globalObjectPrototype global of
     Nothing -> raiseError "No global object"
     Just obj -> return obj

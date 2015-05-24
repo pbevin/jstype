@@ -29,7 +29,7 @@ toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
 toNumber (VNum n)   = return n
 toNumber (VStr s)   = return $ JSNum (fromMaybe 0 $ readMay s)
-toNumber v@(VObj obj) = toNumber =<< toPrimitive HintNumber v
+toNumber v@(VObj _) = toNumber =<< toPrimitive HintNumber v
 toNumber _ = return 0
 
 isString :: JSVal -> Bool
@@ -51,6 +51,7 @@ toString (VRef _) = return "(??ref)"
 toString (VObj _) = return "(??obj)"
 toString (VNative _) = return "(??native)"
 toString (VException _) = return "(??exception)"
+toString (VEnv _) = return "(??env)"
 
 numberToString :: Double -> String
 numberToString n

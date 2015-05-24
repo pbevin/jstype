@@ -107,8 +107,7 @@ newEnv parent = do
   share $ LexEnv (DeclEnvRec m) (Just parent)
 
 type JSOutput = String
-type ExceptionType = String
-type JSError = (ExceptionType, JSVal, [SrcLoc])
+type JSError = (JSVal, [SrcLoc])
 type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
 
 
@@ -138,12 +137,13 @@ newtype JSRuntime a = JS {
 
 data JSGlobal = JSGlobal {
   globalObject    :: Maybe (Shared JSObj),
+  globalObjectPrototype :: Maybe (Shared JSObj),
   globalEvaluator :: Maybe (String -> JSRuntime StmtReturn),
   globalRun       :: Maybe (JSCxt -> [Statement] -> JSRuntime StmtReturn)
   -- globalParser    :: Maybe (String -> Program)
 }
 
 raiseError :: String -> JSRuntime a
-raiseError s = throwError ("Error", VStr s, [])
+raiseError s = throwError (VStr s, [])
 
 data PrimitiveHint = HintNone | HintNumber

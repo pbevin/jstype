@@ -6,7 +6,18 @@ import Control.Monad.State
 import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Types
+import Runtime.Global
+
 import Debug.Trace
+
+newObject :: JSRuntime (Shared JSObj)
+newObject = do
+  prototype <- getGlobalObjectPrototype
+  share JSObj { objClass = "Object",
+                ownProperties = M.fromList [("prototype", VObj prototype)],
+                callMethod = Nothing,
+                cstrMethod = Nothing,
+                primitive = Nothing }
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
@@ -22,6 +33,10 @@ objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProper
           Just (VObj prototype) -> objGetProperty name =<< deref prototype
           _ -> return Nothing
 
+valGetProperty :: String -> JSVal -> JSRuntime (Maybe JSVal)
+valGetProperty name (VObj objRef) = deref objRef >>= objGetProperty name
+valGetProperty _ _ = return Nothing
+
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> JSObj -> JSRuntime JSVal
 objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
@@ -30,6 +45,13 @@ type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
 
 updateObj :: (JSObj -> JSObj) -> ObjectModifier
 updateObj f objRef = modifyRef' objRef f
+
+objClassName :: Shared JSObj -> JSRuntime String
+objClassName objRef = deref objRef >>= return . objClass
+
+valClassName :: JSVal -> JSRuntime String
+valClassName (VObj objRef) = objClassName objRef
+valClassName _ = return "Object"
 
 setClass :: String -> ObjectModifier
 setClass cls = updateObj $ \obj -> obj { objClass = cls }
@@ -47,9 +69,10 @@ addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
 
 isWrapperFor :: (JSVal -> JSRuntime JSVal) -> JSVal -> String -> ObjectModifier
-isWrapperFor f defaultValue name = updateObj $ \obj -> obj { objClass = name,
-                                                callMethod = Just call,
-                                                cstrMethod = Just cstr }
+isWrapperFor f defaultValue name =
+  updateObj $ \obj -> obj { objClass = name,
+                            callMethod = Just call,
+                            cstrMethod = Just cstr }
   where
     call _this args =
       if null args then return defaultValue else f (head args)
