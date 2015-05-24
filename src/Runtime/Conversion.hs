@@ -8,7 +8,7 @@ import Runtime.Object
 
 
 -- ref 9.1, incomplete
-toPrimitive :: PrimitiveHint -> JSVal -> JSRuntime JSVal
+toPrimitive :: PrimitiveHint -> JSVal -> Runtime JSVal
 toPrimitive hint a = case a of
   VObj obj -> objDefaultValue hint =<< deref obj
   _        -> return a
@@ -23,7 +23,7 @@ toBoolean (VStr "") = False
 toBoolean _         = True
 
 -- ref 9.3, incomplete
-toNumber :: JSVal -> JSRuntime JSNum
+toNumber :: JSVal -> Runtime JSNum
 toNumber VUndef     = return jsNaN
 toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
@@ -41,7 +41,7 @@ showVal (VStr s) = s
 showVal (VNum (JSNum n)) = numberToString n
 showVal other = show other
 
-toString :: JSVal -> JSRuntime String
+toString :: JSVal -> Runtime String
 toString VUndef    = return "undefined"
 toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"

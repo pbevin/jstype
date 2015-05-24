@@ -8,5 +8,5 @@ data ParseState = ParseState {
   insideIteration :: Bool,
   strictness :: Strictness,
   labelSet :: [String],
-  contextDescription :: Maybe String }
+  contextDescription :: Maybe String } deriving Show
 type JSParser = Parsec String ParseState

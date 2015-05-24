@@ -21,18 +21,19 @@ import JSNum
 
 import Debug.Trace
 
-initialCxt :: JSRuntime JSCxt
+initialCxt :: Runtime JSCxt
 initialCxt = JSCxt <$> initialEnv
                    <*> emptyEnv
                    <*> (VObj <$> getGlobalObject)
+                   <*> pure NotStrict
 
-initialEnv :: JSRuntime JSEnv
+initialEnv :: Runtime JSEnv
 initialEnv = do
   global <- getGlobalObject
   share $ LexEnv (ObjEnvRec global) Nothing
 
 
-emptyEnv :: JSRuntime JSEnv
+emptyEnv :: Runtime JSEnv
 emptyEnv = do
   m <- share M.empty
   share $ LexEnv (DeclEnvRec m) Nothing
@@ -45,7 +46,7 @@ objPrimitive (VObj this) _args = do
   obj <- deref this
   objDefaultValue HintNone obj
 
-toObject :: JSCxt -> JSVal -> JSRuntime JSVal
+toObject :: JSCxt -> JSVal -> Runtime JSVal
 toObject _ v@(VObj obj) = return v
 toObject cxt (VStr str) = do
   obj <- newObject
@@ -64,17 +65,17 @@ computeThisValue cxt v = case v of
   _ -> thisBinding cxt
 
 -- ref 15.2.1.1
-objFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
+objFunction :: JSVal -> [JSVal] -> Runtime JSVal
 objFunction this args =
   let arg = headDef VUndef args
   in if arg == VUndef || arg == VNull
      then VObj <$> newObject
      else initialCxt >>= flip toObject (head args)
 
-objConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+objConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 objConstructor _this _args = VObj <$> newObject
 
-numConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+numConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 numConstructor this args = do
   num <- VNum <$> if null args
                   then return 0
@@ -102,7 +103,7 @@ arrayConstructor this args =
       VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
     _ -> raiseError $ "arrayConstructor called with this = " ++ show this
 
-createArray :: [Maybe JSVal] -> JSRuntime JSVal
+createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
   let len = VNum $ fromIntegral $ length vals
   in do
@@ -110,39 +111,41 @@ createArray vals =
     VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
 
 
-funConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor this [arg] = do
   body <- toString arg
   let Program strictness stmts = simpleParse body
   createFunction [] strictness stmts =<< JSCxt <$> initialEnv
                                                <*> emptyEnv
                                                <*> (VObj <$> getGlobalObject)
+                                               <*> pure strictness
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
-createFunction :: [Ident] -> Strictness -> [Statement] -> JSCxt -> JSRuntime JSVal
+createFunction :: [Ident] -> Strictness -> [Statement] -> JSCxt -> Runtime JSVal
 createFunction paramList strict body cxt = do
   objref <- newObject
   modifyRef objref $
     \obj -> obj { objClass = "Function",
-                  callMethod = Just (funcCall cxt paramList body),
-                  cstrMethod = Just (funcCall cxt paramList body) }
+                  callMethod = Just (funcCall cxt paramList strict body),
+                  cstrMethod = Just (funcCall cxt paramList strict body) }
   return $ VObj objref
 
 -- ref 13.2.1, incomplete
-funcCall :: JSCxt -> [Ident] -> [Statement] -> JSVal -> [JSVal] -> JSRuntime JSVal
-funcCall cxt paramList body this args =
+funcCall :: JSCxt -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
+funcCall cxt paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
-      newCxt env = cxt { thisBinding = this, lexEnv = env }
-      addToNewEnv :: JSEnv -> Ident -> JSVal -> JSRuntime ()
+      newCxt env = cxt { thisBinding = this, lexEnv = env, cxtStrictness = strict }
+      addToNewEnv :: JSEnv -> Ident -> JSVal -> Runtime ()
       addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
   in do
     env <- newEnv (lexEnv cxt)
     zipWithM_ (addToNewEnv env) paramList args
-    result <- jsRunStmts (newCxt env) body
-    case result of
-      (CTReturn, Just v, _) -> return v
-      (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
-      _ -> return VUndef
+    withNewContext (newCxt env) $ do
+      result <- jsRunStmts (newCxt env) body
+      case result of
+        (CTReturn, Just v, _) -> return v
+        (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
+        _ -> return VUndef
 
 
 -- ref 15.1.2.1
@@ -161,10 +164,10 @@ stackTrace :: JSError -> String
 stackTrace (err, trace) = unlines $ show err : map show (reverse trace)
 
 
-printStackTrace :: JSError -> JSRuntime ()
+printStackTrace :: JSError -> Runtime ()
 printStackTrace = liftIO . putStrLn . stackTrace
 
-createGlobalObjectPrototype :: JSRuntime (Shared JSObj)
+createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
   share $ JSObj { objClass = "Object",
                   ownProperties =
@@ -175,7 +178,7 @@ createGlobalObjectPrototype =
                   cstrMethod = Nothing,
                   primitive = Nothing }
 
-createGlobalThis :: JSRuntime (Shared JSObj)
+createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
   objPrototype <- getGlobalObjectPrototype
   console <- newObject
@@ -260,7 +263,7 @@ createGlobalThis = do
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
 
 
-errorType :: String -> JSVal -> JSRuntime (Shared JSObj)
+errorType :: String -> JSVal -> Runtime (Shared JSObj)
 errorType name parentPrototype = do
   prototype <-
     newObject >>= setClass "Error"
@@ -277,11 +280,11 @@ objEscape _this args = case args of
   [] -> return VUndef
   (x:xs) -> return x
 
-jsConsoleLog :: JSVal -> [JSVal] -> JSRuntime JSVal
+jsConsoleLog :: JSVal -> [JSVal] -> Runtime JSVal
 jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
 
 -- ref 15.2.3.3
-getOwnPropertyDescriptor :: JSVal -> [JSVal] -> JSRuntime JSVal
+getOwnPropertyDescriptor :: JSVal -> [JSVal] -> Runtime JSVal
 getOwnPropertyDescriptor _this xs = do
   let [objVal, propVal] = xs
 
@@ -297,13 +300,13 @@ getOwnPropertyDescriptor _this xs = do
 
   return $ VObj result
 
-putVar :: JSCxt -> Ident -> JSVal -> JSRuntime ()
-putVar (JSCxt envref _ _) x v = putValue ref v where
+putVar :: JSCxt -> Ident -> JSVal -> Runtime ()
+putVar (JSCxt envref _ _ _) x v = putValue ref v where
  ref = JSRef (VEnv envref) x NotStrict
 
 
 -- ref 10.2.2.1
-getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> JSRuntime JSRef
+getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> Runtime JSRef
 getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
   lex <- deref lexRef
@@ -315,7 +318,7 @@ getIdentifierReference (Just lexRef) name strict = do
 
 
 -- ref 11.13.1
-assignRef :: JSVal -> JSVal -> JSRuntime JSVal
+assignRef :: JSVal -> JSVal -> Runtime JSVal
 assignRef lref rref =
   case lref of
     VRef ref -> do
@@ -326,7 +329,7 @@ assignRef lref rref =
 
 
 
-updateRef :: String -> JSVal -> JSVal -> JSRuntime JSVal
+updateRef :: String -> JSVal -> JSVal -> Runtime JSVal
 updateRef op lref rref =
   case lref of
     VRef ref -> do
@@ -344,13 +347,13 @@ isTruthy (VBool False) = False
 isTruthy (VStr "")     = False
 isTruthy _             = True
 
-memberGet :: JSVal -> String -> JSRuntime JSVal
+memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop =
   case lval of
     VObj _ -> return $ VRef (JSRef lval prop NotStrict)
     _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
-funCall :: JSCxt -> JSVal -> [JSVal] -> JSRuntime JSVal
+funCall :: JSCxt -> JSVal -> [JSVal] -> Runtime JSVal
 funCall cxt ref argList = do
   func <- getValue ref
   if typeof func == TypeUndefined
@@ -363,12 +366,12 @@ funCall cxt ref argList = do
 
 
 -- ref 13.2.2, incomplete
-newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> JSRuntime (Shared JSObj)
+newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> Runtime (Shared JSObj)
 newObjectFromConstructor cxt fun args = case fun of
   VRef (JSRef _ name _) -> create name =<< getValue fun
   _                     -> create (show fun) fun
   where
-    create :: String -> JSVal -> JSRuntime (Shared JSObj)
+    create :: String -> JSVal -> Runtime (Shared JSObj)
     create name f = case f of
       VObj funref -> do
         obj <- newObject
@@ -379,7 +382,7 @@ newObjectFromConstructor cxt fun args = case fun of
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
 
-objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCall cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
@@ -388,7 +391,7 @@ objCall cxt func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
-objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> JSRuntime JSVal
+objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCstr cxt func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case cstrMethod obj of

@@ -28,10 +28,11 @@ statementList = do
 
 directivePrefix :: JSParser Strictness
 directivePrefix = do
+  currentStrictness <- getStrictness
   directives <- many (terminated quotedString)
   return $ if "use strict" `elem` directives
            then Strict
-           else NotStrict
+           else currentStrictness
 
 terminated :: JSParser a -> JSParser a
 terminated p = do
@@ -350,10 +351,7 @@ this :: JSParser Expr
 this = try $ keyword "this" >> return This
 
 var :: JSParser Expr
-var = do
-  getStrictness >>= \case
-    Strict -> ReadVarStrict <$> identifier
-    NotStrict -> ReadVar <$> identifier
+var = ReadVar <$> identifier
 
 arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets arrayContents

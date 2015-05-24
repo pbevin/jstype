@@ -45,11 +45,21 @@ spec = do
     runJStr "var a = 10; a *= 3; console.log(a);" `shouldReturn` Right "30\n"
     runJStr "var a = 10; a /= 2; console.log(a);" `shouldReturn` Right "5\n"
 
-  it "can assign an undeclared var in non-strict mode" $ do
-    runJStr "a = 10; console.log(a)" `shouldReturn` Right "10\n"
+  describe "Strict mode" $ do
+    it "can assign an undeclared var in non-strict mode" $ do
+      runJStr "a = 10; console.log(a)" `shouldReturn` Right "10\n"
 
-  it "will not assign an undeclared var in strict mode" $ do
-    runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: a is not defined"
+    it "will not assign an undeclared var in strict mode" $ do
+      runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: a is not defined"
+
+    it "applies to an eval in a strict function" $ do
+      let prog = unlines [ "function f() {",
+                           "  'use strict';",
+                           "  eval('var public = 1; console.log(\"no\");');",
+                           "}",
+                           "f();" ]
+      runJStr prog `shouldError` "SyntaxError: \"(eval)\" (line 1, column 11):\nunexpected reserved word public\nexpecting var declaration"
+
 
   it "does +, - and void prefixes" $ do
     runJStr "var a = '5'; console.log(+a); console.log(a)"

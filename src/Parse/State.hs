@@ -9,12 +9,12 @@ import Expr
 import Parse.Types
 
 
-initialParseState :: ParseState
-initialParseState = ParseState { inKeywordAllowed = True,
-                                 insideIteration = False,
-                                 strictness = NotStrict,
-                                 labelSet = [],
-                                 contextDescription = Nothing }
+initialParseState :: Strictness -> ParseState
+initialParseState strict = ParseState { inKeywordAllowed = True,
+                                        insideIteration = False,
+                                        strictness = strict,
+                                        labelSet = [],
+                                        contextDescription = Nothing }
 
 removeIn :: [String] -> JSParser [String]
 removeIn ops = do

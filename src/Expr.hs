@@ -67,7 +67,6 @@ data Expr = Num JSNum
           | PostOp Operator Expr
           | NewExpr Expr [Expr]
           | ReadVar Ident
-          | ReadVarStrict Ident
           | Assign Expr String Expr
           | Cond Expr Expr Expr
           | MemberDot Expr Ident  -- e.g., point.x

@@ -10,22 +10,22 @@ import Runtime.Conversion
 
 
 
-raise :: JSVal -> JSRuntime a
+raise :: JSVal -> Runtime a
 raise err = throwError (err, [])
 
-raiseReferenceError :: String -> JSRuntime a
+raiseReferenceError :: String -> Runtime a
 raiseReferenceError msg = createReferenceError (VStr msg) >>= raise
 
-createReferenceError :: JSVal -> JSRuntime JSVal
+createReferenceError :: JSVal -> Runtime JSVal
 createReferenceError = createError "ReferenceError"
 
-raiseSyntaxError :: String -> JSRuntime a
+raiseSyntaxError :: String -> Runtime a
 raiseSyntaxError msg = createSyntaxError (VStr msg) >>= raise
 
-createSyntaxError :: JSVal -> JSRuntime JSVal
+createSyntaxError :: JSVal -> Runtime JSVal
 createSyntaxError = createError "SyntaxError"
 
-createError :: String -> JSVal -> JSRuntime JSVal
+createError :: String -> JSVal -> Runtime JSVal
 -- createError = do
 --   prototype <- getGlobalProperty name
 --   newObjectFromConstructor
@@ -38,13 +38,13 @@ createError name message = do
                    >>= addOwnProperty "prototype" prototype
   errConstructor (VObj obj) [message]
 
-errFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
+errFunction :: JSVal -> [JSVal] -> Runtime JSVal
 errFunction this args = do
   className <- valClassName this
   obj <- newObject >>= setClass className
   errConstructor (VObj obj) args
 
-errConstructor :: JSVal -> [JSVal] -> JSRuntime JSVal
+errConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 errConstructor this args =
   let text = head args
   in case this of
@@ -54,7 +54,7 @@ errConstructor this args =
                >>= addOwnProperty "message" text
                >>= addOwnProperty "toString" (VNative errorToString)
 
-dflt :: JSVal -> Maybe JSVal -> JSRuntime JSVal
+dflt :: JSVal -> Maybe JSVal -> Runtime JSVal
 dflt d = return . fromMaybe d
 
 errorToString :: JSFunction

@@ -19,7 +19,7 @@ data JSVal = VNum JSNum
            | VUndef
            | VNull
            | VObj (Shared JSObj)
-           | VNative (JSVal -> [JSVal] -> JSRuntime JSVal)
+           | VNative (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv JSEnv
 
@@ -38,8 +38,8 @@ instance Show JSVal where
 data JSObj = JSObj {
   objClass :: String,
   ownProperties :: M.Map Ident JSVal,
-  callMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal),
-  cstrMethod :: Maybe (JSVal -> [JSVal] -> JSRuntime JSVal),
+  callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
+  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   primitive :: Maybe JSVal
 }
 
@@ -53,7 +53,8 @@ data JSRef = JSRef {
 data JSCxt = JSCxt {
   lexEnv :: JSEnv,
   varEnv :: JSEnv, -- never changes, might not need to be shared?
-  thisBinding :: JSVal
+  thisBinding :: JSVal,
+  cxtStrictness :: Strictness
 }
 
 type JSEnv = Shared LexEnv
@@ -97,18 +98,18 @@ instance Eq JSVal where
   VObj a == VObj b       = a == b
   VBool a == VBool b     = a == b
   VNative _ == VNative _ = True -- XXX
-  a == b = False
+  _a == _b = False
 
 
 
-newEnv :: JSEnv -> JSRuntime JSEnv
+newEnv :: JSEnv -> Runtime JSEnv
 newEnv parent = do
   m <- share M.empty
   share $ LexEnv (DeclEnvRec m) (Just parent)
 
 type JSOutput = String
 type JSError = (JSVal, [SrcLoc])
-type JSFunction = JSVal -> [JSVal] -> JSRuntime JSVal
+type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
 
 newtype Shared a = Shared (IORef a) deriving Eq
@@ -116,16 +117,16 @@ newtype Shared a = Shared (IORef a) deriving Eq
 data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
 type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)
 
-share :: a -> JSRuntime (Shared a)
+share :: a -> Runtime (Shared a)
 share a = liftM Shared $ liftIO $ newIORef a
-deref :: Shared a -> JSRuntime a
+deref :: Shared a -> Runtime a
 deref (Shared a) = liftIO $ readIORef a
-modifyRef :: Shared a -> (a -> a) -> JSRuntime ()
+modifyRef :: Shared a -> (a -> a) -> Runtime ()
 modifyRef (Shared a) f = liftIO $ modifyIORef a f
-modifyRef' :: Shared a -> (a -> a) -> JSRuntime (Shared a)
+modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
 modifyRef' a f = modifyRef a f >> return a
 
-newtype JSRuntime a = JS {
+newtype Runtime a = JS {
   unJS :: ExceptT JSError (WriterT String (StateT JSGlobal IO)) a
 } deriving (Monad, MonadIO,
             MonadWriter String,
@@ -138,12 +139,12 @@ newtype JSRuntime a = JS {
 data JSGlobal = JSGlobal {
   globalObject    :: Maybe (Shared JSObj),
   globalObjectPrototype :: Maybe (Shared JSObj),
-  globalEvaluator :: Maybe (String -> JSRuntime StmtReturn),
-  globalRun       :: Maybe (JSCxt -> [Statement] -> JSRuntime StmtReturn)
-  -- globalParser    :: Maybe (String -> Program)
+  globalEvaluator :: Maybe (String -> Runtime StmtReturn),
+  globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
+  globalContext   :: Maybe JSCxt
 }
 
-raiseError :: String -> JSRuntime a
+raiseError :: String -> Runtime a
 raiseError s = throwError (VStr s, [])
 
 data PrimitiveHint = HintNone | HintNumber

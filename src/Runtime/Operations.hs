@@ -14,7 +14,7 @@ import Runtime.Types
 import Runtime.Conversion
 import Runtime.Object
 
-evalBinOp :: String -> JSVal -> JSVal -> JSRuntime JSVal
+evalBinOp :: String -> JSVal -> JSVal -> Runtime JSVal
 evalBinOp op = case op of
   "==="        -> tripleEquals
   "!=="        -> invert tripleEquals
@@ -40,14 +40,14 @@ evalBinOp op = case op of
   _            -> noSuchBinop op
   where invert op x y = unaryNot =<< op x y
 
-noSuchBinop :: String -> JSVal -> JSVal -> JSRuntime JSVal
+noSuchBinop :: String -> JSVal -> JSVal -> Runtime JSVal
 noSuchBinop op a b = raiseError $
   "No binop `" ++ op ++ "' on " ++ show (a, b)
 
 
 
 -- ref 11.6.1, incomplete
-jsAdd :: JSVal -> JSVal -> JSRuntime JSVal
+jsAdd :: JSVal -> JSVal -> Runtime JSVal
 jsAdd a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
@@ -56,7 +56,7 @@ jsAdd a b = do
   else VNum <$> liftNum (+) a' b'
 
 -- ref 11.8.5
-lessThan :: JSVal -> JSVal -> JSRuntime JSVal
+lessThan :: JSVal -> JSVal -> Runtime JSVal
 lessThan a b = do
   a' <- toPrimitive HintNumber a
   b' <- toPrimitive HintNumber b
@@ -64,22 +64,22 @@ lessThan a b = do
   then liftStr (<) a' b'
   else liftNum (<) a' b'
 
-numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> JSRuntime JSVal
+numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> Runtime JSVal
 numberOp op a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   VNum <$> liftNum op a' b'
 
-boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> JSRuntime JSVal
+boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> Runtime JSVal
 boolOp op a b = return (VBool $ op a b)
 
-liftNum :: (JSNum -> JSNum -> a) -> JSVal -> JSVal -> JSRuntime a
+liftNum :: (JSNum -> JSNum -> a) -> JSVal -> JSVal -> Runtime a
 liftNum op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
   return $ n1 `op` n2
 
-liftStr :: (String -> String -> a) -> JSVal -> JSVal -> JSRuntime a
+liftStr :: (String -> String -> a) -> JSVal -> JSVal -> Runtime a
 liftStr op a b = do
   n1 <- toString a
   n2 <- toString b
@@ -87,7 +87,7 @@ liftStr op a b = do
 
 
 -- ref 11.9.6, incomplete
-tripleEquals :: JSVal -> JSVal -> JSRuntime JSVal
+tripleEquals :: JSVal -> JSVal -> Runtime JSVal
 tripleEquals x y = return $ VBool $ eq x y
   where eq x y
           | typeof x /= typeof y        = False
@@ -100,7 +100,7 @@ tripleEquals x y = return $ VBool $ eq x y
           | typeof x == TypeFunction    = x == y
           | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
-doubleEquals :: JSVal -> JSVal -> JSRuntime JSVal
+doubleEquals :: JSVal -> JSVal -> Runtime JSVal
 doubleEquals x y = return $ VBool $ eq x y
   where eq x y
           | typeof x == typeof y = eq' x y
@@ -115,7 +115,7 @@ doubleEquals x y = return $ VBool $ eq x y
         eq' (VObj a) (VObj b) = a == b
 
 -- ref 15.3.5.3
-hasInstance :: JSObj -> JSVal -> JSRuntime Bool
+hasInstance :: JSObj -> JSVal -> Runtime Bool
 hasInstance f val = do
   fun <- objGetProperty "prototype" f
   case fun  of
@@ -136,7 +136,7 @@ hasInstance f val = do
                    else searchPrototypes o p
 
 -- ref 11.8.6
-jsInstanceOf :: JSVal -> JSVal -> JSRuntime JSVal
+jsInstanceOf :: JSVal -> JSVal -> Runtime JSVal
 jsInstanceOf val cls =
   let typeError = raiseError "TypeError"
   in case cls of
@@ -148,44 +148,44 @@ jsInstanceOf val cls =
     _ -> typeError
 
 -- ref 11.10
-bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal
+bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> Runtime JSVal
 bitwise op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
   return $ VNum $ fromIntegral $ floor n1 `op` floor n2
 
-bitshift :: (Word32 -> Int -> Word32) -> JSVal -> JSVal -> JSRuntime JSVal
+bitshift :: (Word32 -> Int -> Word32) -> JSVal -> JSVal -> Runtime JSVal
 bitshift op = bitwise bop
   where bop a b = a `op` (fromIntegral b)
 
 chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
 chain f g h a = f a >>= g >>= h
 
-unaryOp :: (a -> JSVal) -> (JSVal -> JSRuntime a) -> (a -> a) -> JSVal -> JSRuntime JSVal
+unaryOp :: (a -> JSVal) -> (JSVal -> Runtime a) -> (a -> a) -> JSVal -> Runtime JSVal
 unaryOp toVal fromVal f = chain fromVal (return . f) (return . toVal)
 
-unaryNumOp :: (JSNum->JSNum) -> JSVal -> JSRuntime JSVal
+unaryNumOp :: (JSNum->JSNum) -> JSVal -> Runtime JSVal
 unaryNumOp = unaryOp VNum toNumber
 
 -- ref 11.4.6
-unaryPlus :: JSVal -> JSRuntime JSVal
+unaryPlus :: JSVal -> Runtime JSVal
 unaryPlus = unaryNumOp id
 
 -- ref 11.4.7
-unaryMinus :: JSVal -> JSRuntime JSVal
+unaryMinus :: JSVal -> Runtime JSVal
 unaryMinus = unaryNumOp negate
 
 -- ref 11.4.8
-unaryBitwiseNot :: JSVal -> JSRuntime JSVal
+unaryBitwiseNot :: JSVal -> Runtime JSVal
 unaryBitwiseNot = unaryOp (VNum . fromIntegral) toWord32 (complement :: Word32 -> Word32)
   where toWord32 = toNumber >=> return . floor
 
 -- ref 11.4.9
-unaryNot :: JSVal -> JSRuntime JSVal
+unaryNot :: JSVal -> Runtime JSVal
 unaryNot = unaryOp VBool (return . toBoolean) not
 
 -- ref 11.14
-commaOperator :: JSVal -> JSVal -> JSRuntime JSVal
+commaOperator :: JSVal -> JSVal -> Runtime JSVal
 commaOperator _ = return
 
 
@@ -221,7 +221,7 @@ objIsNaN _this args = case args of
     a <- toNumber num
     return $ VBool (a /= a)
 
-printVal :: JSVal -> JSRuntime ()
+printVal :: JSVal -> Runtime ()
 printVal (VObj objRef) = do
   obj <- deref objRef
   liftIO $ print $ "***** ***** ***** Object (class=" ++ objClass obj ++ ")"

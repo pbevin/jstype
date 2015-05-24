@@ -12,7 +12,7 @@ import Expr
 import Debug.Trace
 
 -- ref 8.7.1
-getValue :: JSVal -> JSRuntime JSVal
+getValue :: JSVal -> Runtime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
   | isUnresolvableReference ref = raiseError $ "ReferenceError: No such variable " ++ getReferencedName ref
@@ -21,7 +21,7 @@ getValue v
     where ref = unwrapRef v
 
 -- ref 8.7.2
-putValue :: JSRef -> JSVal -> JSRuntime ()
+putValue :: JSRef -> JSVal -> Runtime ()
 putValue ref w
   | isUnresolvableReference ref = putUnresolvable ref w
   | isPropertyReference ref     = putPropertyReference ref w
@@ -52,7 +52,7 @@ isUnresolvableReference ref =
     _      -> False
 
 
-getValuePropertyReference :: JSRef -> JSRuntime JSVal
+getValuePropertyReference :: JSRef -> Runtime JSVal
 getValuePropertyReference (JSRef (VObj objref) name _isStrict) = do
   obj <- deref objref
   val <- objGetProperty name obj
@@ -65,7 +65,7 @@ getValuePropertyReference _ = error "Internal error in getValuePropertyReference
 
 
 -- ref 10.2.1.1.4 incomplete
-getValueEnvironmentRecord :: JSRef -> JSRuntime JSVal
+getValueEnvironmentRecord :: JSRef -> Runtime JSVal
 getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
   val <- deref envRef >>= envLookup name . envRec
   return $ fromMaybe VUndef $ val
@@ -73,7 +73,7 @@ getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmen
 
 
 
-putUnresolvable :: JSRef -> JSVal -> JSRuntime ()
+putUnresolvable :: JSRef -> JSVal -> Runtime ()
 putUnresolvable ref val =
   if isStrictReference ref
   then raiseReferenceError $ getReferencedName ref ++ " is not defined"
@@ -83,12 +83,12 @@ isStrictReference :: JSRef -> Bool
 isStrictReference ref = strictness ref == Strict
 
 
-putPropertyReference :: JSRef -> JSVal -> JSRuntime ()
+putPropertyReference :: JSRef -> JSVal -> Runtime ()
 putPropertyReference (JSRef (VObj objref) name _isStrict) val = modifyRef objref setRef where
     setRef obj = obj { ownProperties = M.insert name val (ownProperties obj) }
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
-putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
+putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
 putEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) val = do
   lx <- deref envRef
   envInsert name val (envRec lx)
@@ -105,14 +105,14 @@ isReference (VRef _) = True
 isReference _ = False
 
 
-hasBinding :: Ident -> EnvRec -> JSRuntime Bool
+hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (M.member name) $ deref m
 hasBinding name (ObjEnvRec obj) = liftM (M.member name . ownProperties) $ deref obj
 
-envLookup :: Ident -> EnvRec -> JSRuntime (Maybe JSVal)
+envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
 envLookup name (DeclEnvRec m) = liftM (M.lookup name) $ deref m
 envLookup name (ObjEnvRec obj) = liftM (M.lookup name . ownProperties) $ deref obj
 
-envInsert :: Ident -> JSVal -> EnvRec -> JSRuntime ()
+envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (M.insert name val)
 envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj

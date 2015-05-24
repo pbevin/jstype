@@ -10,7 +10,7 @@ import Runtime.Global
 
 import Debug.Trace
 
-newObject :: JSRuntime (Shared JSObj)
+newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- getGlobalObjectPrototype
   share JSObj { objClass = "Object",
@@ -27,34 +27,34 @@ objGetOwnProperty :: JSObj -> String -> Maybe JSVal
 objGetOwnProperty obj name = M.lookup name (ownProperties obj)
 
 -- ref 8.12.2, incomplete
-objGetProperty :: String -> JSObj -> JSRuntime (Maybe JSVal)
+objGetProperty :: String -> JSObj -> Runtime (Maybe JSVal)
 objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProperty obj name
   where checkPrototype = case objGetOwnProperty obj "prototype" of
           Just (VObj prototype) -> objGetProperty name =<< deref prototype
           _ -> return Nothing
 
-valGetProperty :: String -> JSVal -> JSRuntime (Maybe JSVal)
+valGetProperty :: String -> JSVal -> Runtime (Maybe JSVal)
 valGetProperty name (VObj objRef) = deref objRef >>= objGetProperty name
 valGetProperty _ _ = return Nothing
 
 -- ref 8.12.8, incomplete
-objDefaultValue :: PrimitiveHint -> JSObj -> JSRuntime JSVal
+objDefaultValue :: PrimitiveHint -> JSObj -> Runtime JSVal
 objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
 
-type ObjectModifier = Shared JSObj -> JSRuntime (Shared JSObj)
+type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
 
 updateObj :: (JSObj -> JSObj) -> ObjectModifier
 updateObj f objRef = modifyRef' objRef f
 
-getGlobalProperty :: String -> JSRuntime JSVal
+getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
   obj <- getGlobalObject
   deref obj >>= return . fromMaybe (VUndef) . flip objGetOwnProperty name
 
-objClassName :: Shared JSObj -> JSRuntime String
+objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)
 
-valClassName :: JSVal -> JSRuntime String
+valClassName :: JSVal -> Runtime String
 valClassName (VObj objRef) = objClassName objRef
 valClassName _ = return "Object"
 
@@ -73,7 +73,7 @@ setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
 
-isWrapperFor :: (JSVal -> JSRuntime JSVal) -> JSVal -> String -> ObjectModifier
+isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> String -> ObjectModifier
 isWrapperFor f defaultValue name =
   updateObj $ \obj -> obj { objClass = name,
                             callMethod = Just call,
