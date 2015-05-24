@@ -189,16 +189,15 @@ commaOperator _ = return
 
 
 mathFunc :: (Double -> Double) -> JSFunction
-mathFunc f _this args = toNumber (head args) >>= return . VNum . JSNum . f . fromJSNum
+mathFunc f _this args = liftM (VNum . JSNum . f . fromJSNum) $ toNumber (head args)
 
 mathFunc2 :: (Double -> Double -> Double) -> JSFunction
 mathFunc2 f _this args = do
-  a <- toNumber (args !! 0)
-  b <- toNumber (args !! 1)
+  [a, b] <- mapM toNumber (take 2 args)
   return $ VNum $ JSNum $ f (fromJSNum a) (fromJSNum b)
 
 mathMaxFunc :: ([JSNum] -> JSNum) -> JSFunction
-mathMaxFunc f _this args = mapM toNumber args >>= return . VNum . f
+mathMaxFunc f _this args = liftM (VNum . f) $ mapM toNumber args
 
 hypot :: Floating a => a -> a -> a
 hypot a b = sqrt (a*a + b*b)

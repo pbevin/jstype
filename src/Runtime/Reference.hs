@@ -92,11 +92,6 @@ putEnvironmentRecord :: JSRef -> JSVal -> JSRuntime ()
 putEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) val = do
   lx <- deref envRef
   envInsert name val (envRec lx)
---   modifyRef (envRec env) addToEnvRec where
---   addToEnvRec (DeclEnvRec m) = DeclEnvRec (M.insert name val m)
---   addToEnvRec (ObjEnvRec obj) = DeclEnvRec (M.insert name val (ownProperties obj))
---   -- m <- deref (envRec envRef)
---   -- return $ env { envRec = envInsert name val m }
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
@@ -111,12 +106,12 @@ isReference _ = False
 
 
 hasBinding :: Ident -> EnvRec -> JSRuntime Bool
-hasBinding name (DeclEnvRec m) = deref m >>= return . M.member name
-hasBinding name (ObjEnvRec obj) = deref obj >>= return . M.member name . ownProperties
+hasBinding name (DeclEnvRec m) = liftM (M.member name) $ deref m
+hasBinding name (ObjEnvRec obj) = liftM (M.member name . ownProperties) $ deref obj
 
 envLookup :: Ident -> EnvRec -> JSRuntime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = deref m >>= return . M.lookup name
-envLookup name (ObjEnvRec obj) = deref obj >>= return . M.lookup name . ownProperties
+envLookup name (DeclEnvRec m) = liftM (M.lookup name) $ deref m
+envLookup name (ObjEnvRec obj) = liftM (M.lookup name . ownProperties) $ deref obj
 
 envInsert :: Ident -> JSVal -> EnvRec -> JSRuntime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (M.insert name val)

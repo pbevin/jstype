@@ -1,13 +1,4 @@
-module Runtime ( module Runtime.Types
-               , module Runtime.Reference
-               , module Runtime.Object
-               , module Runtime.Operations
-               , module Runtime.Conversion
-               , module Runtime.Error
-               , getGlobalObject
-               , emptyGlobal
-               , module Runtime) where
-
+module Runtime (module Runtime, module X) where 
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
@@ -17,13 +8,13 @@ import Data.Maybe
 import qualified Data.Map as M
 import Safe
 
-import Runtime.Reference
-import Runtime.Types
-import Runtime.Object
-import Runtime.Operations
-import Runtime.Conversion
-import Runtime.Global
-import Runtime.Error
+import Runtime.Reference as X
+import Runtime.Types as X
+import Runtime.Object as X
+import Runtime.Operations as X
+import Runtime.Conversion as X
+import Runtime.Global as X
+import Runtime.Error as X
 import Parse
 import Expr
 import JSNum

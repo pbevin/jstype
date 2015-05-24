@@ -26,7 +26,6 @@ createSyntaxError text =
   VObj <$> (newObject >>= addOwnProperty "name" (VStr "SyntaxError")
                       >>= addOwnProperty "message" text)
 
-
 errFunction :: JSVal -> [JSVal] -> JSRuntime JSVal
 errFunction this args = do
   className <- valClassName this
@@ -39,13 +38,16 @@ errConstructor this args =
   in case this of
     VObj obj -> do
       name <- objClassName obj
-      setClass name obj >>= addOwnProperty "message" text
-                        >>= addOwnProperty "toString" (VNative errorToString)
-                        >>= return . VObj
+      liftM VObj $ setClass name obj
+               >>= addOwnProperty "message" text
+               >>= addOwnProperty "toString" (VNative errorToString)
+
+dflt :: JSVal -> Maybe JSVal -> JSRuntime JSVal
+dflt d = return . fromMaybe d
 
 errorToString :: JSFunction
 errorToString (VObj this) _args = do
   obj  <- deref this
-  name <- objGetProperty "name" obj >>= return . fromMaybe (VStr "Error")
-  msg  <- objGetProperty "message" obj >>= return . fromMaybe VUndef
+  name <- objGetProperty "name" obj >>= dflt (VStr "Error")
+  msg  <- objGetProperty "message" obj >>= dflt VUndef
   return $ VStr $ showVal name ++ ": " ++ showVal msg

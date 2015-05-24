@@ -47,7 +47,7 @@ updateObj :: (JSObj -> JSObj) -> ObjectModifier
 updateObj f objRef = modifyRef' objRef f
 
 objClassName :: Shared JSObj -> JSRuntime String
-objClassName objRef = deref objRef >>= return . objClass
+objClassName objRef = liftM objClass (deref objRef)
 
 valClassName :: JSVal -> JSRuntime String
 valClassName (VObj objRef) = objClassName objRef
