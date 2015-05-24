@@ -46,13 +46,13 @@ objPrimitive (VObj this) _args = do
   obj <- deref this
   objDefaultValue HintNone obj
 
-toObject :: JSCxt -> JSVal -> Runtime JSVal
-toObject _ v@(VObj obj) = return v
-toObject cxt (VStr str) = do
+toObject :: JSVal -> Runtime JSVal
+toObject v@(VObj obj) = return v
+toObject (VStr str) = do
   obj <- newObject
   stringConstructor (VObj obj) [VStr str]
   -- runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
-toObject cxt v = toString v >>= toObject cxt . VStr
+toObject v = toString v >>= toObject . VStr
 
 
 computeThisValue :: JSCxt -> JSVal -> JSVal
@@ -70,7 +70,7 @@ objFunction this args =
   let arg = headDef VUndef args
   in if arg == VUndef || arg == VNull
      then VObj <$> newObject
-     else initialCxt >>= flip toObject (head args)
+     else toObject (head args)
 
 objConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 objConstructor _this _args = VObj <$> newObject
@@ -115,33 +115,32 @@ funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor this [arg] = do
   body <- toString arg
   let Program strictness stmts = simpleParse body
-  createFunction [] strictness stmts =<< JSCxt <$> initialEnv
-                                               <*> emptyEnv
-                                               <*> (VObj <$> getGlobalObject)
-                                               <*> pure strictness
+  createFunction [] strictness stmts
 funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
 
-createFunction :: [Ident] -> Strictness -> [Statement] -> JSCxt -> Runtime JSVal
-createFunction paramList strict body cxt = do
+createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
+createFunction paramList strict body = do
+  cxt <- getGlobalContext
   objref <- newObject
   modifyRef objref $
     \obj -> obj { objClass = "Function",
-                  callMethod = Just (funcCall cxt paramList strict body),
-                  cstrMethod = Just (funcCall cxt paramList strict body) }
+                  callMethod = Just (funcCall paramList strict body),
+                  cstrMethod = Just (funcCall paramList strict body) }
   return $ VObj objref
 
 -- ref 13.2.1, incomplete
-funcCall :: JSCxt -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
-funcCall cxt paramList strict body this args =
+funcCall :: [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
+funcCall paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
-      newCxt env = cxt { thisBinding = this, lexEnv = env, cxtStrictness = strict }
+      newCxt cxt env = cxt { thisBinding = this, lexEnv = env, cxtStrictness = strict }
       addToNewEnv :: JSEnv -> Ident -> JSVal -> Runtime ()
       addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
   in do
+    cxt <- getGlobalContext
     env <- newEnv (lexEnv cxt)
     zipWithM_ (addToNewEnv env) paramList args
-    withNewContext (newCxt env) $ do
-      result <- jsRunStmts (newCxt env) body
+    withNewContext (newCxt cxt env) $ do
+      result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v
         (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
@@ -300,9 +299,11 @@ getOwnPropertyDescriptor _this xs = do
 
   return $ VObj result
 
-putVar :: JSCxt -> Ident -> JSVal -> Runtime ()
-putVar (JSCxt envref _ _ _) x v = putValue ref v where
- ref = JSRef (VEnv envref) x NotStrict
+putVar :: Ident -> JSVal -> Runtime ()
+putVar x v = do
+  cxt <- getGlobalContext
+  putValue (ref cxt) v
+    where ref cxt = JSRef (VEnv $ lexEnv cxt) x (cxtStrictness cxt)
 
 
 -- ref 10.2.2.1
@@ -353,21 +354,22 @@ memberGet lval prop =
     VObj _ -> return $ VRef (JSRef lval prop NotStrict)
     _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
-funCall :: JSCxt -> JSVal -> [JSVal] -> Runtime JSVal
-funCall cxt ref argList = do
+funCall :: JSVal -> [JSVal] -> Runtime JSVal
+funCall ref argList = do
+  cxt <- getGlobalContext
   func <- getValue ref
   if typeof func == TypeUndefined
   then raiseReferenceError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
   else let thisValue = computeThisValue cxt ref
-       in objCall cxt func thisValue argList
+       in objCall func thisValue argList
 
 
 
 
 
 -- ref 13.2.2, incomplete
-newObjectFromConstructor :: JSCxt -> JSVal -> [JSVal] -> Runtime (Shared JSObj)
-newObjectFromConstructor cxt fun args = case fun of
+newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
+newObjectFromConstructor fun args = case fun of
   VRef (JSRef _ name _) -> create name =<< getValue fun
   _                     -> create (show fun) fun
   where
@@ -378,12 +380,12 @@ newObjectFromConstructor cxt fun args = case fun of
         f <- deref funref
         prototype <- objGetProperty "prototype" f
         modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
-        objCstr cxt (VObj funref) (VObj obj) args
+        objCstr (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
 
-objCall :: JSCxt -> JSVal -> JSVal -> [JSVal] -> Runtime JSVal
-objCall cxt func this args = case func of
+objCall :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
+objCall func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> raiseError "Can't call function: no callMethod"
@@ -391,8 +393,8 @@ objCall cxt func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
-objCstr :: JSCxt -> JSVal -> JSVal -> [JSVal] -> Runtime JSVal
-objCstr cxt func this args = case func of
+objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
+objCstr func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
     Nothing -> raiseError "Can't call function: no cstrMethod"

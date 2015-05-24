@@ -42,7 +42,7 @@ jsEvalExpr input = do
     initGlobals
     cxt <- initialCxt
     putGlobalContext cxt
-    runExprStmt cxt (parseExpr input) >>= getValue
+    runExprStmt (parseExpr input) >>= getValue
   case result of
     Left err  -> error (show err)
     Right val -> return val
@@ -92,18 +92,18 @@ runProg (Program strictness stmts) = do
   case result of
     (CTNormal, v, _) -> return v
     (CTThrow, Just v, _) -> do
-      v' <- callToString cxt v
+      v' <- callToString v
       throwError (VStr $ show v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
 
-callToString :: JSCxt -> JSVal -> Runtime JSVal
-callToString _ (VStr str) = return (VStr str)
-callToString cxt v = do
-  obj <- toObject cxt v
+callToString :: JSVal -> Runtime JSVal
+callToString (VStr str) = return (VStr str)
+callToString v = do
+  obj <- toObject v
   ref <- memberGet obj "toString"
-  funCall cxt ref []
+  funCall ref []
 
 
 
@@ -132,23 +132,23 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
       _ -> return result
 
 runStmt :: Statement -> Runtime StmtReturn
-runStmt s = do { cxt <- getGlobalContext; case s of
+runStmt s = case s of
   ExprStmt loc e -> do
-    val <- runExprStmt cxt e >>= getValue
+    val <- runExprStmt e >>= getValue
     return (CTNormal, Just val, Nothing)
 
   VarDecl loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
-      Nothing  -> putVar cxt x VUndef
+      Nothing  -> putVar x VUndef
       Just e' -> do
-        v <- getValue =<< runExprStmt cxt e'
-        putVar cxt x v
+        v <- getValue =<< runExprStmt e'
+        putVar x v
     return (CTNormal, Nothing, Nothing)
 
   LabelledStatement loc label stmt -> runStmt stmt
 
   IfStatement loc predicate ifThen ifElse -> do -- ref 12.5
-    v <- runExprStmt cxt predicate >>= getValue
+    v <- runExprStmt predicate >>= getValue
     if toBoolean v
     then runStmt ifThen
     else case ifElse of
@@ -161,7 +161,7 @@ runStmt s = do { cxt <- getGlobalContext; case s of
   WhileStatement loc e stmt -> keepGoing Nothing where -- ref 12.6.2
     keepGoing :: Maybe JSVal -> Runtime StmtReturn
     keepGoing v = do
-      willEval <- isTruthy <$> (runExprStmt cxt e >>= getValue)
+      willEval <- isTruthy <$> (runExprStmt e >>= getValue)
 
       if not willEval
       then return (CTNormal, v, Nothing)
@@ -188,22 +188,22 @@ runStmt s = do { cxt <- getGlobalContext; case s of
     b@(btype, bval, _) <- runStmt block
     if btype /= CTThrow
     then return b
-    else runCatch cxt catch (fromJust bval)
+    else runCatch catch (fromJust bval)
 
   ThrowStatement loc e -> do
-    exc <- runExprStmt cxt e >>= getValue
+    exc <- runExprStmt e >>= getValue
     return (CTThrow, Just exc, Nothing)
 
   BreakStatement loc label -> return (CTBreak, Nothing, label)
   ContinueStatement loc label -> return (CTBreak, Nothing, label)
   Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return loc (Just e) -> do
-    val <- runExprStmt cxt e >>= getValue
+    val <- runExprStmt e >>= getValue
     return (CTReturn, Just val, Nothing)
 
   EmptyStatement loc -> return (CTNormal, Nothing, Nothing)
 
-  _ -> error ("Unimplemented stmt: " ++ show s) }
+  _ -> error ("Unimplemented stmt: " ++ show s)
 
 -- |
 -- Turn "for (e1; e2; e3) { s }" into
@@ -239,72 +239,72 @@ transformDoWhileToWhile loc e s =
 
 
 -- ref 12.14
-runCatch :: JSCxt -> Maybe Catch -> JSVal -> Runtime StmtReturn
-runCatch _ Nothing _ = return (CTNormal, Nothing, Nothing)
-runCatch cxt (Just (Catch _loc var stmt)) exc = do
+runCatch :: Maybe Catch -> JSVal -> Runtime StmtReturn
+runCatch Nothing _ = return (CTNormal, Nothing, Nothing)
+runCatch (Just (Catch _loc var stmt)) exc = do
   -- XXX create new environment
-  putVar cxt var exc
+  putVar var exc
   runStmt stmt
 
-maybeValList :: JSCxt -> [Maybe Expr] -> Runtime [Maybe JSVal]
-maybeValList cxt = mapM (evalOne cxt)
+maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
+maybeValList = mapM evalOne
   where
-    evalOne cxt v = case v of
+    evalOne v = case v of
       Nothing -> return Nothing
-      Just e  -> Just <$> (runExprStmt cxt e >>= getValue)
+      Just e  -> Just <$> (runExprStmt e >>= getValue)
 
-readVar :: JSCxt -> Ident -> Runtime JSVal
-readVar cxt name = do
-  strictness <- return . cxtStrictness =<< getGlobalContext
-  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name strictness
+readVar :: Ident -> Runtime JSVal
+readVar name = do
+  cxt <- getGlobalContext
+  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
 
-runExprStmt :: JSCxt -> Expr -> Runtime JSVal
-runExprStmt cxt expr = case expr of
+runExprStmt :: Expr -> Runtime JSVal
+runExprStmt expr = case expr of
   Num n              -> return $ VNum n
   Str s              -> return $ VStr s
   Boolean b          -> return $ VBool b
   LiteralNull        -> return VNull
-  ReadVar name       -> readVar cxt name
-  This               -> return $ thisBinding cxt
-  ArrayLiteral vals  -> evalArrayLiteral cxt vals
-  MemberDot e x      -> runExprStmt cxt (MemberGet e (Str x)) -- ref 11.2.1
+  ReadVar name       -> readVar name
+  This               -> thisBinding <$> getGlobalContext
+  ArrayLiteral vals  -> evalArrayLiteral vals
+  MemberDot e x      -> runExprStmt (MemberGet e (Str x)) -- ref 11.2.1
 
   MemberGet e x -> do -- ref 11.2.1
-    lval <- runExprStmt cxt e >>= getValue
-    prop <- runExprStmt cxt x >>= getValue >>= toString
+    lval <- runExprStmt e >>= getValue
+    prop <- runExprStmt x >>= getValue >>= toString
     memberGet lval prop
 
   FunCall f args -> do  -- ref 11.2.3
-    ref <- runExprStmt cxt f
-    argList <- evalArguments cxt args
-    funCall cxt ref argList
+    ref <- runExprStmt f
+    argList <- evalArguments args
+    funCall ref argList
 
   Assign lhs op e -> do
-    lref <- runExprStmt cxt lhs
-    rref <- runExprStmt cxt e
+    lref <- runExprStmt lhs
+    rref <- runExprStmt e
     case op of
       "=" -> assignRef lref rref
       _   -> updateRef (init op) lref rref
 
   BinOp "&&" e1 e2 -> do
-    v1 <- runExprStmt cxt e1 >>= getValue
+    v1 <- runExprStmt e1 >>= getValue
     if toBoolean v1
-    then runExprStmt cxt e2 >>= getValue
+    then runExprStmt e2 >>= getValue
     else return v1
 
   BinOp "||" e1 e2 -> do
-    v1 <- runExprStmt cxt e1 >>= getValue
+    v1 <- runExprStmt e1 >>= getValue
     if toBoolean v1
     then return v1
-    else runExprStmt cxt e2 >>= getValue
+    else runExprStmt e2 >>= getValue
 
   BinOp op e1 e2 -> do
-    v1 <- runExprStmt cxt e1 >>= getValue
-    v2 <- runExprStmt cxt e2 >>= getValue
+    v1 <- runExprStmt e1 >>= getValue
+    v2 <- runExprStmt e2 >>= getValue
     evalBinOp op v1 v2
 
   UnOp "typeof" e -> do -- ref 11.4.3
-    evalTypeof =<< runExprStmt cxt e
+    evalTypeof =<< runExprStmt e
 
   UnOp op e -> -- ref 11.4
     let f = case op of
@@ -315,42 +315,42 @@ runExprStmt cxt expr = case expr of
               "!"    -> purePrefix unaryNot
               "~"    -> purePrefix unaryBitwiseNot
               "void" -> purePrefix (return . const VUndef)
-              _    -> const $ const $ raiseError $ "Prefix not implemented: " ++ op
-    in f cxt e
+              _    -> const $ raiseError $ "Prefix not implemented: " ++ op
+    in f e
 
   PostOp op e -> -- ref 11.3
     let f = case op of
               "++" -> modifyingOp (+1) id
               "--" -> modifyingOp (subtract 1) id
-    in f cxt e
+    in f e
 
   NewExpr f args -> do
-    fun <- runExprStmt cxt f
-    argList <- evalArguments cxt args
-    liftM VObj (newObjectFromConstructor cxt fun argList)
+    fun <- runExprStmt f
+    argList <- evalArguments args
+    liftM VObj (newObjectFromConstructor fun argList)
 
   FunDef (Just name) params strictness body -> do
-    fun <- createFunction params strictness body cxt
-    putVar cxt name fun
+    fun <- createFunction params strictness body
+    putVar name fun
     return fun
 
-  FunDef Nothing params strictness body -> createFunction params strictness body cxt
+  FunDef Nothing params strictness body -> createFunction params strictness body
 
-  ObjectLiteral nameValueList -> makeObjectLiteral cxt nameValueList
+  ObjectLiteral nameValueList -> makeObjectLiteral nameValueList
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
-evalArrayLiteral :: JSCxt -> [Maybe Expr] -> Runtime JSVal
-evalArrayLiteral cxt vals = createArray =<< mapM evalMaybe vals
+evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
+evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
   where evalMaybe Nothing = return Nothing
-        evalMaybe (Just e) = Just <$> (runExprStmt cxt e >>= getValue)
+        evalMaybe (Just e) = Just <$> (runExprStmt e >>= getValue)
 
-evalArguments :: JSCxt -> [Expr] -> Runtime [JSVal]
-evalArguments cxt = mapM (runExprStmt cxt >=> getValue)
+evalArguments :: [Expr] -> Runtime [JSVal]
+evalArguments = mapM (runExprStmt >=> getValue)
 
-modifyingOp :: (JSNum->JSNum) -> (JSNum->JSNum) -> JSCxt -> Expr -> Runtime JSVal
-modifyingOp op returnOp cxt e = do
-  lhs <- runExprStmt cxt e
+modifyingOp :: (JSNum->JSNum) -> (JSNum->JSNum) -> Expr -> Runtime JSVal
+modifyingOp op returnOp e = do
+  lhs <- runExprStmt e
   case lhs of
     VRef ref -> do
       lval <- getValue lhs
@@ -361,20 +361,20 @@ modifyingOp op returnOp cxt e = do
       return retVal
     _ -> raiseReferenceError $ show e ++ " is not assignable"
 
-purePrefix :: (JSVal -> Runtime JSVal) -> JSCxt -> Expr -> Runtime JSVal
-purePrefix f cxt e = runExprStmt cxt e >>= getValue >>= f
+purePrefix :: (JSVal -> Runtime JSVal) -> Expr -> Runtime JSVal
+purePrefix f e = runExprStmt e >>= getValue >>= f
 
 
 
-makeObjectLiteral :: JSCxt -> [(PropertyName, Expr)] -> Runtime JSVal
-makeObjectLiteral cxt nameValueList =
+makeObjectLiteral :: [(PropertyName, Expr)] -> Runtime JSVal
+makeObjectLiteral nameValueList =
   let nameOf :: PropertyName -> String
       nameOf (IdentProp ident) = ident
       nameOf (StringProp str)  = str
       nameOf (NumProp n)       = show n
       addProp :: Shared JSObj -> (PropertyName, Expr) -> Runtime (Shared JSObj)
       addProp obj (propName, propValue) = do
-        val <- runExprStmt cxt propValue >>= getValue
+        val <- runExprStmt propValue >>= getValue
         addOwnProperty (nameOf propName) val obj
   in do
     obj <- newObject

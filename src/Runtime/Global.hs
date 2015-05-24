@@ -16,8 +16,8 @@ jsEvalCode str = do
   global <- get
   maybe (raiseError "Global evaluator not set up") ($ str) (globalEvaluator global)
 
-jsRunStmts :: JSCxt -> [Statement] -> Runtime StmtReturn
-jsRunStmts cxt stmts = do
+jsRunStmts :: [Statement] -> Runtime StmtReturn
+jsRunStmts stmts = do
   global <- get
   maybe (raiseError "Global runStmts not set up") invokeIt (globalRun global)
     where invokeIt run = run stmts
