@@ -341,13 +341,6 @@ updateRef op lref rref =
       return newVal
     _ -> raiseReferenceError $ show lref ++ " is not assignable"
 
-isTruthy :: JSVal -> Bool
-isTruthy (VNum 0)      = False
-isTruthy VUndef        = False
-isTruthy (VBool False) = False
-isTruthy (VStr "")     = False
-isTruthy _             = True
-
 memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop =
   case lval of

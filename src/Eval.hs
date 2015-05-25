@@ -163,7 +163,7 @@ runStmt s = case s of
   WhileStatement _loc e stmt -> keepGoing Nothing where -- ref 12.6.2
     keepGoing :: Maybe JSVal -> Runtime StmtReturn
     keepGoing v = do
-      willEval <- isTruthy <$> (runExprStmt e >>= getValue)
+      willEval <- toBoolean <$> (runExprStmt e >>= getValue)
 
       if not willEval
       then return (CTNormal, v, Nothing)
