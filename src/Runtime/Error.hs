@@ -53,6 +53,7 @@ errConstructor this args =
       liftM VObj $ setClass name obj
                >>= addOwnProperty "message" text
                >>= addOwnProperty "toString" (VNative errorToString)
+    _ -> raiseError "Bad this for Error constructor"
 
 dflt :: JSVal -> Maybe JSVal -> Runtime JSVal
 dflt d = return . fromMaybe d
@@ -63,3 +64,4 @@ errorToString (VObj this) _args = do
   name <- objGetProperty "name" obj >>= dflt (VStr "Error")
   msg  <- objGetProperty "message" obj >>= dflt VUndef
   return $ VStr $ showVal name ++ ": " ++ showVal msg
+errorToString _ _ = raiseError "errorToString called on non-object"

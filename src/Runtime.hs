@@ -39,15 +39,16 @@ emptyEnv = do
   share $ LexEnv (DeclEnvRec m) Nothing
 
 objToString :: JSFunction
-objToString this _args = return $ VStr "[object Object]"
+objToString _this _args = return $ VStr "[object Object]"
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
   obj <- deref this
   objDefaultValue HintNone obj
+objPrimitive this _args = return this
 
 toObject :: JSVal -> Runtime JSVal
-toObject v@(VObj obj) = return v
+toObject v@(VObj _) = return v
 toObject (VStr str) = do
   obj <- newObject
   stringConstructor (VObj obj) [VStr str]
@@ -66,7 +67,7 @@ computeThisValue cxt v = case v of
 
 -- ref 15.2.1.1
 objFunction :: JSVal -> [JSVal] -> Runtime JSVal
-objFunction this args =
+objFunction _this args =
   let arg = headDef VUndef args
   in if arg == VUndef || arg == VNull
      then VObj <$> newObject
@@ -112,15 +113,14 @@ createArray vals =
 
 
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-funConstructor this [arg] = do
+funConstructor _this [arg] = do
   body <- toString arg
   let Program strictness stmts = simpleParse body
   createFunction [] strictness stmts
-funConstructor this xs = error $ "Can't cstr Function with " ++ show xs
+funConstructor _this xs = error $ "Can't cstr Function with " ++ show xs
 
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
-  cxt <- getGlobalContext
   objref <- newObject
   modifyRef objref $
     \obj -> obj { objClass = "Function",
@@ -160,7 +160,7 @@ objEval _this args = case args of
       _ -> return VUndef
 
 stackTrace :: JSError -> String
-stackTrace (err, trace) = unlines $ show err : map show (reverse trace)
+stackTrace (err, stack) = unlines $ show err : map show (reverse stack)
 
 
 printStackTrace :: JSError -> Runtime ()
@@ -206,9 +206,9 @@ createGlobalThis = do
                               >>= addOwnProperty "toString" (VNative errorToString)
                               >>= addOwnProperty "prototype" (VObj objPrototype)
 
-  error <- newObject >>= setCallMethod errFunction
-                     >>= setCstrMethod errConstructor
-                     >>= addOwnProperty "prototype" (VObj errorPrototype)
+  errorObj <- newObject >>= setCallMethod errFunction
+                        >>= setCstrMethod errConstructor
+                        >>= addOwnProperty "prototype" (VObj errorPrototype)
 
 
   referenceError <- errorType "ReferenceError" (VObj errorPrototype)
@@ -250,7 +250,7 @@ createGlobalThis = do
             >>= addOwnProperty "Boolean" (VObj boolean)
             >>= addOwnProperty "Object" (VObj object)
             >>= addOwnProperty "Array" (VObj array)
-            >>= addOwnProperty "Error" (VObj error)
+            >>= addOwnProperty "Error" (VObj errorObj)
             >>= addOwnProperty "ReferenceError" (VObj referenceError)
             >>= addOwnProperty "SyntaxError" (VObj syntaxError)
             >>= addOwnProperty "Math" (VObj math)
@@ -277,7 +277,7 @@ errorType name parentPrototype = do
 objEscape :: JSFunction
 objEscape _this args = case args of
   [] -> return VUndef
-  (x:xs) -> return x
+  (x:_) -> return x
 
 jsConsoleLog :: JSVal -> [JSVal] -> Runtime JSVal
 jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
@@ -310,12 +310,12 @@ putVar x v = do
 getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> Runtime JSRef
 getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
-  lex <- deref lexRef
-  bound <- hasBinding name (envRec lex)
+  env <- deref lexRef
+  bound <- hasBinding name (envRec env)
   if bound
   then return $ JSRef (VEnv lexRef) name NotStrict
   else do
-    getIdentifierReference (outer lex) name strict
+    getIdentifierReference (outer env) name strict
 
 
 -- ref 11.13.1
@@ -374,7 +374,7 @@ newObjectFromConstructor fun args = case fun of
   _                     -> create (show fun) fun
   where
     create :: String -> JSVal -> Runtime (Shared JSObj)
-    create name f = case f of
+    create name val = case val of
       VObj funref -> do
         obj <- newObject
         f <- deref funref

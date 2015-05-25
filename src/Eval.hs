@@ -49,14 +49,15 @@ jsEvalExpr input = do
 
 toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (VStr err, stack) = RuntimeError err (map show stack)
+toRuntimeError _ = error "Runtime did not convert error to string"
 
 evalCode :: String -> Runtime StmtReturn
 evalCode text = do
   currentStrictness <- return . cxtStrictness =<< getGlobalContext
   case parseJS'' text "(eval)" currentStrictness of
     Left err -> raiseSyntaxError (show err)
-    Right (Program strictness stmts) -> do
-      runStmts stmts
+    Right (Program strictness stmts) ->
+      withStrictness strictness (runStmts stmts)
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
@@ -112,14 +113,15 @@ debug a = do
   liftIO $ print a
 
 returnThrow :: Statement -> JSError -> Runtime StmtReturn
-returnThrow s (err, trace) = do
-  setStacktrace err (sourceLocation s : trace)
+returnThrow s (err, stack) = do
+  setStacktrace err (sourceLocation s : stack)
   return (CTThrow, Just err, Nothing)
 
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
-setStacktrace v@(VObj objRef) stack = do
-  void $ addOwnProperty "stack" (VStacktrace stack) objRef
-setStacktrace x stack = return ()
+setStacktrace v stack =
+  case v of
+    VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
+    _           -> return ()
 
 
 runStmts :: [Statement] -> Runtime StmtReturn
@@ -145,7 +147,7 @@ runStmt s = case s of
         putVar x v
     return (CTNormal, Nothing, Nothing)
 
-  LabelledStatement _loc label stmt -> runStmt stmt
+  LabelledStatement _loc _label stmt -> runStmt stmt
 
   IfStatement _loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt predicate >>= getValue
@@ -153,10 +155,10 @@ runStmt s = case s of
     then runStmt ifThen
     else case ifElse of
            Nothing -> return (CTNormal, Nothing, Nothing)
-           Just s  -> runStmt s
+           Just stmt  -> runStmt stmt
 
-  DoWhileStatement _loc e s -> -- ref 12.6.1
-    runStmt $ transformDoWhileToWhile _loc e s
+  DoWhileStatement _loc e stmt -> -- ref 12.6.1
+    runStmt $ transformDoWhileToWhile _loc e stmt
 
   WhileStatement _loc e stmt -> keepGoing Nothing where -- ref 12.6.2
     keepGoing :: Maybe JSVal -> Runtime StmtReturn
@@ -184,7 +186,7 @@ runStmt s = case s of
 
   Block _loc stmts -> runStmts stmts
 
-  TryStatement _loc block catch finally -> do -- ref 12.14
+  TryStatement _loc block catch _finally -> do -- ref 12.14  XXX ignoring finally block
     b@(btype, bval, _) <- runStmt block
     if btype /= CTThrow
     then return b
@@ -322,6 +324,7 @@ runExprStmt expr = case expr of
     let f = case op of
               "++" -> modifyingOp (+1) id
               "--" -> modifyingOp (subtract 1) id
+              _    -> const $ raiseError $ "No such postfix operator: " ++ op
     in f e
 
   NewExpr f args -> do

@@ -8,6 +8,10 @@ import Eval
 import Runtime.Types
 import Runtime.Operations
 
+fromRight :: Show a => Either a JSVal -> Bool
+fromRight (Right (VBool b)) = b
+fromRight v = error $ "Not a boolean: " ++ show v
+
 spec :: Spec
 spec = do
   describe "jsAdd" $ do
@@ -26,7 +30,6 @@ spec = do
 
 
   describe "doubleEquals" $ do
-    let fromRight (Right (VBool a)) = a
     let eq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
@@ -45,7 +48,6 @@ spec = do
 
 
   describe "tripleEquals" $ do
-    let fromRight (Right (VBool a)) = a
     let eqq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
@@ -67,8 +69,8 @@ spec = do
       runtime (mathFunc f VUndef [VNum 3]) `shouldReturn` Right (VNum 7.5)
 
     it "can run a 2-arg FP function" $ do
-      let pow a b = a + b
-      runtime (mathFunc2 pow VUndef [VNum 3.14, VNum 2.72]) `shouldReturn` Right (VNum 5.86)
+      let f a b = a + b
+      runtime (mathFunc2 f VUndef [VNum 3.14, VNum 2.72]) `shouldReturn` Right (VNum 5.86)
 
     describe "Math.pow" $ do
       let inf = 1/0

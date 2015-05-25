@@ -12,7 +12,7 @@ import Parse.Types
 initialParseState :: Strictness -> ParseState
 initialParseState strict = ParseState { inKeywordAllowed = True,
                                         insideIteration = False,
-                                        strictness = strict,
+                                        strictnessState = strict,
                                         labelSet = [],
                                         contextDescription = Nothing }
 
@@ -28,7 +28,7 @@ withLabel label = recurseState addLabel
   where addLabel st = st { labelSet = label : labelSet st }
 
 withStrictness :: Strictness -> JSParser a -> JSParser a
-withStrictness isStrict = recurseState $ \st -> st { strictness = isStrict }
+withStrictness isStrict = recurseState $ \st -> st { strictnessState = isStrict }
 
 withoutInKeyword :: JSParser a -> JSParser a
 withoutInKeyword = recurseState $ \st -> st { inKeywordAllowed = False }
@@ -62,7 +62,7 @@ currentContext :: JSParser (Maybe String)
 currentContext = contextDescription <$> getState
 
 getStrictness :: JSParser Strictness
-getStrictness = strictness <$> getState
+getStrictness = strictnessState <$> getState
 
 
 

@@ -80,7 +80,7 @@ putUnresolvable ref val =
   else void $ getGlobalObject >>= addOwnProperty (getReferencedName ref) val
 
 isStrictReference :: JSRef -> Bool
-isStrictReference ref = strictness ref == Strict
+isStrictReference ref = refStrictness ref == Strict
 
 
 putPropertyReference :: JSRef -> JSVal -> Runtime ()

@@ -38,7 +38,7 @@ evalBinOp op = case op of
   ">>>"        -> bitshift shiftR
   ","          -> commaOperator
   _            -> noSuchBinop op
-  where invert op x y = unaryNot =<< op x y
+  where invert f x y = unaryNot =<< f x y
 
 noSuchBinop :: String -> JSVal -> JSVal -> Runtime JSVal
 noSuchBinop op a b = raiseError $
@@ -88,7 +88,7 @@ liftStr op a b = do
 
 -- ref 11.9.6, incomplete
 tripleEquals :: JSVal -> JSVal -> Runtime JSVal
-tripleEquals x y = return $ VBool $ eq x y
+tripleEquals v1 v2 = return $ VBool $ eq v1 v2
   where eq x y
           | typeof x /= typeof y        = False
           | typeof x == TypeUndefined   = True
@@ -101,7 +101,7 @@ tripleEquals x y = return $ VBool $ eq x y
           | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
 doubleEquals :: JSVal -> JSVal -> Runtime JSVal
-doubleEquals x y = return $ VBool $ eq x y
+doubleEquals v1 v2 = return $ VBool $ eq v1 v2
   where eq x y
           | typeof x == typeof y = eq' x y
           | typeof x == TypeUndefined && typeof y == TypeNull = True
@@ -113,6 +113,7 @@ doubleEquals x y = return $ VBool $ eq x y
         eq' (VStr a) (VStr b) = a == b
         eq' (VBool a) (VBool b) = a == b
         eq' (VObj a) (VObj b) = a == b
+        eq' _ _ = False
 
 -- ref 15.3.5.3
 hasInstance :: JSObj -> JSVal -> Runtime Bool
@@ -126,8 +127,6 @@ hasInstance f val = do
       else searchPrototypes o val
   where
     searchPrototypes o v = do
-      po <- toString o
-      pv <- toString v
       v' <- valGetProperty "prototype" v
       case v' of
         Nothing -> return False
@@ -217,7 +216,7 @@ isOddInteger y = not (isInfinite y) && isInteger ((y+1)/2) && abs y < 1e20
 objIsNaN :: JSFunction
 objIsNaN _this args = case args of
   [] -> return VUndef
-  (num:args) -> do
+  (num:_) -> do
     a <- toNumber num
     return $ VBool (a /= a)
 

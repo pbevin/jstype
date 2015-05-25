@@ -6,7 +6,7 @@ import Expr (Strictness)
 data ParseState = ParseState {
   inKeywordAllowed :: Bool,
   insideIteration :: Bool,
-  strictness :: Strictness,
+  strictnessState :: Strictness,
   labelSet :: [String],
   contextDescription :: Maybe String } deriving Show
 type JSParser = Parsec String ParseState

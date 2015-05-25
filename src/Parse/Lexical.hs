@@ -31,8 +31,8 @@ brackets = surround "[" "]"
 identifier :: JSParser String
 identifier = try $ do
   name <- ident
-  reserved <- currentReservedWords
-  if name `elem` reserved
+  illegal <- currentReservedWords
+  if name `elem` illegal
   then unexpected $ "reserved word " ++ name
   else whiteSpace >> return name
   where ident = (:) <$> oneOf identStart <*> many (oneOf identLetter)

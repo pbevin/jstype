@@ -19,6 +19,14 @@ executable repl
   build-depends: base, parsec, mtl >= 2.2.1, safe, containers, QuickCheck, regex-pcre-builtin, haskeline, pretty
   ghc-options:
 
+executable test
+  type: exitcode-stdio-1.0
+  hs-source-dirs: src, test, .
+  main-is: Imports.hs
+  default-language: Haskell2010
+  build-depends: base, parsec, mtl >= 2.2.1, safe, containers, QuickCheck, regex-pcre-builtin, hspec, pretty
+  ghc-options:
+
 test-suite spec
   type: exitcode-stdio-1.0
   hs-source-dirs: src, test

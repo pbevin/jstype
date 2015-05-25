@@ -23,6 +23,12 @@ data JSVal = VNum JSNum
            | VStacktrace [SrcLoc]
            | VEnv JSEnv
 
+
+
+isObj :: JSVal -> Bool
+isObj (VObj _) = True
+isObj _ = False
+
 instance Show JSVal where
   show (VNum a) = show a
   show (VStr a) = a
@@ -47,7 +53,7 @@ data JSObj = JSObj {
 data JSRef = JSRef {
   getBase :: JSVal,
   getReferencedName :: Ident,
-  strictness :: Strictness
+  refStrictness :: Strictness
 } deriving Show
 
 data JSCxt = JSCxt {

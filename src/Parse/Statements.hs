@@ -76,9 +76,9 @@ realblock = Block <$> srcLoc <*> braces (many statement)
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
   loc <- srcLoc
-  label <- identifier
+  lab <- identifier
   tok ":"
-  LabelledStatement loc label <$> withLabel label statement
+  LabelledStatement loc lab <$> withLabel lab statement
 
 varDecl :: JSParser Statement
 varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma) <?> "variable declaration"
@@ -438,6 +438,7 @@ singleCharEscape 'n' = '\n'
 singleCharEscape 'v' = '\v'
 singleCharEscape 'f' = '\f'
 singleCharEscape 'r' = '\r'
+singleCharEscape ch  = ch
 
 unicodeEscape :: JSParser Char
 unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit

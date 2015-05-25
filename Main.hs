@@ -21,7 +21,7 @@ runFile :: String -> IO ()
 runFile filename = do
   input <- readFile filename
   runJS filename input >>= \case
-    Right output -> putStr output
+    Right out -> putStr out
     Left err -> hPutStrLn stderr (show err) >> exitFailure
 
 

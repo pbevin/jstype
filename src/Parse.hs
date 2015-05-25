@@ -36,4 +36,4 @@ parseExpr str = case jsParse (expr <* eof) NotStrict "" str of
   Left err -> error (show err)
 
 jsParse :: JSParser a -> Strictness -> SourceName -> String -> Either ParseError a
-jsParse p strict sourceName text = runP p (initialParseState strict) sourceName text
+jsParse p strict name text = runP p (initialParseState strict) name text

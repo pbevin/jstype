@@ -10,17 +10,13 @@ import Eval
 import Runtime
 
 shouldError :: Show b => IO (Either RuntimeError b) -> String -> Expectation
-shouldError val error = val >>= \case
-  Left err -> errorMessage err `shouldBe` error
+shouldError val errorText = val >>= \case
+  Left err -> errorMessage err `shouldBe` errorText
   Right v  -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
 
 
 runJStr :: String -> IO (Either RuntimeError String)
 runJStr = runJS ""
-
-isObj :: JSVal -> Bool
-isObj (VObj _) = True
-isObj _ = False
 
 
 spec :: Spec
