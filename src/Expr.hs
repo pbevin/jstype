@@ -121,7 +121,3 @@ sourceLocation stmt = case stmt of
   TryStatement loc _ _ _ -> loc
   EmptyStatement loc -> loc
   DebuggerStatement loc -> loc
-
-
-s :: SrcLoc
-s = SrcLoc "" 0 0 Nothing

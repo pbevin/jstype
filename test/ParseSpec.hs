@@ -9,8 +9,8 @@ import Parse
 import Eval
 import JSNum
 
-
-
+s :: SrcLoc
+s = SrcLoc "" 0 0 Nothing
 
 testParse :: String -> Program
 testParse input =
