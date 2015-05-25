@@ -133,11 +133,11 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
 
 runStmt :: Statement -> Runtime StmtReturn
 runStmt s = case s of
-  ExprStmt loc e -> do
+  ExprStmt _loc e -> do
     val <- runExprStmt e >>= getValue
     return (CTNormal, Just val, Nothing)
 
-  VarDecl loc assignments -> do
+  VarDecl _loc assignments -> do
     F.forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar x VUndef
       Just e' -> do
@@ -145,9 +145,9 @@ runStmt s = case s of
         putVar x v
     return (CTNormal, Nothing, Nothing)
 
-  LabelledStatement loc label stmt -> runStmt stmt
+  LabelledStatement _loc label stmt -> runStmt stmt
 
-  IfStatement loc predicate ifThen ifElse -> do -- ref 12.5
+  IfStatement _loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt predicate >>= getValue
     if toBoolean v
     then runStmt ifThen
@@ -155,10 +155,10 @@ runStmt s = case s of
            Nothing -> return (CTNormal, Nothing, Nothing)
            Just s  -> runStmt s
 
-  DoWhileStatement loc e s -> -- ref 12.6.1
-    runStmt $ transformDoWhileToWhile loc e s
+  DoWhileStatement _loc e s -> -- ref 12.6.1
+    runStmt $ transformDoWhileToWhile _loc e s
 
-  WhileStatement loc e stmt -> keepGoing Nothing where -- ref 12.6.2
+  WhileStatement _loc e stmt -> keepGoing Nothing where -- ref 12.6.2
     keepGoing :: Maybe JSVal -> Runtime StmtReturn
     keepGoing v = do
       willEval <- isTruthy <$> (runExprStmt e >>= getValue)
@@ -176,13 +176,13 @@ runStmt s = case s of
           CTNormal -> keepGoing nextVal
           _ -> return sval
 
-  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3ToWhile loc e1 e2 e3 stmt
+  For _loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt $ transformFor3ToWhile _loc e1 e2 e3 stmt
 
-  For loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3VarToWhile loc x e1 e2 e3 stmt
+  For _loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt $ transformFor3VarToWhile _loc x e1 e2 e3 stmt
 
-  Block loc stmts -> runStmts stmts
+  Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
     b@(btype, bval, _) <- runStmt block
@@ -190,18 +190,18 @@ runStmt s = case s of
     then return b
     else runCatch catch (fromJust bval)
 
-  ThrowStatement loc e -> do
+  ThrowStatement _loc e -> do
     exc <- runExprStmt e >>= getValue
     return (CTThrow, Just exc, Nothing)
 
-  BreakStatement loc label -> return (CTBreak, Nothing, label)
-  ContinueStatement loc label -> return (CTBreak, Nothing, label)
-  Return loc Nothing -> return (CTReturn, Just VUndef, Nothing)
-  Return loc (Just e) -> do
+  BreakStatement _loc label -> return (CTBreak, Nothing, label)
+  ContinueStatement _loc label -> return (CTBreak, Nothing, label)
+  Return _loc Nothing -> return (CTReturn, Just VUndef, Nothing)
+  Return _loc (Just e) -> do
     val <- runExprStmt e >>= getValue
     return (CTReturn, Just val, Nothing)
 
-  EmptyStatement loc -> return (CTNormal, Nothing, Nothing)
+  EmptyStatement _loc -> return (CTNormal, Nothing, Nothing)
 
   _ -> error ("Unimplemented stmt: " ++ show s)
 
@@ -210,32 +210,32 @@ runStmt s = case s of
 -- "e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
 transformFor3ToWhile :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3ToWhile loc e1 e2 e3 stmt =
+transformFor3ToWhile _loc e1 e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
-      s1 = maybe (EmptyStatement loc) (ExprStmt loc) e1
-      s2 = [ stmt, maybe (EmptyStatement loc) (ExprStmt loc) e3 ]
-  in Block loc [ s1, WhileStatement loc e (Block loc s2) ]
+      s1 = maybe (EmptyStatement _loc) (ExprStmt _loc) e1
+      s2 = [ stmt, maybe (EmptyStatement _loc) (ExprStmt _loc) e3 ]
+  in Block _loc [ s1, WhileStatement _loc e (Block _loc s2) ]
 
 -- |
 -- Turn "for (var x = e1; e2; e3) { s }" into
 -- "var x = e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
 transformFor3VarToWhile :: SrcLoc -> Ident -> Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3VarToWhile loc x e1 e2 e3 stmt =
+transformFor3VarToWhile _loc x e1 e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
-      s1 = VarDecl loc [(x, Just e1)]
-      s2 = [ stmt, maybe (EmptyStatement loc) (ExprStmt loc) e3 ]
-  in Block loc [ s1, WhileStatement loc e (Block loc s2) ]
+      s1 = VarDecl _loc [(x, Just e1)]
+      s2 = [ stmt, maybe (EmptyStatement _loc) (ExprStmt _loc) e3 ]
+  in Block _loc [ s1, WhileStatement _loc e (Block _loc s2) ]
 
 -- |
 -- Turn "do { s } while (e)" into
 -- "while (true) { s; if (!e) break; }"
 transformDoWhileToWhile :: SrcLoc -> Expr -> Statement -> Statement
-transformDoWhileToWhile loc e s =
-  let esc = IfStatement loc (UnOp "!" e)
-              (BreakStatement loc Nothing)
+transformDoWhileToWhile _loc e s =
+  let esc = IfStatement _loc (UnOp "!" e)
+              (BreakStatement _loc Nothing)
               Nothing
-  in WhileStatement loc (Boolean True) $ Block loc [ s, esc ]
+  in WhileStatement _loc (Boolean True) $ Block _loc [ s, esc ]
 
 
 -- ref 12.14
