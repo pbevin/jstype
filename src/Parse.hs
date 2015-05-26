@@ -2,6 +2,7 @@ module Parse ( parseJS
              , parseJS'
              , parseJS''
              , simpleParse
+             , simpleParseInFunction
              , parseExpr
              , ParseError) where
 
@@ -20,10 +21,15 @@ parseJS :: String -> Either ParseError Program
 parseJS str = parseJS' str ""
 
 parseJS' :: String -> String -> Either ParseError Program
-parseJS' str filename = jsParse (whiteSpace >> prog <* eof) NotStrict filename str
+parseJS' str filename = jsParse (whiteSpace >> prog <* eof) NotStrict False filename str
 
-parseJS'' :: String -> String -> Strictness -> Either ParseError Program
-parseJS'' str filename strict = jsParse (whiteSpace >> prog <* eof) strict filename str
+parseJS'' :: String -> String -> Strictness -> Bool -> Either ParseError Program
+parseJS'' str filename strict inFunction = jsParse (whiteSpace >> prog <* eof) strict inFunction filename str
+
+simpleParseInFunction ::String -> Program
+simpleParseInFunction str = case parseJS'' str "" NotStrict True of
+  Right p  -> p
+  Left err -> error (show err)
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of
@@ -31,9 +37,9 @@ simpleParse str = case parseJS str of
   Left err -> error (show err)
 
 parseExpr :: String -> Expr
-parseExpr str = case jsParse (expr <* eof) NotStrict "" str of
+parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
   Right e  -> e
   Left err -> error (show err)
 
-jsParse :: JSParser a -> Strictness -> SourceName -> String -> Either ParseError a
-jsParse p strict name text = runP p (initialParseState strict) name text
+jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a
+jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text

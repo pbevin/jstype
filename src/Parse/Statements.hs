@@ -95,7 +95,7 @@ varAssign = do
 varAssignNoIn = withoutInKeyword varAssign
 
 returnStmt :: JSParser Statement
-returnStmt = do
+returnStmt = ifInsideFunction $ do
   pos1 <- getPosition
   reserved "return"
   pos2 <- getPosition

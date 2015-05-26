@@ -224,9 +224,8 @@ printVal :: JSVal -> Runtime ()
 printVal (VObj objRef) = do
   obj <- deref objRef
   liftIO $ print $ "***** ***** ***** Object (class=" ++ objClass obj ++ ")"
-  mapM_ printProperty (M.toList (ownProperties obj))
-    where printProperty (key, val) =
-            if key == "prototype"
-            then liftIO (print $ key ++ ":") >> printVal val
-            else return ()
+  mapM_ printProperty (M.toList (ownProperties obj)) where
+    printProperty (key, val) =
+      when (key == "prototype") $
+        liftIO (print $ key ++ ":") >> printVal val
 printVal v = liftIO $ print ("aa", showVal v)

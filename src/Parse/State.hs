@@ -9,12 +9,14 @@ import Expr
 import Parse.Types
 
 
-initialParseState :: Strictness -> ParseState
-initialParseState strict = ParseState { inKeywordAllowed = True,
-                                        insideIteration = False,
-                                        strictnessState = strict,
-                                        labelSet = [],
-                                        contextDescription = Nothing }
+initialParseState :: Strictness -> Bool -> ParseState
+initialParseState strict inFunction =
+  ParseState { inKeywordAllowed = True,
+               insideIteration = False,
+               insideFunction = inFunction,
+               strictnessState = strict,
+               labelSet = [],
+               contextDescription = Nothing }
 
 removeIn :: [String] -> JSParser [String]
 removeIn ops = do
@@ -40,8 +42,18 @@ withoutInsideIteration :: JSParser a -> JSParser a
 withoutInsideIteration = recurseState $ \st -> st { insideIteration = False }
 
 withFunctionContext :: Maybe String -> JSParser a -> JSParser a
-withFunctionContext fname = let here = fromMaybe "anonymous function" fname
-                            in recurseState $ \st -> st { contextDescription = Just here }
+withFunctionContext fname =
+  let here = fromMaybe "anonymous function" fname
+  in recurseState $ \st -> st { contextDescription = Just here,
+                                insideFunction = True }
+
+ifInsideFunction :: JSParser a -> JSParser a
+ifInsideFunction p = do
+  st <- getState
+  if insideFunction st
+  then p
+  else fail "Return statement found outside a function"
+
 ifInsideIteration :: JSParser a -> JSParser a
 ifInsideIteration p = do
   st <- getState

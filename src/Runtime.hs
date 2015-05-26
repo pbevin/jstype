@@ -115,7 +115,7 @@ createArray vals =
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor _this [arg] = do
   body <- toString arg
-  let Program strictness stmts = simpleParse body
+  let Program strictness stmts = simpleParseInFunction body
   createFunction [] strictness stmts
 funConstructor _this xs = error $ "Can't cstr Function with " ++ show xs
 

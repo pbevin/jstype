@@ -49,7 +49,7 @@ updateObj f objRef = modifyRef' objRef f
 getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
   obj <- getGlobalObject
-  deref obj >>= return . fromMaybe (VUndef) . flip objGetOwnProperty name
+  liftM (fromMaybe (VUndef) . flip objGetOwnProperty name) (deref obj)
 
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)

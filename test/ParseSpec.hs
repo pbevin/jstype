@@ -21,7 +21,7 @@ testParse input =
         Block _ sts            ->  Block s $ overrideAll sts
         LabelledStatement _ label st -> LabelledStatement s label $ overrideSrcLoc st
         VarDecl _ a            ->  VarDecl s a
-        ExprStmt _ a           ->  ExprStmt s a
+        ExprStmt _ a           ->  ExprStmt s (fixFunDefSrcLoc a)
         IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
         WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
         DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
@@ -33,6 +33,9 @@ testParse input =
         TryStatement _ a b c   ->  TryStatement s a b c
         EmptyStatement _       ->  EmptyStatement s
         DebuggerStatement _    ->  DebuggerStatement s
+      fixFunDefSrcLoc e = case e of
+        FunDef a b c body -> FunDef a b c (map overrideSrcLoc body)
+        _ -> e
   in Program strictness $ overrideAll stmts
 
 unparseable :: String -> IO ()
@@ -230,12 +233,12 @@ spec = do
         Program NotStrict [ EmptyStatement s, EmptyStatement s ]
 
     it "parses a for..in statement" $ do
-      testParse "for (x in xs) return" `shouldBe`
-        Program NotStrict [For s (ForIn (ReadVar "x") (ReadVar "xs")) $ Return s Nothing]
+      testParse "for (x in xs) {} " `shouldBe`
+        Program NotStrict [For s (ForIn (ReadVar "x") (ReadVar "xs")) $ Block s []]
 
     it "parses a for..var..in statement" $ do
-      testParse "for (var x in xs) return" `shouldBe`
-        Program NotStrict [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Return s Nothing]
+      testParse "for (var x in xs) {}" `shouldBe`
+        Program NotStrict [For s (ForInVar ("x", Nothing) (ReadVar "xs")) $ Block s []]
 
     it "parses a labelled statement" $ do
       testParse "xyz: f()" `shouldBe`
@@ -265,17 +268,20 @@ spec = do
       testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
 
     it "is OK with a semicolon in an if" $ do
-      testParse "if (1) { return; }" `shouldBe` Program NotStrict [IfStatement s (Num 1) (Return s Nothing) Nothing]
+      testParse "if (1) { x = 2; }" `shouldBe` Program NotStrict [IfStatement s (Num 1) (ExprStmt s (Assign (ReadVar "x") "=" (Num 2))) Nothing]
 
     it "treats semicolons as optional" $ do
       testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
 
+    it "treats a return outside a function as a syntax error" $ do
+      unparseable "return"
+
     it "parses a return statement with a value" $ do
-      testParse "return 4" `shouldBe`
-        Program NotStrict [ Return s $ Just $ Num 4 ]
+      testParse "function() { return 4 }" `shouldBe`
+        Program NotStrict [ ExprStmt s $ FunDef Nothing [] NotStrict $ [ Return s $ Just $ Num 4 ] ]
 
     it "does not let a return statement break onto a newline" $ do
-      testParse "return\n5\n" `shouldBe` Program NotStrict [Return s Nothing, ExprStmt s (Num 5)]
+      testParse "function() { return\n5\n}" `shouldBe` Program NotStrict [ ExprStmt s $ FunDef Nothing [] NotStrict $ [ Return s Nothing, ExprStmt s (Num 5) ] ]
 
     it "splits a statement on ++ if on a new line" $ do
       testParse "a=b\n++c" `shouldBe`
