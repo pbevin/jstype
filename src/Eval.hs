@@ -21,6 +21,7 @@ import Debug.Trace
 
 data RuntimeError = RuntimeError {
   errorMessage :: String,
+  errorObject :: JSVal,
   errorStack :: [String]
 } deriving (Show, Eq)
 
@@ -48,7 +49,7 @@ jsEvalExpr input = do
     Right val -> return val
 
 toRuntimeError :: JSError -> RuntimeError
-toRuntimeError (VStr err, stack) = RuntimeError err (map show stack)
+toRuntimeError (VStr err, stack) = RuntimeError err (VStr err) (map show stack)
 toRuntimeError _ = error "Runtime did not convert error to string"
 
 evalCode :: String -> Runtime StmtReturn
@@ -94,7 +95,7 @@ runProg (Program strictness stmts) = do
     (CTNormal, v, _) -> return v
     (CTThrow, Just v, _) -> do
       v' <- callToString v
-      throwError (VStr $ show v', [])
+      throwError (v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing

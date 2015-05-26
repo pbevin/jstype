@@ -15,7 +15,7 @@ import Debug.Trace
 getValue :: JSVal -> Runtime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
-  | isUnresolvableReference ref = raiseError $ "ReferenceError: No such variable " ++ getReferencedName ref
+  | isUnresolvableReference ref = raiseReferenceError $ "No such variable " ++ getReferencedName ref
   | isPropertyReference ref     = getValuePropertyReference ref
   | otherwise                   = getValueEnvironmentRecord ref
     where ref = unwrapRef v

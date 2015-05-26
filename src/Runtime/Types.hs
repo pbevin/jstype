@@ -5,6 +5,7 @@ module Runtime.Types where
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
+import Text.Show.Functions
 import Data.Maybe
 import Data.IORef
 import qualified Data.Map as M
@@ -22,6 +23,7 @@ data JSVal = VNum JSNum
            | VNative (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv JSEnv
+           deriving Show
 
 
 
@@ -29,17 +31,17 @@ isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False
 
-instance Show JSVal where
-  show (VNum a) = show a
-  show (VStr a) = a
-  show (VBool a) = if a then "true" else "false"
-  show (VRef ref) = "(reference " ++ show ref ++ ")"
-  show VUndef = "undefined"
-  show VNull  = "null"
-  show (VObj _) = "[Object object]"
-  show (VNative _) = "(native function)"
-  show (VStacktrace st) = "Stacktrace " ++ show st
-  show _ = "???"
+-- instance Show JSVal where
+--   show (VNum a) = show a
+--   show (VStr a) = a
+--   show (VBool a) = if a then "true" else "false"
+--   show (VRef ref) = "(reference " ++ show ref ++ ")"
+--   show VUndef = "undefined"
+--   show VNull  = "null"
+--   show (VObj _) = "[Object object]"
+--   show (VNative _) = "(native function)"
+--   show (VStacktrace st) = "Stacktrace " ++ show st
+--   show _ = "???"
 
 data JSObj = JSObj {
   objClass :: String,
@@ -119,6 +121,9 @@ type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
 
 newtype Shared a = Shared (IORef a) deriving Eq
+
+instance Show (Shared a) where
+  show (Shared _) = "(shared)"
 
 data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
 type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)

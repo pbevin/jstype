@@ -39,7 +39,13 @@ isString _ = False
 showVal :: JSVal -> String
 showVal (VStr s) = s
 showVal (VNum (JSNum n)) = numberToString n
-showVal other = show other
+showVal (VBool a) = if a then "true" else "false"
+showVal (VRef ref) = "(reference " ++ show ref ++ ")"
+showVal VUndef = "undefined"
+showVal VNull  = "null"
+showVal (VObj _) = "[Object object]"
+showVal (VNative _) = "(native function)"
+showVal (VStacktrace st) = "Stacktrace " ++ show st
 
 toString :: JSVal -> Runtime String
 toString VUndef    = return "undefined"
@@ -47,11 +53,8 @@ toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
 toString (VNum n)  = return $ numberToString $ fromJSNum n
-toString (VRef _) = return "(??ref)"
-toString (VObj _) = return "(??obj)"
-toString (VNative _) = return "(??native)"
 toString (VStacktrace st) = return $ unlines (map show st)
-toString (VEnv _) = return "(??env)"
+toString other = return $ show other
 
 numberToString :: Double -> String
 numberToString n

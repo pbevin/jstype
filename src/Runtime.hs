@@ -326,7 +326,7 @@ assignRef lref rref =
       rval <- getValue rref
       putValue ref rval
       return rval
-    _ -> raiseError $ "ReferenceError: " ++ show lref ++ " is not assignable"
+    _ -> raiseReferenceError $ show lref ++ " is not assignable"
 
 
 
@@ -345,7 +345,7 @@ memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop =
   case lval of
     VObj _ -> return $ VRef (JSRef lval prop NotStrict)
-    _ -> raiseError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
+    _ -> raiseReferenceError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
 funCall :: JSVal -> [JSVal] -> Runtime JSVal
 funCall ref argList = do

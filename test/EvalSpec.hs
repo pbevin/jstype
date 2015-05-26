@@ -56,6 +56,20 @@ spec = do
                            "f();" ]
       runJStr prog `shouldError` "SyntaxError: \"(eval)\" (line 1, column 11):\nunexpected reserved word public\nexpecting var declaration"
 
+    it "applies to an eval in a strict function (case 2)" $ do
+      let prog = unlines [ "function testcase() {",
+                           "    \"use strict\";",
+                           "    try {",
+                           "        eval(\"_11_13_2_1 *= 1;\");",
+                           "        console.log('should not be here');",
+                           "        return false;",
+                           "    } catch (e) {",
+                           "        return e instanceof ReferenceError;",
+                           "    }",
+                           "}",
+                           "if (testcase()) { console.log('ok') }" ]
+      runJStr prog `shouldReturn` Right "ok\n"
+
 
   it "does +, - and void prefixes" $ do
     runJStr "var a = '5'; console.log(+a); console.log(a)"
@@ -216,6 +230,10 @@ spec = do
 
     it "does not throw SyntaxError if the code fails to run" $ do
       runJStr "try { eval('x.a.b'); } catch (e) { if (e instanceof SyntaxError) {} else { console.log('OK 2') } }" `shouldReturn` Right "OK 2\n"
+
+    it "throws an error to its caller" $ do
+      runJStr "try { eval(\"'use strict'; a = 1;\") } catch (e) { console.log('ok'); if (e instanceof ReferenceError) { console.log(e.message); } }"
+        `shouldReturn` Right "ok\na is not defined\n"
 
   describe "Boolean" $ do
     it "can be called as a function" $ do
