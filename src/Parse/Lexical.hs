@@ -101,12 +101,14 @@ comma, semicolon :: JSParser ()
 comma = skip ","
 semicolon = skip ";"
 
+plusminus :: JSParser String -> JSParser String
+plusminus p = (:) <$> oneOf "+-" <*> p <|> p
+
 number :: JSParser Double
 number = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
   where decimal  = many1 digit
         fracPart = (:) <$> char '.' <*> (decimal <|> return "0")
         expPart  = (:) <$> oneOf "eE" <*> plusminus decimal
-        plusminus p = (:) <$> oneOf "+-" <*> p <|> p
         numberWithoutDecimal = do
           char '.'
           b <- decimal
