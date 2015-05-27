@@ -121,11 +121,11 @@ funConstructor _this xs = error $ "Can't cstr Function with " ++ show xs
 
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
-  objref <- newObject
-  modifyRef objref $
-    \obj -> obj { objClass = "Function",
-                  callMethod = Just (funcCall paramList strict body),
-                  cstrMethod = Just (funcCall paramList strict body) }
+  newProto <- newObject
+  objref <- newObject >>= setClass "Function"
+                      >>= setCstrMethod (funcCall paramList strict body)
+                      >>= setCallMethod (funcCall paramList strict body)
+                      >>= addOwnProperty "prototype" (VObj newProto)
   return $ VObj objref
 
 -- ref 13.2.1, incomplete
@@ -173,13 +173,14 @@ createGlobalObjectPrototype =
                     M.fromList [ ("prototype", VUndef),
                                  ("toString", VNative objToString),
                                  ("prim", VNative objPrimitive) ],
+                  objPrototype = Nothing,
                   callMethod = Nothing,
                   cstrMethod = Nothing,
                   primitive = Nothing }
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
-  objPrototype <- getGlobalObjectPrototype
+  prototype <- getGlobalObjectPrototype
   console <- newObject
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
@@ -204,7 +205,7 @@ createGlobalThis = do
 
   errorPrototype <- newObject >>= setClass "Error"
                               >>= addOwnProperty "toString" (VNative errorToString)
-                              >>= addOwnProperty "prototype" (VObj objPrototype)
+                              >>= addOwnProperty "prototype" (VObj prototype)
 
   errorObj <- newObject >>= setCallMethod errFunction
                         >>= setCstrMethod errConstructor
@@ -372,10 +373,12 @@ newObjectFromConstructor fun args = case fun of
         obj <- newObject
         f <- deref funref
         prototype <- objGetProperty "prototype" f
-        modifyRef obj $ objSetProperty "prototype" $ fromMaybe VUndef prototype
+        objSetPrototype (fromObj $ fromMaybe VUndef prototype) obj
         objCstr (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
+    fromObj (VObj obj) = Just obj
+    fromObj _ = Nothing
 
 objCall :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCall func this args = case func of

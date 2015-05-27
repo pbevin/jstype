@@ -14,7 +14,8 @@ newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- getGlobalObjectPrototype
   share JSObj { objClass = "Object",
-                ownProperties = M.fromList [("prototype", VObj prototype)],
+                ownProperties = M.empty,
+                objPrototype = Just prototype,
                 callMethod = Nothing,
                 cstrMethod = Nothing,
                 primitive = Nothing }
@@ -29,8 +30,8 @@ objGetOwnProperty obj name = M.lookup name (ownProperties obj)
 -- ref 8.12.2, incomplete
 objGetProperty :: String -> JSObj -> Runtime (Maybe JSVal)
 objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProperty obj name
-  where checkPrototype = case objGetOwnProperty obj "prototype" of
-          Just (VObj prototype) -> objGetProperty name =<< deref prototype
+  where checkPrototype = case objPrototype obj of
+          Just prototype -> objGetProperty name =<< deref prototype
           _ -> return Nothing
 
 valGetProperty :: String -> JSVal -> Runtime (Maybe JSVal)
@@ -54,6 +55,7 @@ getGlobalProperty name = do
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)
 
+
 valClassName :: JSVal -> Runtime String
 valClassName (VObj objRef) = objClassName objRef
 valClassName _ = return "Object"
@@ -69,6 +71,10 @@ setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
 
 setPrimitiveValue :: JSVal -> ObjectModifier
 setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
+
+objSetPrototype :: Maybe (Shared JSObj) -> ObjectModifier
+objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = prototype }
+
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val

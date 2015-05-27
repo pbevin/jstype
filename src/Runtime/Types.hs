@@ -43,6 +43,7 @@ isObj _ = False
 data JSObj = JSObj {
   objClass :: String,
   ownProperties :: M.Map Ident JSVal,
+  objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   primitive :: Maybe JSVal
