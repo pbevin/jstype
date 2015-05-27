@@ -46,6 +46,7 @@ showVal VNull  = "null"
 showVal (VObj _) = "[Object object]"
 showVal (VNative _) = "(native function)"
 showVal (VStacktrace st) = "Stacktrace " ++ show st
+showVal other = show other
 
 toString :: JSVal -> Runtime String
 toString VUndef    = return "undefined"
