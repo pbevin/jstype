@@ -1,6 +1,8 @@
-:set -isrc -itest
+:set -isrc -itest -i.
 :set -Wall
 :set -fno-warn-unused-binds
 :set -fno-warn-unused-do-bind
 :set -fno-warn-unused-imports
 :set -fno-warn-type-defaults
+
+:def imp (\_ -> return ":load Imports")
