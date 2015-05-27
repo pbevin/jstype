@@ -22,38 +22,33 @@ jsRunStmts stmts = do
   maybe (raiseError "Global runStmts not set up") invokeIt (globalRun global)
     where invokeIt run = run stmts
 
-getGlobalObject :: Runtime (Shared JSObj)
-getGlobalObject = do
+getGlobal :: String -> (JSGlobal -> Maybe a) -> Runtime a
+getGlobal s f = do
   global <- get
-  case globalObject global of
-    Nothing -> raiseError "No global object"
-    Just obj -> return obj
+  case f global of
+    Nothing -> raiseError $ "Global " ++ s ++ " not configured"
+    Just a -> return a
+
+
+getGlobalObject :: Runtime (Shared JSObj)
+getGlobalObject = getGlobal "obj" globalObject
 
 getGlobalObjectPrototype :: Runtime (Shared JSObj)
-getGlobalObjectPrototype = do
-  global <- get
-  case globalObjectPrototype global of
-    Nothing -> raiseError "No global object"
-    Just obj -> return obj
-
-putGlobalContext :: JSCxt -> Runtime ()
-putGlobalContext cxt = modify $ \g -> g { globalContext = Just cxt }
+getGlobalObjectPrototype = getGlobal "proto" globalObjectPrototype
 
 getGlobalContext :: Runtime JSCxt
-getGlobalContext = get >>= maybe (errorWithStackTrace "no context") return . globalContext
+getGlobalContext = getGlobal "cxt" globalContext
+
+withGlobalContext :: (JSCxt -> JSCxt) -> Runtime a -> Runtime a
+withGlobalContext f action = do
+  oldContext <- globalContext <$> get
+  modify $ \g -> g { globalContext = f <$> oldContext }
+  result <- action
+  modify $ \g -> g { globalContext = oldContext }
+  return result
 
 withNewContext :: JSCxt -> Runtime a -> Runtime a
-withNewContext cxt action = do
-  oldContext <- getGlobalContext
-  putGlobalContext cxt
-  result <- action
-  putGlobalContext oldContext
-  return result
+withNewContext cxt = withGlobalContext (const cxt)
 
 withStrictness :: Strictness -> Runtime a -> Runtime a
-withStrictness strictness action = do
-  oldContext <- getGlobalContext
-  putGlobalContext $ oldContext { cxtStrictness = strictness }
-  result <- action
-  putGlobalContext oldContext
-  return result
+withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = strictness }

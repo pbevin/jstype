@@ -41,8 +41,6 @@ jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
   result <- runtime $ do
     initGlobals
-    cxt <- initialCxt
-    putGlobalContext cxt
     runExprStmt (parseExpr input) >>= getValue
   case result of
     Left err  -> error (show err)
@@ -83,13 +81,13 @@ initGlobals = do
   modify $ \st -> st { globalObject = Just newGlobalObject,
                        globalEvaluator = Just evalCode,
                        globalRun = Just runStmts }
+  cxt <- initialCxt
+  modify $ \st -> st { globalContext = Just cxt }
 
 
 runProg :: Program -> Runtime (Maybe JSVal)
 runProg (Program strictness stmts) = do
   initGlobals
-  cxt <- initialCxt
-  putGlobalContext cxt
   result <- withStrictness strictness (runStmts stmts)
   case result of
     (CTNormal, v, _) -> return v
