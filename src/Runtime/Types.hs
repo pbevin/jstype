@@ -23,25 +23,22 @@ data JSVal = VNum JSNum
            | VNative (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv JSEnv
-           deriving Show
 
-
+instance Show JSVal where
+  show (VNum a)         = "VNum " ++ show a
+  show (VStr a)         = "VStr " ++ show a
+  show (VBool a)        = "VBool " ++ if a then "True" else "False"
+  show (VRef ref)       = "VRef " ++ show ref
+  show VUndef           = "VUndef"
+  show VNull            = "VNull"
+  show (VObj _)         = "VObj _"
+  show (VNative _)      = "VNative _"
+  show (VStacktrace st) = "VStacktrace " ++ show st
+  show (VEnv env)       = "VEnv " ++ show env
 
 isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False
-
--- instance Show JSVal where
---   show (VNum a) = show a
---   show (VStr a) = a
---   show (VBool a) = if a then "true" else "false"
---   show (VRef ref) = "(reference " ++ show ref ++ ")"
---   show VUndef = "undefined"
---   show VNull  = "null"
---   show (VObj _) = "[Object object]"
---   show (VNative _) = "(native function)"
---   show (VStacktrace st) = "Stacktrace " ++ show st
---   show _ = "???"
 
 data JSObj = JSObj {
   objClass :: String,
@@ -50,7 +47,6 @@ data JSObj = JSObj {
   cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   primitive :: Maybe JSVal
 }
-
 
 data JSRef = JSRef {
   getBase :: JSVal,
