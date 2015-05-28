@@ -203,9 +203,12 @@ createGlobalThis = do
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
                       >>= addOwnProperty "POSITIVE_INFINITY" (VNum $ JSNum $ 1 / 0)
                       >>= addOwnProperty "NEGATIVE_INFINITY" (VNum $ JSNum $ -1 / 0)
+                      >>= addOwnProperty "MAX_VALUE" (VNum $ jsMaxValue)
+                      >>= addOwnProperty "MIN_VALUE" (VNum $ jsMinValue)
 
 
   array <- newObject >>= setCallMethod arrayConstructor
+                     >>= setCstrMethod arrayConstructor
 
   -- error <- newObject
   -- modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
