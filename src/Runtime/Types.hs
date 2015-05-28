@@ -23,7 +23,7 @@ valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
 
 propSetValue :: a -> PropDesc a -> PropDesc a
-propSetValue a (DataPD _ w e b) = DataPD a w e b
+propSetValue a (DataPD _ w e c) = DataPD a w e c
 
 readOnlyProperty :: a -> PropDesc a
 readOnlyProperty a = DataPD a False True True
@@ -57,6 +57,10 @@ instance Show JSVal where
 isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False
+
+fromObj :: JSVal -> Maybe (Shared JSObj)
+fromObj (VObj v) = Just v
+fromObj _ = Nothing
 
 isPrimitive :: JSVal -> Bool
 isPrimitive VUndef    = True

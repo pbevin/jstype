@@ -15,6 +15,7 @@ import Runtime.Conversion as X
 import Runtime.Global as X
 import Runtime.Error as X
 import Runtime.PropMap as X
+import Runtime.PropDesc as X
 import Parse
 import Expr
 import JSNum
@@ -311,23 +312,6 @@ objEscape _this args = case args of
 jsConsoleLog :: JSVal -> [JSVal] -> Runtime JSVal
 jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
 
--- ref 15.2.3.3
-getOwnPropertyDescriptor :: JSVal -> [JSVal] -> Runtime JSVal
-getOwnPropertyDescriptor _this xs = do
-  let [objVal, propVal] = xs
-
-  obj <- getValue objVal
-  str <- toString propVal
-  val <- getValue (VRef $ JSRef obj str NotStrict)
-
-  result <- newObject
-  modifyRef result $ objSetProperty "value" val
-  modifyRef result $ objSetProperty "writable" (VBool True)
-  modifyRef result $ objSetProperty "enumerable" (VBool False)
-  modifyRef result $ objSetProperty "configurable" (VBool True)
-
-  return $ VObj result
-
 putVar :: Ident -> JSVal -> Runtime ()
 putVar x v = do
   cxt <- getGlobalContext
@@ -427,12 +411,29 @@ objCstr func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
+first2 :: [JSVal] -> (JSVal, JSVal)
+first2 [] = (VUndef, VUndef)
+first2 [a] = (a, VUndef)
+first2 (a:b:_) = (a, b)
+
 first3 :: [JSVal] -> (JSVal, JSVal, JSVal)
 first3 [] = (VUndef, VUndef, VUndef)
 first3 [a] = (a, VUndef, VUndef)
 first3 [a,b] = (a, b, VUndef)
 first3 (a:b:c:_) = (a, b, c)
 
+-- ref 15.2.3.3
+getOwnPropertyDescriptor :: JSVal -> [JSVal] -> Runtime JSVal
+getOwnPropertyDescriptor _this args =
+  let (o, p) = first2 args
+  in case o of
+    VObj obj -> do
+      name <- toString p
+      desc <- objGetOwnProperty name obj
+      fromPropertyDescriptor desc
+    _ -> raiseTypeError "Object.getOwnPropertyDescriptor called on non-object"
+
+-- ref 15.2.3.6
 objDefineProperty :: JSVal -> [JSVal] -> Runtime JSVal
 objDefineProperty _this args =
   let (o, p, attrs) = first3 args
@@ -444,6 +445,7 @@ objDefineProperty _this args =
       return o
     _ -> raiseTypeError "Object.defineProperty called on non-object"
 
+-- ref 15.2.3.10
 objPreventExtensions :: JSVal -> [JSVal] -> Runtime JSVal
 objPreventExtensions _this args =
   let o = headDef VUndef args
