@@ -166,13 +166,17 @@ stackTrace (err, stack) = unlines $ show err : map show (reverse stack)
 printStackTrace :: JSError -> Runtime ()
 printStackTrace = liftIO . putStrLn . stackTrace
 
+propsFromList :: Ord k => [(k, a)] -> PropMap k (PropDesc a)
+propsFromList = propMapFromList . map f
+  where f (k, a) = (k, valueToProp a)
+
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
   share $ JSObj { objClass = "Object",
                   ownProperties =
-                    propMapFromList [ ("prototype", VUndef),
-                                      ("toString", VNative objToString),
-                                      ("prim", VNative objPrimitive) ],
+                    propsFromList [ ("prototype", VUndef),
+                                    ("toString", VNative objToString),
+                                    ("prim", VNative objPrimitive) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
                   cstrMethod = Nothing,
@@ -371,9 +375,8 @@ newObjectFromConstructor fun args = case fun of
     create name val = case val of
       VObj funref -> do
         obj <- newObject
-        f <- deref funref
-        prototype <- objGetProperty "prototype" f
-        objSetPrototype (fromObj $ fromMaybe VUndef prototype) obj
+        prototype <- objGetProperty "prototype" funref
+        objSetPrototype (fromObj $ maybe VUndef propValue prototype) obj
         objCstr (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name

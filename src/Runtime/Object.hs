@@ -20,27 +20,59 @@ newObject = do
                 cstrMethod = Nothing,
                 primitive = Nothing }
 
-objSetProperty :: String -> JSVal -> JSObj -> JSObj
-objSetProperty name value obj = obj { ownProperties = propMapInsert name value (ownProperties obj) }
-
 -- ref 8.12.1, incomplete
-objGetOwnProperty :: JSObj -> String -> Maybe JSVal
-objGetOwnProperty obj name = propMapLookup name (ownProperties obj)
+objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+objGetOwnProperty name objRef = liftM (propMapLookup name . ownProperties) (deref objRef)
 
 -- ref 8.12.2, incomplete
-objGetProperty :: String -> JSObj -> Runtime (Maybe JSVal)
-objGetProperty name obj = maybe checkPrototype (return . Just) $ objGetOwnProperty obj name
-  where checkPrototype = case objPrototype obj of
-          Just prototype -> objGetProperty name =<< deref prototype
-          _ -> return Nothing
+objGetProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+objGetProperty name objRef = do
+  prop <- objGetOwnProperty name objRef
+  case prop of
+    Just _ -> return prop
+    Nothing -> do
+      proto <- liftM objPrototype $ deref objRef
+      case proto of
+        Just p -> objGetProperty name p
+        Nothing -> return Nothing
 
-valGetProperty :: String -> JSVal -> Runtime (Maybe JSVal)
-valGetProperty name (VObj objRef) = deref objRef >>= objGetProperty name
+valGetProperty :: String -> JSVal -> Runtime (Maybe (PropDesc JSVal))
+valGetProperty name (VObj objRef) = objGetProperty name objRef
 valGetProperty _ _ = return Nothing
+
+-- ref 8.12.4, incomplete
+objCanPut :: String -> Shared JSObj -> Runtime Bool
+objCanPut p objRef = do
+  return True
+
+-- ref 8.12.5, incomplete
+objPut :: String -> JSVal -> Bool -> Shared JSObj -> Runtime ()
+objPut p v throw objRef = do
+  canPut <- objCanPut p objRef
+  unless canPut $ raiseError $ "TypeError: " ++ "Cannot set property " ++ p ++ " of object"
+  ownDesc <- objGetOwnProperty p objRef
+  case ownDesc of
+    Just d -> objDefineOwnProperty p (propSetValue v d) throw objRef
+    Nothing -> objDefineOwnProperty p (valueToProp v) throw objRef
 
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> JSObj -> Runtime JSVal
 objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
+
+-- ref 8.12.9, incomplete
+objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime ()
+objDefineOwnProperty p desc throw objRef = do
+  current <- objGetOwnProperty p objRef
+  -- extensible <- objIsExtensible objRef
+  let extensible = True
+  case current of
+    Nothing -> _objCreateOwnProperty p desc objRef
+    Just desc' -> _objCreateOwnProperty p (propSetValue (propValue desc) desc') objRef
+
+
+_objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime ()
+_objCreateOwnProperty p desc = void . updateObj (objSetPropertyDescriptor p desc)
+
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
 
@@ -49,8 +81,7 @@ updateObj f objRef = modifyRef' objRef f
 
 getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
-  obj <- getGlobalObject
-  liftM (fromMaybe (VUndef) . flip objGetOwnProperty name) (deref obj)
+  liftM (maybe VUndef propValue) (objGetOwnProperty name =<< getGlobalObject)
 
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)
@@ -78,6 +109,12 @@ objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = prototype }
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
+
+objSetProperty :: String -> JSVal -> JSObj -> JSObj
+objSetProperty name value obj = objSetPropertyDescriptor name (valueToProp value) obj
+
+objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
+objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
 
 isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> String -> ObjectModifier
 isWrapperFor f defaultValue name =

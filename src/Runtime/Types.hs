@@ -13,7 +13,15 @@ import Control.Applicative
 import Expr
 import JSNum
 
-type PropertyMap = PropMap Ident JSVal
+type PropertyMap = PropMap Ident (PropDesc JSVal)
+
+data PropDesc a = DataPD a Bool Bool Bool
+propValue :: PropDesc a -> a
+propValue (DataPD a _ _ _) = a
+valueToProp :: a -> PropDesc a
+valueToProp a = DataPD a True True True
+propSetValue :: a -> PropDesc a -> PropDesc a
+propSetValue a (DataPD _ w e b) = DataPD a w e b
 
 data JSVal = VNum JSNum
            | VStr String

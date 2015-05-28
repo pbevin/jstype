@@ -54,11 +54,10 @@ isUnresolvableReference ref =
 
 getValuePropertyReference :: JSRef -> Runtime JSVal
 getValuePropertyReference (JSRef (VObj objref) name _isStrict) = do
-  obj <- deref objref
-  val <- objGetProperty name obj
+  val <- objGetProperty name objref
   case val of
     Nothing -> return VUndef
-    Just v  -> return v
+    Just v  -> return $ propValue v
 
 getValuePropertyReference _ = error "Internal error in getValuePropertyReference"
 
@@ -84,9 +83,10 @@ isStrictReference ref = refStrictness ref == Strict
 
 
 putPropertyReference :: JSRef -> JSVal -> Runtime ()
-putPropertyReference (JSRef (VObj objref) name _isStrict) val = modifyRef objref setRef where
-    setRef obj = obj { ownProperties = propMapInsert name val (ownProperties obj) }
+putPropertyReference (JSRef (VObj objRef) name strict) val =
+  objPut name val (strict == Strict) objRef
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
+
 
 putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
 putEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) val = do
@@ -110,9 +110,12 @@ hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
 hasBinding name (ObjEnvRec obj) = liftM (propMapMember name . ownProperties) $ deref obj
 
 envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = liftM (propMapLookup name) $ deref m
-envLookup name (ObjEnvRec obj) = liftM (propMapLookup name . ownProperties) $ deref obj
+envLookup name (DeclEnvRec m) = liftM (lk name) $ deref m
+envLookup name (ObjEnvRec obj) = liftM (lk name . ownProperties) $ deref obj
+
+lk :: Ord k => k -> PropMap k (PropDesc a) -> Maybe a
+lk k m = propValue <$> propMapLookup k m
 
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
-envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name val)
+envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))
 envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj

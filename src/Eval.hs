@@ -374,9 +374,9 @@ makeObjectLiteral nameValueList =
       nameOf (StringProp str)  = str
       nameOf (NumProp n)       = show n
       addProp :: Shared JSObj -> (PropertyName, Expr) -> Runtime (Shared JSObj)
-      addProp obj (propName, propValue) = do
-        val <- runExprStmt propValue >>= getValue
-        addOwnProperty (nameOf propName) val obj
+      addProp obj (p, v) = do
+        val <- getValue =<< runExprStmt v
+        addOwnProperty (nameOf p) val obj
   in do
     obj <- newObject
     VObj <$> foldM addProp obj nameValueList

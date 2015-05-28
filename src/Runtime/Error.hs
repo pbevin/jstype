@@ -25,6 +25,7 @@ raiseSyntaxError msg = createSyntaxError (VStr msg) >>= raise
 createSyntaxError :: JSVal -> Runtime JSVal
 createSyntaxError = createError "SyntaxError"
 
+
 createError :: String -> JSVal -> Runtime JSVal
 -- createError = do
 --   prototype <- getGlobalProperty name
@@ -55,13 +56,12 @@ errConstructor this args =
                >>= addOwnProperty "toString" (VNative errorToString)
     _ -> raiseError "Bad this for Error constructor"
 
-dflt :: JSVal -> Maybe JSVal -> Runtime JSVal
-dflt d = return . fromMaybe d
+dflt :: JSVal -> Maybe (PropDesc JSVal) -> Runtime JSVal
+dflt d = return . maybe d propValue
 
 errorToString :: JSFunction
 errorToString (VObj this) _args = do
-  obj  <- deref this
-  name <- objGetProperty "name" obj >>= dflt (VStr "Error")
-  msg  <- objGetProperty "message" obj >>= dflt VUndef
+  name <- objGetProperty "name" this >>= dflt (VStr "Error")
+  msg  <- objGetProperty "message" this >>= dflt VUndef
   return $ VStr $ showVal name ++ ": " ++ showVal msg
 errorToString _ _ = raiseError "errorToString called on non-object"
