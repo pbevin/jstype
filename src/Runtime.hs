@@ -412,15 +412,10 @@ objCstr func this args = case func of
   _ -> raiseError $ "Can't call " ++ show func
 
 first2 :: [JSVal] -> (JSVal, JSVal)
-first2 [] = (VUndef, VUndef)
-first2 [a] = (a, VUndef)
-first2 (a:b:_) = (a, b)
+first2 xs = (a,b) where [a,b] = take 2 (xs ++ repeat VUndef)
 
 first3 :: [JSVal] -> (JSVal, JSVal, JSVal)
-first3 [] = (VUndef, VUndef, VUndef)
-first3 [a] = (a, VUndef, VUndef)
-first3 [a,b] = (a, b, VUndef)
-first3 (a:b:c:_) = (a, b, c)
+first3 xs = (a,b,c) where [a,b,c] = take 3 (xs ++ repeat VUndef)
 
 -- ref 15.2.3.3
 getOwnPropertyDescriptor :: JSVal -> [JSVal] -> Runtime JSVal
