@@ -61,6 +61,21 @@ objPut p v throw objRef = do
     Just d -> objDefineOwnProperty p (propSetValue v d) throw objRef
     Nothing -> objDefineOwnProperty p (valueToProp v) throw objRef
 
+-- ref 8.12.7
+objDelete :: String -> Bool -> Shared JSObj -> Runtime JSVal
+objDelete p throw objRef = do
+  desc <- objGetOwnProperty p objRef
+  case desc of
+    Nothing -> return (VBool True)
+    Just d -> if propIsConfigurable d
+              then updateObj (objDeleteProperty p) objRef >> return (VBool True)
+              else if throw
+                   then raiseProtoError TypeError $ "Cannot remove non-existent property " ++ p
+                   else return (VBool False)
+
+
+  
+
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> Shared JSObj -> Runtime JSVal
 objDefaultValue hint objRef = case hint of
@@ -158,6 +173,9 @@ objSetProperty name value obj = objSetPropertyDescriptor name (valueToProp value
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
 objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
+
+objDeleteProperty :: String -> JSObj -> JSObj
+objDeleteProperty name obj = obj { ownProperties = propMapDelete name (ownProperties obj) }
 
 objSetExtensible :: Bool -> ObjectModifier
 objSetExtensible extensible = updateObj $ \obj -> obj { objExtensible = extensible }

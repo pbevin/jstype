@@ -325,9 +325,10 @@ runExprStmt expr = case expr of
     v2 <- runExprStmt e2 >>= getValue
     evalBinOp op v1 v2
 
+  UnOp "delete" e -> do -- ref 11.4.1
+    evalDelete =<< runExprStmt e
   UnOp "typeof" e -> do -- ref 11.4.3
     evalTypeof =<< runExprStmt e
-
   UnOp op e -> -- ref 11.4
     let f = case op of
               "++"   -> modifyingOp (+ 1) (+ 1)
@@ -403,7 +404,22 @@ makeObjectLiteral nameValueList =
     obj <- newObject
     VObj <$> foldM addProp obj nameValueList
 
+-- ref 11.4.1
+evalDelete :: JSVal -> Runtime JSVal
+evalDelete val
+  | not (isReference val) = return (VBool True)
+  | isUnresolvableReference ref && isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (1)"
+  | isUnresolvableReference ref = return (VBool True)
+  | isPropertyReference ref = deleteFromObj ref
+  | isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (2)"
+  | otherwise = deleteFromEnv ref
 
+  where ref = unwrapRef val
+        deleteFromObj (JSRef (VObj base) name strict) = objDelete name (strict == Strict) base
+        deleteFromEnv (JSRef (VEnv base) name strict) = deleteBinding name base
+
+
+-- ref 11.4.3
 evalTypeof :: JSVal -> Runtime JSVal
 evalTypeof val = do
   if isReference val && isUnresolvableReference (unwrapRef val)

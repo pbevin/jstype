@@ -70,6 +70,15 @@ getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
   return $ fromMaybe VUndef $ val
 getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
 
+-- ref 10.2.1.2.5
+deleteBinding :: String -> JSEnv -> Runtime JSVal
+deleteBinding n envRef = do
+  val <- deref envRef
+  envDelete n (envRec val)
+
+  
+
+
 
 
 putUnresolvable :: JSRef -> JSVal -> Runtime ()
@@ -95,7 +104,6 @@ putEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) val = do
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
-
 unwrapRef :: JSVal -> JSRef
 unwrapRef (VRef ref) = ref
 unwrapRef v = error $ "Can't unwrap " ++ show v
@@ -119,3 +127,7 @@ lk k m = propValue <$> propMapLookup k m
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))
 envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj
+
+envDelete :: Ident -> EnvRec -> Runtime JSVal
+envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)
+envDelete name (ObjEnvRec obj) = objDelete name False obj

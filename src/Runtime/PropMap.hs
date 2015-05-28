@@ -16,6 +16,9 @@ propMapLookup k (PropMap m) = M.lookup k m
 propMapInsert :: Ord k => k -> a -> PropMap k a -> PropMap k a
 propMapInsert k a (PropMap m) = PropMap $ M.insert k a m
 
+propMapDelete :: Ord k => k -> PropMap k a -> PropMap k a
+propMapDelete k (PropMap m) = PropMap $ M.delete k m
+
 propMapToList :: PropMap k a -> [(k, a)]
 propMapToList (PropMap m) = M.toList m
 

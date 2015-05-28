@@ -15,9 +15,11 @@ import JSNum
 
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
-data PropDesc a = DataPD a Bool Bool Bool deriving (Show, Eq)
-propValue :: PropDesc a -> a
-propValue (DataPD a _ _ _) = a
+data PropDesc a = DataPD {
+  propValue :: a,
+  propIsWritable :: Bool,
+  propIsEnumerable :: Bool,
+  propIsConfigurable :: Bool } deriving (Show, Eq)
 
 valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
@@ -28,8 +30,6 @@ propSetValue a (DataPD _ w e c) = DataPD a w e c
 readOnlyProperty :: a -> PropDesc a
 readOnlyProperty a = DataPD a False True True
 
-propIsWritable :: PropDesc a -> Bool
-propIsWritable (DataPD _ w _ _) = w
 
 data JSVal = VNum JSNum
            | VStr String
@@ -92,7 +92,7 @@ data JSCxt = JSCxt {
   cxtStrictness :: Strictness
 }
 
-type JSEnv = Shared LexEnv
+type JSEnv = Shared LexEnv -- XXX make this just LexEnv so it's obvious when shared
 
 data LexEnv = LexEnv {
   envRec :: EnvRec,
