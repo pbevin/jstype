@@ -179,7 +179,8 @@ createGlobalObjectPrototype =
                                     ("prim", VNative objPrimitive) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
-                  cstrMethod = Nothing }
+                  cstrMethod = Nothing,
+                  objExtensible = True }
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -194,6 +195,7 @@ createGlobalThis = do
   object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
                       >>= addOwnProperty "prototype" (VObj prototype)
                       >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
+                      >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
                       >>= setCallMethod objFunction
                       >>= setCstrMethod objConstructor
 
@@ -441,6 +443,15 @@ objDefineProperty _this args =
       objDefineOwnProperty name desc True obj
       return o
     _ -> raiseTypeError "Object.defineProperty called on non-object"
+
+objPreventExtensions :: JSVal -> [JSVal] -> Runtime JSVal
+objPreventExtensions _this args =
+  let o = headDef VUndef args
+  in case o of
+    VObj obj -> do
+      objSetExtensible False obj
+      return o
+    _ -> raiseTypeError "Object.preventExtensions called on non-object"
 
 
 

@@ -17,7 +17,8 @@ newObject = do
                 ownProperties = emptyPropMap,
                 objPrototype = Just prototype,
                 callMethod = Nothing,
-                cstrMethod = Nothing }
+                cstrMethod = Nothing,
+                objExtensible = True }
 
 -- ref 8.12.1
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -100,10 +101,11 @@ objDefaultValue hint objRef = case hint of
 objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime ()
 objDefineOwnProperty p desc throw objRef = do
   current <- objGetOwnProperty p objRef
-  -- extensible <- objIsExtensible objRef
-  let extensible = True
+  extensible <- objIsExtensible objRef
   case current of
-    Nothing -> _objCreateOwnProperty p desc objRef
+    Nothing -> if extensible
+               then _objCreateOwnProperty p desc objRef
+               else raiseProtoError TypeError $ "Can't add to non-extensible object"
     Just desc' -> if propIsWritable desc'
                   then _objCreateOwnProperty p (propSetValue (propValue desc) desc') objRef
                   else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
@@ -156,6 +158,12 @@ objSetProperty name value obj = objSetPropertyDescriptor name (valueToProp value
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
 objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
+
+objSetExtensible :: Bool -> ObjectModifier
+objSetExtensible extensible = updateObj $ \obj -> obj { objExtensible = extensible }
+
+objIsExtensible :: Shared JSObj -> Runtime Bool
+objIsExtensible objRef = objExtensible <$> deref objRef
 
 isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> String -> ObjectModifier
 isWrapperFor f defaultValue name =

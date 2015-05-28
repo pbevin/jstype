@@ -71,7 +71,8 @@ data JSObj = JSObj {
   ownProperties :: PropertyMap,
   objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
-  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal)
+  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
+  objExtensible :: Bool
 }
 
 data JSRef = JSRef {
