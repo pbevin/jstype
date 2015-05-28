@@ -3,7 +3,7 @@
 module Parse.Statements where
 
 import Text.Parsec hiding (many, (<|>), optional)
-import Control.Monad (replicateM, liftM, when)
+import Control.Monad (replicateM, liftM, when, guard)
 import Control.Applicative
 import Data.Char
 import Data.List (sortBy)
@@ -29,10 +29,17 @@ statementList = do
 directivePrefix :: JSParser Strictness
 directivePrefix = do
   currentStrictness <- getStrictness
-  directives <- many (terminated quotedString)
+  directives <- many (terminated directive)
   return $ if "use strict" `elem` directives
            then Strict
            else currentStrictness
+
+directive :: JSParser String
+directive = try $ do
+  str <- quotedString
+  guard (str == "use strict")
+  return str
+
 
 terminated :: JSParser a -> JSParser a
 terminated p = do

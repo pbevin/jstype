@@ -185,6 +185,10 @@ spec = do
       testParse "var public;" `shouldBe` Program NotStrict [VarDecl s [("public", Nothing)]]
       unparseable "'use strict'; var public = 1;"
 
+    it "does not eat leading strings that aren't 'use strict'" $ do
+      testParse "'tigers are cool'" `shouldBe`
+        Program NotStrict [ExprStmt s $ Str "tigers are cool"]
+
     it "parses a do-while statement" $ do
       testParse "do {} while (a);" `shouldBe` Program NotStrict [DoWhileStatement s (ReadVar "a") (Block s [])]
 
