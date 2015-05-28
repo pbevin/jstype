@@ -201,6 +201,8 @@ createGlobalThis = do
   number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) "Number"
                       >>= addOwnProperty "NaN" (VNum jsNaN)
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
+                      >>= addOwnProperty "POSITIVE_INFINITY" (VNum $ JSNum $ 1 / 0)
+                      >>= addOwnProperty "NEGATIVE_INFINITY" (VNum $ JSNum $ -1 / 0)
 
 
   array <- newObject >>= setCallMethod arrayConstructor
