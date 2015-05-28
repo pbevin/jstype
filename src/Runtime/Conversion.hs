@@ -10,7 +10,7 @@ import Runtime.Object
 -- ref 9.1, incomplete
 toPrimitive :: PrimitiveHint -> JSVal -> Runtime JSVal
 toPrimitive hint a = case a of
-  VObj obj -> objDefaultValue hint =<< deref obj
+  VObj obj -> objDefaultValue hint obj
   _        -> return a
 
 -- ref 9.2, incomplete

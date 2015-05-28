@@ -94,6 +94,9 @@ spec = do
     runJStr "var a = 5; console.log(a++); console.log(a)"
       `shouldReturn` Right "5\n6\n"
 
+  it "evaluates a primitive number wrapped in an object" $ do
+    jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VNum 2
+
   describe "an empty array" $ do
     it "has length 0" $ do
       jsEvalExpr "[].length" `shouldReturn` VNum 0

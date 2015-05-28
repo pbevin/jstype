@@ -43,8 +43,7 @@ objToString _this _args = return $ VStr "[object Object]"
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
-  obj <- deref this
-  objDefaultValue HintNone obj
+  objDefaultValue HintNone this
 objPrimitive this _args = return this
 
 toObject :: JSVal -> Runtime JSVal
@@ -143,7 +142,7 @@ funcCall paramList strict body this args =
       result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v
-        (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
+        (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
         _ -> return VUndef
 
 
@@ -156,11 +155,12 @@ objEval _this args = case args of
     result <- jsEvalCode text
     case result of
       (CTNormal, Just v, _) -> return v
-      (CTThrow, Just v, _)  -> throwError (v, []) -- XXXX
+      (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
       _ -> return VUndef
 
 stackTrace :: JSError -> String
-stackTrace (err, stack) = unlines $ show err : map show (reverse stack)
+stackTrace (JSError (err, stack)) = unlines $ show err : map show (reverse stack)
+stackTrace (JSProtoError (t, msg)) = show (show t ++ ": " ++ msg)
 
 
 printStackTrace :: JSError -> Runtime ()
@@ -179,8 +179,7 @@ createGlobalObjectPrototype =
                                     ("prim", VNative objPrimitive) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
-                  cstrMethod = Nothing,
-                  primitive = Nothing }
+                  cstrMethod = Nothing }
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -218,6 +217,7 @@ createGlobalThis = do
 
   referenceError <- errorType "ReferenceError" (VObj errorPrototype)
   syntaxError    <- errorType "SyntaxError" (VObj errorPrototype)
+  typeError      <- errorType "TypeError" (VObj errorPrototype)
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
                     >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
@@ -258,6 +258,7 @@ createGlobalThis = do
             >>= addOwnProperty "Error" (VObj errorObj)
             >>= addOwnProperty "ReferenceError" (VObj referenceError)
             >>= addOwnProperty "SyntaxError" (VObj syntaxError)
+            >>= addOwnProperty "TypeError" (VObj typeError)
             >>= addOwnProperty "Math" (VObj math)
             >>= addOwnProperty "undefined" (VUndef)
             >>= addOwnProperty "null" (VNull)

@@ -15,7 +15,7 @@ import JSNum
 
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
-data PropDesc a = DataPD a Bool Bool Bool
+data PropDesc a = DataPD a Bool Bool Bool deriving (Show, Eq)
 propValue :: PropDesc a -> a
 propValue (DataPD a _ _ _) = a
 valueToProp :: a -> PropDesc a
@@ -50,13 +50,20 @@ isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False
 
+isPrimitive :: JSVal -> Bool
+isPrimitive VUndef    = True
+isPrimitive VNull     = True
+isPrimitive (VBool _) = True
+isPrimitive (VNum _)  = True
+isPrimitive (VStr _)  = True
+isPrimitive _         = False
+
 data JSObj = JSObj {
   objClass :: String,
   ownProperties :: PropertyMap,
   objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
-  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
-  primitive :: Maybe JSVal
+  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal)
 }
 
 data JSRef = JSRef {
@@ -123,7 +130,7 @@ newEnv parent = do
   share $ LexEnv (DeclEnvRec m) (Just parent)
 
 type JSOutput = String
-type JSError = (JSVal, [SrcLoc])
+data JSError = JSError (JSVal, [SrcLoc]) | JSProtoError (ErrorType, String) deriving (Show, Eq)
 type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
 
@@ -163,6 +170,11 @@ data JSGlobal = JSGlobal {
 }
 
 raiseError :: String -> Runtime a
-raiseError s = throwError (VStr s, [])
+raiseError s = throwError $ JSError (VStr s, [])
 
-data PrimitiveHint = HintNone | HintNumber
+raiseProtoError :: ErrorType -> String -> Runtime a
+raiseProtoError t msg = throwError $ JSProtoError (t, msg)
+
+data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
+
+data PrimitiveHint = HintNone | HintNumber | HintString

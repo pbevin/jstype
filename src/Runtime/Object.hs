@@ -17,14 +17,13 @@ newObject = do
                 ownProperties = emptyPropMap,
                 objPrototype = Just prototype,
                 callMethod = Nothing,
-                cstrMethod = Nothing,
-                primitive = Nothing }
+                cstrMethod = Nothing }
 
--- ref 8.12.1, incomplete
+-- ref 8.12.1
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 objGetOwnProperty name objRef = liftM (propMapLookup name . ownProperties) (deref objRef)
 
--- ref 8.12.2, incomplete
+-- ref 8.12.2
 objGetProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 objGetProperty name objRef = do
   prop <- objGetOwnProperty name objRef
@@ -39,6 +38,12 @@ objGetProperty name objRef = do
 valGetProperty :: String -> JSVal -> Runtime (Maybe (PropDesc JSVal))
 valGetProperty name (VObj objRef) = objGetProperty name objRef
 valGetProperty _ _ = return Nothing
+
+-- ref 8.12.3, incomplete
+objGet :: String -> Shared JSObj -> Runtime JSVal
+objGet name objRef = do
+  prop <- objGetProperty name objRef
+  return $ fromMaybe VUndef $ propValue <$> prop
 
 -- ref 8.12.4, incomplete
 objCanPut :: String -> Shared JSObj -> Runtime Bool
@@ -56,8 +61,41 @@ objPut p v throw objRef = do
     Nothing -> objDefineOwnProperty p (valueToProp v) throw objRef
 
 -- ref 8.12.8, incomplete
-objDefaultValue :: PrimitiveHint -> JSObj -> Runtime JSVal
-objDefaultValue hint obj = return $ fromMaybe (fromHint hint) $ primitive obj
+objDefaultValue :: PrimitiveHint -> Shared JSObj -> Runtime JSVal
+objDefaultValue hint objRef = case hint of
+  HintString -> call "toString" `orElse` call "valueOf"
+  HintNumber -> call "valueOf" `orElse` call "toString"
+  HintNone   -> call "valueOf" `orElse` call "toString"
+  where
+    orElse :: Runtime (Maybe a) -> Runtime (Maybe a) -> Runtime a
+    orElse p1 p2 = do
+      m1 <- p1
+      case m1 of
+        Just r -> return r
+        Nothing -> do
+          m2 <- p2
+          case m2 of
+            Just r -> return r
+            Nothing -> do
+              o <- deref objRef
+              raiseProtoError TypeError $ "Cannot get default value for " ++ show (ownProperties o)
+    call :: String -> Runtime (Maybe JSVal)
+    call method = do
+      m <- objGet method objRef
+      case m of
+        VNative f -> do
+          Just <$> f (VObj objRef) []
+        VObj mRef -> do
+          mm <- callMethod <$> deref mRef
+          case mm of
+            Nothing -> return Nothing
+            Just f -> do
+              result <- f (VObj objRef) []
+              return $ if isPrimitive result
+              then Just result
+              else Nothing
+
+        _ -> return Nothing
 
 -- ref 8.12.9, incomplete
 objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime ()
@@ -101,7 +139,9 @@ setCstrMethod :: JSFunction -> ObjectModifier
 setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
 
 setPrimitiveValue :: JSVal -> ObjectModifier
-setPrimitiveValue v = updateObj $ \obj -> obj { primitive = Just v }
+setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc
+  where wrapValInNativeFunc :: JSVal -> JSVal
+        wrapValInNativeFunc v = VNative $ \_this _args -> return v
 
 objSetPrototype :: Maybe (Shared JSObj) -> ObjectModifier
 objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = prototype }

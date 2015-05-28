@@ -46,7 +46,7 @@ jsEvalExpr input = do
     Right val -> return val
 
 toRuntimeError :: JSError -> RuntimeError
-toRuntimeError (VStr err, stack) = RuntimeError err (VStr err) (map show stack)
+toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (map show stack)
 toRuntimeError _ = error "Runtime did not convert error to string"
 
 evalCode :: String -> Runtime StmtReturn
@@ -59,7 +59,7 @@ evalCode text = do
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left (VStr $ "SyntaxError: " ++ show err, []), ""), emptyGlobal)
+  Left err -> return ((Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), ""), emptyGlobal)
   Right ast -> runRuntime (runProg ast)
 
 runtime :: Runtime a -> IO (Either JSError a)
@@ -92,7 +92,7 @@ runProg (Program strictness stmts) = do
     (CTNormal, v, _) -> return v
     (CTThrow, Just v, _) -> do
       v' <- callToString v
-      throwError (v', [])
+      throwError $ JSError (v', [])
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -111,9 +111,13 @@ debug a = do
   liftIO $ print a
 
 returnThrow :: Statement -> JSError -> Runtime StmtReturn
-returnThrow s (err, stack) = do
+returnThrow s (JSError (err, stack)) = do
   setStacktrace err (sourceLocation s : stack)
   return (CTThrow, Just err, Nothing)
+returnThrow s (JSProtoError (t, msg)) = do
+  err <- createError t (VStr msg)
+  returnThrow s (JSError (err, []))
+
 
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
 setStacktrace v stack =
@@ -375,7 +379,7 @@ makeObjectLiteral nameValueList =
       nameOf (NumProp n)       = show n
       addProp :: Shared JSObj -> (PropertyName, Expr) -> Runtime (Shared JSObj)
       addProp obj (p, v) = do
-        val <- getValue =<< runExprStmt v
+        val <- runExprStmt v >>= getValue
         addOwnProperty (nameOf p) val obj
   in do
     obj <- newObject

@@ -11,26 +11,17 @@ import Runtime.Conversion
 
 
 raise :: JSVal -> Runtime a
-raise err = throwError (err, [])
+raise err = throwError $ JSError (err, [])
 
 raiseReferenceError :: String -> Runtime a
-raiseReferenceError msg = createReferenceError (VStr msg) >>= raise
-
-createReferenceError :: JSVal -> Runtime JSVal
-createReferenceError = createError "ReferenceError"
+raiseReferenceError msg = createError ReferenceError (VStr msg) >>= raise
 
 raiseSyntaxError :: String -> Runtime a
-raiseSyntaxError msg = createSyntaxError (VStr msg) >>= raise
+raiseSyntaxError msg = createError SyntaxError (VStr msg) >>= raise
 
-createSyntaxError :: JSVal -> Runtime JSVal
-createSyntaxError = createError "SyntaxError"
-
-
-createError :: String -> JSVal -> Runtime JSVal
--- createError = do
---   prototype <- getGlobalProperty name
---   newObjectFromConstructor
-createError name message = do
+createError :: ErrorType -> JSVal -> Runtime JSVal
+createError errorType message = do
+  let name = show errorType
   prototype <- getGlobalProperty name
            >>= valGetProperty "prototype"
            >>= dflt VUndef

@@ -2,7 +2,7 @@ module Runtime.PropMap where
 
 import qualified Data.Map as M
 
-newtype PropMap k a = PropMap (M.Map k a)
+newtype PropMap k a = PropMap (M.Map k a) deriving (Show, Eq)
 
 emptyPropMap :: PropMap k a
 emptyPropMap = PropMap M.empty
