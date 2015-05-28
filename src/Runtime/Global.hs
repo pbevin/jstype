@@ -6,9 +6,6 @@ import Data.Maybe
 import Runtime.Types
 import Expr
 
-emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal Nothing Nothing Nothing Nothing Nothing
-
 type SourceName = String
 type SourceCode = String
 jsEvalCode :: String -> Runtime StmtReturn

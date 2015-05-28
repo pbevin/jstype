@@ -18,10 +18,18 @@ type PropertyMap = PropMap Ident (PropDesc JSVal)
 data PropDesc a = DataPD a Bool Bool Bool deriving (Show, Eq)
 propValue :: PropDesc a -> a
 propValue (DataPD a _ _ _) = a
+
 valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
+
 propSetValue :: a -> PropDesc a -> PropDesc a
 propSetValue a (DataPD _ w e b) = DataPD a w e b
+
+readOnlyProperty :: a -> PropDesc a
+readOnlyProperty a = DataPD a False True True
+
+propIsWritable :: PropDesc a -> Bool
+propIsWritable (DataPD _ w _ _) = w
 
 data JSVal = VNum JSNum
            | VStr String
@@ -160,6 +168,9 @@ newtype Runtime a = JS {
             Functor,
             Applicative)
 
+runRuntime :: Runtime a -> IO ((Either JSError a, String), JSGlobal)
+runRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
+
 
 data JSGlobal = JSGlobal {
   globalObject    :: Maybe (Shared JSObj),
@@ -168,6 +179,10 @@ data JSGlobal = JSGlobal {
   globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
   globalContext   :: Maybe JSCxt
 }
+
+emptyGlobal :: JSGlobal
+emptyGlobal = JSGlobal Nothing Nothing Nothing Nothing Nothing
+
 
 raiseError :: String -> Runtime a
 raiseError s = throwError $ JSError (VStr s, [])
@@ -178,3 +193,7 @@ raiseProtoError t msg = throwError $ JSProtoError (t, msg)
 data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
 
 data PrimitiveHint = HintNone | HintNumber | HintString
+
+debug :: Show a => a -> Runtime ()
+debug a = do
+  liftIO $ print a

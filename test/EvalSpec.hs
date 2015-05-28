@@ -7,11 +7,7 @@ import Test.Hspec
 import Expr
 import Eval
 import Runtime
-
-shouldError :: Show b => IO (Either RuntimeError b) -> String -> Expectation
-shouldError val errorText = val >>= \case
-  Left err -> errorMessage err `shouldBe` errorText
-  Right v  -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
+import Expectations
 
 
 runJStr :: String -> IO (Either RuntimeError String)

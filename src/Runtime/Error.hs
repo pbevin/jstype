@@ -19,6 +19,9 @@ raiseReferenceError msg = createError ReferenceError (VStr msg) >>= raise
 raiseSyntaxError :: String -> Runtime a
 raiseSyntaxError msg = createError SyntaxError (VStr msg) >>= raise
 
+raiseTypeError :: String -> Runtime a
+raiseTypeError msg = createError TypeError (VStr msg) >>= raise
+
 createError :: ErrorType -> JSVal -> Runtime JSVal
 createError errorType message = do
   let name = show errorType

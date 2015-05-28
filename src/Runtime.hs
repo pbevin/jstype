@@ -193,6 +193,7 @@ createGlobalThis = do
 
   object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
                       >>= addOwnProperty "prototype" (VObj prototype)
+                      >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
                       >>= setCallMethod objFunction
                       >>= setCstrMethod objConstructor
 
@@ -424,6 +425,22 @@ objCstr func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
+first3 :: [JSVal] -> (JSVal, JSVal, JSVal)
+first3 [] = (VUndef, VUndef, VUndef)
+first3 [a] = (a, VUndef, VUndef)
+first3 [a,b] = (a, b, VUndef)
+first3 (a:b:c:_) = (a, b, c)
+
+objDefineProperty :: JSVal -> [JSVal] -> Runtime JSVal
+objDefineProperty _this args =
+  let (o, p, attrs) = first3 args
+  in case o of
+    VObj obj -> do
+      name <- toString p
+      desc <- toPropertyDescriptor attrs
+      objDefineOwnProperty name desc True obj
+      return o
+    _ -> raiseTypeError "Object.defineProperty called on non-object"
 
 
 

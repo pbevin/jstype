@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Eval (runJS, evalJS, jsEvalExpr, runtime, RuntimeError(..)) where
+module Eval (runJS, evalJS, jsEvalExpr, runtime, runtime', RuntimeError(..)) where
 
 import Control.Monad.State
 import Control.Monad.Except
@@ -73,9 +73,8 @@ runtime p = do
   result <- runRuntime p
   return $ fst (fst result)
 
-
-runRuntime :: Runtime a -> IO ((Either JSError a, String), JSGlobal)
-runRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
+runtime' :: Runtime a -> IO (Either JSError a)
+runtime' p = runtime (initGlobals >> p)
 
 initGlobals :: Runtime ()
 initGlobals = do
@@ -118,10 +117,6 @@ getStackTrace (VObj obj) = do
     VStacktrace s -> s
     _ -> []
 getStackTrace _ = return []
-
-debug :: Show a => a -> Runtime ()
-debug a = do
-  liftIO $ print a
 
 returnThrow :: Statement -> JSError -> Runtime StmtReturn
 returnThrow s (JSError (err, stack)) = do

@@ -104,7 +104,9 @@ objDefineOwnProperty p desc throw objRef = do
   let extensible = True
   case current of
     Nothing -> _objCreateOwnProperty p desc objRef
-    Just desc' -> _objCreateOwnProperty p (propSetValue (propValue desc) desc') objRef
+    Just desc' -> if propIsWritable desc'
+                  then _objCreateOwnProperty p (propSetValue (propValue desc) desc') objRef
+                  else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
 
 
 _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime ()
