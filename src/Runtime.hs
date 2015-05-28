@@ -187,10 +187,12 @@ createGlobalThis = do
   console <- newObject
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
-  function <- newObject
-  modifyRef function $ \obj -> obj { callMethod = Just funConstructor }
+  functionPrototype <- newObject
+  function <- newObject >>= setCallMethod funConstructor
+                        >>= objSetPrototype functionPrototype
 
   object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+                      >>= addOwnProperty "prototype" (VObj prototype)
                       >>= setCallMethod objFunction
                       >>= setCstrMethod objConstructor
 
@@ -218,6 +220,18 @@ createGlobalThis = do
   referenceError <- errorType "ReferenceError" (VObj errorPrototype)
   syntaxError    <- errorType "SyntaxError" (VObj errorPrototype)
   typeError      <- errorType "TypeError" (VObj errorPrototype)
+
+
+  datePrototype <- newObject >>= setClass "Date"
+                             >>= objSetPrototype prototype
+                             >>= setCstrMethod dateConstructor
+                             >>= addOwnProperty "toString" (VNative dateToString)
+
+  date <- newObject >>= setClass "Date"
+                    >>= setCallMethod dateFunction
+                    >>= setCstrMethod dateConstructor
+                    >>= objSetPrototype functionPrototype
+                    >>= addOwnProperty "prototype" (VObj datePrototype)
 
   math <- newObject >>= addOwnProperty "PI" (VNum $ JSNum (pi :: Double))
                     >>= addOwnProperty "E" (VNum $ JSNum (exp 1 :: Double))
@@ -256,6 +270,7 @@ createGlobalThis = do
             >>= addOwnProperty "Object" (VObj object)
             >>= addOwnProperty "Array" (VObj array)
             >>= addOwnProperty "Error" (VObj errorObj)
+            >>= addOwnProperty "Date" (VObj date)
             >>= addOwnProperty "ReferenceError" (VObj referenceError)
             >>= addOwnProperty "SyntaxError" (VObj syntaxError)
             >>= addOwnProperty "TypeError" (VObj typeError)
@@ -377,12 +392,14 @@ newObjectFromConstructor fun args = case fun of
       VObj funref -> do
         obj <- newObject
         prototype <- objGetProperty "prototype" funref
-        objSetPrototype (fromObj $ maybe VUndef propValue prototype) obj
+        setPrototype (fromObj $ maybe VUndef propValue prototype) obj
         objCstr (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
     fromObj (VObj obj) = Just obj
     fromObj _ = Nothing
+    setPrototype :: Maybe (Shared JSObj) -> Shared JSObj -> Runtime (Shared JSObj)
+    setPrototype mp = updateObj $ \obj -> obj { objPrototype = mp }
 
 objCall :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCall func this args = case func of
@@ -397,7 +414,26 @@ objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCstr func this args = case func of
   VNative f -> f this args
   VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
-    Nothing -> raiseError "Can't call function: no cstrMethod"
+    Nothing -> raiseError "Can't create object: function has no cstrMethod"
     Just method -> method this args
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
+
+
+
+
+
+
+functionIsConstructor :: JSFunction -> JSFunction
+functionIsConstructor cstr _this args = do
+  this <- newObject
+  cstr (VObj this) args
+
+dateFunction :: JSVal -> [JSVal] -> Runtime JSVal
+dateFunction = functionIsConstructor dateConstructor
+
+dateConstructor :: JSVal -> [JSVal] -> Runtime JSVal
+dateConstructor _ _ = VObj <$> newObject
+
+dateToString :: JSVal -> [JSVal] -> Runtime JSVal
+dateToString _ _ = return $ VStr "1969-12-30 21:18:57 UTC"

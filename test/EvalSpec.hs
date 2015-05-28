@@ -97,6 +97,13 @@ spec = do
   it "evaluates a primitive number wrapped in an object" $ do
     jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VNum 2
 
+  it "evaluates date objects specially" $ do
+    runJStr "var date = new Date(); console.log(date + date == date.toString() + date.toString())"
+      `shouldReturn` Right "true\n"
+
+  it "can add a number and an object" $ do
+    runJStr "console.log(1 + new Object() == '1[object Object]')" `shouldReturn` Right "true\n"
+
   describe "an empty array" $ do
     it "has length 0" $ do
       jsEvalExpr "[].length" `shouldReturn` VNum 0

@@ -40,10 +40,16 @@ jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
   result <- runtime $ do
     initGlobals
-    runExprStmt (parseExpr input) >>= getValue
+    (runExprStmt (parseExpr input) >>= getValue) `catchError` rethrowAsString
   case result of
-    Left err  -> error (show err)
+    Left err  -> do
+      error (show err)
     Right val -> return val
+
+rethrowAsString :: JSError -> Runtime a
+rethrowAsString (JSError (err, s)) = do
+  v <- callToString err
+  throwError $ JSError (v, s)
 
 toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (map show stack)
@@ -91,8 +97,9 @@ runProg (Program strictness stmts) = do
   case result of
     (CTNormal, v, _) -> return v
     (CTThrow, Just v, _) -> do
-      v' <- callToString v
-      throwError $ JSError (v', [])
+      msg <- callToString v
+      st <- getStackTrace v
+      throwError $ JSError (msg, st)
     _ -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
@@ -104,7 +111,13 @@ callToString v = do
   ref <- memberGet obj "toString"
   funCall ref []
 
-
+getStackTrace :: JSVal -> Runtime [SrcLoc]
+getStackTrace (VObj obj) = do
+  st <- objGet "stack" obj
+  return $ case st of
+    VStacktrace s -> s
+    _ -> []
+getStackTrace _ = return []
 
 debug :: Show a => a -> Runtime ()
 debug a = do
@@ -125,13 +138,23 @@ setStacktrace v stack =
     VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
     _           -> return ()
 
+addToStacktrace :: SrcLoc -> JSVal -> Runtime ()
+addToStacktrace loc (VObj objRef) = do
+  val <- objGet "stack" objRef
+  case val of
+    VStacktrace st -> objPut "stack" (VStacktrace $ loc : st) False objRef
+    _ -> return ()
+addToStacktrace loc val = return ()
 
+
+-- ref 12.1
 runStmts :: [Statement] -> Runtime StmtReturn
 runStmts = runStmts' (CTNormal, Nothing, Nothing) where
   runStmts' emptyResult [] = return emptyResult
   runStmts' _ (s:stmts) = do
     result <- runStmt s `catchError` returnThrow s
     case result of
+      (CTThrow, Just v, _) -> addToStacktrace (sourceLocation s) v >> return result
       (CTNormal, _, _) -> runStmts' result stmts
       _ -> return result
 

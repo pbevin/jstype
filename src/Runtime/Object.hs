@@ -78,7 +78,7 @@ objDefaultValue hint objRef = case hint of
             Just r -> return r
             Nothing -> do
               o <- deref objRef
-              raiseProtoError TypeError $ "Cannot get default value for " ++ show (ownProperties o)
+              raiseProtoError TypeError $ "Cannot get default value for object of type " ++ (objClass o) ++ " with properties " ++ show (ownProperties o)
     call :: String -> Runtime (Maybe JSVal)
     call method = do
       m <- objGet method objRef
@@ -94,7 +94,6 @@ objDefaultValue hint objRef = case hint of
               return $ if isPrimitive result
               then Just result
               else Nothing
-
         _ -> return Nothing
 
 -- ref 8.12.9, incomplete
@@ -143,8 +142,8 @@ setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc
   where wrapValInNativeFunc :: JSVal -> JSVal
         wrapValInNativeFunc v = VNative $ \_this _args -> return v
 
-objSetPrototype :: Maybe (Shared JSObj) -> ObjectModifier
-objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = prototype }
+objSetPrototype :: Shared JSObj -> ObjectModifier
+objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just prototype }
 
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
