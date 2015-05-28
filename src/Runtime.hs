@@ -5,7 +5,6 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Data.Maybe
-import qualified Data.Map as M
 import Safe
 
 import Runtime.Reference as X
@@ -15,6 +14,7 @@ import Runtime.Operations as X
 import Runtime.Conversion as X
 import Runtime.Global as X
 import Runtime.Error as X
+import Runtime.PropMap as X
 import Parse
 import Expr
 import JSNum
@@ -35,7 +35,7 @@ initialEnv = do
 
 emptyEnv :: Runtime JSEnv
 emptyEnv = do
-  m <- share M.empty
+  m <- share emptyPropMap
   share $ LexEnv (DeclEnvRec m) Nothing
 
 objToString :: JSFunction
@@ -170,9 +170,9 @@ createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
   share $ JSObj { objClass = "Object",
                   ownProperties =
-                    M.fromList [ ("prototype", VUndef),
-                                 ("toString", VNative objToString),
-                                 ("prim", VNative objPrimitive) ],
+                    propMapFromList [ ("prototype", VUndef),
+                                      ("toString", VNative objToString),
+                                      ("prim", VNative objPrimitive) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
                   cstrMethod = Nothing,

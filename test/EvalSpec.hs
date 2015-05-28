@@ -4,7 +4,6 @@ module EvalSpec where
 
 import Test.Hspec
 
-import qualified Data.Map as M
 import Expr
 import Eval
 import Runtime

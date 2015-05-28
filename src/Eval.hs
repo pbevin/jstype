@@ -9,8 +9,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.List (intercalate)
 import Data.Bits
-import qualified Data.Foldable as F
-import qualified Data.Map as M
+import Data.Foldable
 import Text.Show.Functions
 import Parse
 import Expr
@@ -139,7 +138,7 @@ runStmt s = case s of
     return (CTNormal, Just val, Nothing)
 
   VarDecl _loc assignments -> do
-    F.forM_ assignments $ \(x, e) -> case e of
+    forM_ assignments $ \(x, e) -> case e of
       Nothing  -> putVar x VUndef
       Just e' -> do
         v <- getValue =<< runExprStmt e'

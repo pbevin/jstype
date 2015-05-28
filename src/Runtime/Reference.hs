@@ -1,12 +1,12 @@
 module Runtime.Reference where
 
 import Control.Monad.Except
-import qualified Data.Map as M
 import Data.Maybe
 import Runtime.Object
 import Runtime.Types
 import Runtime.Global (getGlobalObject)
 import Runtime.Error
+import Runtime.PropMap
 import Expr
 
 import Debug.Trace
@@ -85,7 +85,7 @@ isStrictReference ref = refStrictness ref == Strict
 
 putPropertyReference :: JSRef -> JSVal -> Runtime ()
 putPropertyReference (JSRef (VObj objref) name _isStrict) val = modifyRef objref setRef where
-    setRef obj = obj { ownProperties = M.insert name val (ownProperties obj) }
+    setRef obj = obj { ownProperties = propMapInsert name val (ownProperties obj) }
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
@@ -106,13 +106,13 @@ isReference _ = False
 
 
 hasBinding :: Ident -> EnvRec -> Runtime Bool
-hasBinding name (DeclEnvRec m) = liftM (M.member name) $ deref m
-hasBinding name (ObjEnvRec obj) = liftM (M.member name . ownProperties) $ deref obj
+hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
+hasBinding name (ObjEnvRec obj) = liftM (propMapMember name . ownProperties) $ deref obj
 
 envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = liftM (M.lookup name) $ deref m
-envLookup name (ObjEnvRec obj) = liftM (M.lookup name . ownProperties) $ deref obj
+envLookup name (DeclEnvRec m) = liftM (propMapLookup name) $ deref m
+envLookup name (ObjEnvRec obj) = liftM (propMapLookup name . ownProperties) $ deref obj
 
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
-envInsert name val (DeclEnvRec m) = modifyRef m (M.insert name val)
+envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name val)
 envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj

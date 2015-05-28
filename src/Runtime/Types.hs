@@ -8,10 +8,12 @@ import Control.Monad.Writer
 import Text.Show.Functions
 import Data.Maybe
 import Data.IORef
-import qualified Data.Map as M
+import Runtime.PropMap
 import Control.Applicative
 import Expr
 import JSNum
+
+type PropertyMap = PropMap Ident JSVal
 
 data JSVal = VNum JSNum
            | VStr String
@@ -42,7 +44,7 @@ isObj _ = False
 
 data JSObj = JSObj {
   objClass :: String,
-  ownProperties :: M.Map Ident JSVal,
+  ownProperties :: PropertyMap,
   objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
@@ -69,7 +71,7 @@ data LexEnv = LexEnv {
   outer  :: Maybe JSEnv
 }
 
-data EnvRec = DeclEnvRec (Shared (M.Map Ident JSVal))
+data EnvRec = DeclEnvRec (Shared PropertyMap)
             | ObjEnvRec (Shared JSObj)
 
 data JSType = TypeUndefined
@@ -109,7 +111,7 @@ instance Eq JSVal where
 
 newEnv :: JSEnv -> Runtime JSEnv
 newEnv parent = do
-  m <- share M.empty
+  m <- share emptyPropMap
   share $ LexEnv (DeclEnvRec m) (Just parent)
 
 type JSOutput = String

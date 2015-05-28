@@ -3,7 +3,6 @@ module Runtime.Operations where
 import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
-import qualified Data.Map as M
 import Data.Word
 import Data.Bits
 import Data.Fixed (mod')
@@ -13,6 +12,7 @@ import JSNum
 import Runtime.Types
 import Runtime.Conversion
 import Runtime.Object
+import Runtime.PropMap
 
 evalBinOp :: String -> JSVal -> JSVal -> Runtime JSVal
 evalBinOp op = case op of
@@ -224,7 +224,7 @@ printVal :: JSVal -> Runtime ()
 printVal (VObj objRef) = do
   obj <- deref objRef
   liftIO $ print $ "***** ***** ***** Object (class=" ++ objClass obj ++ ")"
-  mapM_ printProperty (M.toList (ownProperties obj)) where
+  mapM_ printProperty (propMapToList (ownProperties obj)) where
     printProperty (key, val) =
       when (key == "prototype") $
         liftIO (print $ key ++ ":") >> printVal val

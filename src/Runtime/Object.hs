@@ -4,9 +4,9 @@ import Data.Functor
 import Control.Monad.Except
 import Control.Monad.State
 import Data.Maybe
-import qualified Data.Map as M
 import Runtime.Types
 import Runtime.Global
+import Runtime.PropMap
 
 import Debug.Trace
 
@@ -14,18 +14,18 @@ newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- getGlobalObjectPrototype
   share JSObj { objClass = "Object",
-                ownProperties = M.empty,
+                ownProperties = emptyPropMap,
                 objPrototype = Just prototype,
                 callMethod = Nothing,
                 cstrMethod = Nothing,
                 primitive = Nothing }
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
-objSetProperty name value obj = obj { ownProperties = M.insert name value (ownProperties obj) }
+objSetProperty name value obj = obj { ownProperties = propMapInsert name value (ownProperties obj) }
 
 -- ref 8.12.1, incomplete
 objGetOwnProperty :: JSObj -> String -> Maybe JSVal
-objGetOwnProperty obj name = M.lookup name (ownProperties obj)
+objGetOwnProperty obj name = propMapLookup name (ownProperties obj)
 
 -- ref 8.12.2, incomplete
 objGetProperty :: String -> JSObj -> Runtime (Maybe JSVal)
