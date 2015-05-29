@@ -215,3 +215,11 @@ isWrapperFor f defaultValue name =
         VObj obj -> do
           VObj <$> (setClass name obj >>= setPrimitiveValue val)
         _ -> raiseError $ name ++ " constructor called with this = " ++ show this
+
+objFindPrototype :: String -> Runtime (Shared JSObj)
+objFindPrototype name =
+  getGlobalProperty name >>= valGetPrototype >>= maybe oops return
+    where
+      oops = raiseError $ "No prototype for " ++ name
+      valGetPrototype (VObj objRef) = fromObj <$> objGet "prototype" objRef
+      valGetPrototype _ = return Nothing

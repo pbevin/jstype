@@ -58,7 +58,6 @@ getValuePropertyReference (JSRef (VObj objref) name _isStrict) = do
   case val of
     Nothing -> return VUndef
     Just v  -> propValue v
-
 getValuePropertyReference _ = error "Internal error in getValuePropertyReference"
 
 

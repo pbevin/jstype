@@ -24,14 +24,11 @@ raiseTypeError msg = createError TypeError (VStr msg) >>= raise
 
 createError :: ErrorType -> JSVal -> Runtime JSVal
 createError errorType message = do
-  prototype <- getGlobalProperty name >>= valGetPrototype >>= maybe oops return
+  prototype <- objFindPrototype name
   obj <- newObject >>= addOwnProperty "name" (VStr name)
                    >>= objSetPrototype prototype
   errConstructor (VObj obj) [message]
-  where valGetPrototype (VObj objRef) = fromObj <$> objGet "prototype" objRef
-        valGetPrototype _ = return Nothing
-        oops = raiseError $ "No prototype for " ++ name
-        name = show errorType
+  where name = show errorType
 
 errFunction :: JSVal -> [JSVal] -> Runtime JSVal
 errFunction this args = do

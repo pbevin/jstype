@@ -115,7 +115,9 @@ createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
   let len = VNum $ fromIntegral $ length vals
       assigns = arrayAssigns vals
-  in do obj <- newObject >>= setClass "Array"
+  in do arrayPrototype <- objFindPrototype "Array"
+        obj <- newObject >>= setClass "Array"
+                         >>= objSetPrototype arrayPrototype
                          >>= addOwnProperty "length" len
                          >>= setArrayIndices assigns
         return $ VObj obj
@@ -224,10 +226,16 @@ createGlobalThis = do
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
                       >>= addReadOnlyConstants numberConstants
 
+  arrayPrototype <- newObject >>= setClass "Array"
+                              >>= objSetPrototype prototype
+                              >>= addOwnProperty "prototype" (VObj prototype)
+                              >>= addOwnProperty "length" (VNum 0)
+                              >>= addOwnProperty "toString" (VNative arrayToString)
+                              >>= addOwnProperty "reduce" (VNative arrayReduce)
 
   array <- newObject >>= setCallMethod arrayConstructor
                      >>= setCstrMethod arrayConstructor
-                     >>= addOwnProperty "prototype" (VObj prototype)
+                     >>= addOwnProperty "prototype" (VObj arrayPrototype)
 
   errorPrototype <- newObject >>= setClass "Error"
                               >>= addOwnProperty "toString" (VNative errorToString)
@@ -393,10 +401,10 @@ updateRef op lref rref =
 -- ref 11.13.1
 disallowEvalAssignment :: JSRef -> Runtime ()
 disallowEvalAssignment (JSRef (VEnv _) name strict)
-  | name /= "eval" && name /= "arguments" = debug name >> return ()
-  | strict == NotStrict                   = debug "b" >> return ()
+  | name /= "eval" && name /= "arguments" = return ()
+  | strict == NotStrict                   = return ()
   | otherwise = cannotAssignTo name
-disallowEvalAssignment x = debug x >> return ()
+disallowEvalAssignment x = return ()
 
 cannotAssignTo :: String -> Runtime ()
 cannotAssignTo name = raiseSyntaxError $ "Assignment of " ++ name ++ " in strict mode"
@@ -543,6 +551,14 @@ dateToString _ _ = return $ VStr "1969-12-30 21:18:57 UTC"
 
 dateValueOf :: JSVal -> [JSVal] -> Runtime JSVal
 dateValueOf _ _ = return $ VNum 142857
+
+-- ref 15.4.4.2, incomplete
+arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
+arrayToString _this _args = return $ VStr "[...]"
+
+-- ref 15.4.4.21, incomplete
+arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
+arrayReduce _this _args = return VNull
 
 -- ref 8.10.5, incomplete
 toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)
