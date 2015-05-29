@@ -272,12 +272,12 @@ createGlobalThis = do
             >>= addOwnProperty "TypeError" (VObj typeError)
             >>= addOwnProperty "Math" (VObj math)
             >>= addOwnProperty "JSON" (VObj json)
-            >>= addOwnProperty "undefined" (VUndef)
-            >>= addOwnProperty "null" (VNull)
             >>= addOwnProperty "eval" (VNative objEval)
-            >>= addOwnProperty "Infinity" (VNum $ 1 / 0)
-            >>= addOwnProperty "NaN" (VNum $ jsNaN)
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
+            >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
+            >>= addOwnConstant "NaN" (VNum $ jsNaN)
+            >>= addOwnConstant "undefined" (VUndef)
+            >>= addOwnConstant "null" (VNull)
 
 
 mathObject :: Runtime (Shared JSObj)
@@ -324,11 +324,8 @@ numberConstants = [ ("NaN", JSNum $ 0/0),
 
 addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
 addReadOnlyConstants xs obj = do
-  forM (map toReadOnlyPropDesc xs) $ \(name, desc) -> do
-    objDefineOwnProperty name desc False obj
+  forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
   return obj
-  where toReadOnlyPropDesc (name, value) = (name, DataPD (VNum value) False False False)
-
 
 errorType :: String -> JSVal -> Runtime (Shared JSObj)
 errorType name parentPrototype = do
