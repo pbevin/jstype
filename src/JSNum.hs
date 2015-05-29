@@ -24,6 +24,7 @@ instance Num JSNum where
   fromInteger n = JSNum $ fromInteger n
   abs (JSNum a) = JSNum $ abs a
   signum (JSNum a) = JSNum $ signum a
+  negate (JSNum a) = JSNum (negate a)
 
 instance Fractional JSNum where
   (JSNum a) / (JSNum b) = JSNum (a / b)

@@ -261,6 +261,9 @@ spec = do
       runJStr "console.log(Math.abs(-Infinity))" `shouldReturn` Right "Infinity\n"
       runJStr "console.log(NaN)" `shouldReturn` Right "NaN\n"
 
+    it "understands negative zero" $ do
+      runJStr "console.log(1 / -0)" `shouldReturn` Right "-Infinity\n"
+
   describe "Object" $ do
     it "can define a property with a constant value" $ do
       let prog = unlines [
