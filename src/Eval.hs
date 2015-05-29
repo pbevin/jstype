@@ -107,7 +107,7 @@ callToString :: JSVal -> Runtime JSVal
 callToString (VStr str) = return (VStr str)
 callToString v = do
   obj <- toObject v
-  ref <- memberGet obj "toString"
+  ref <- memberGet (VObj obj) "toString"
   funCall ref []
 
 getStackTrace :: JSVal -> Runtime [SrcLoc]
@@ -415,7 +415,9 @@ evalDelete val
   | otherwise = deleteFromEnv ref
 
   where ref = unwrapRef val
-        deleteFromObj (JSRef (VObj base) name strict) = objDelete name (strict == Strict) base
+        deleteFromObj (JSRef base name strict) = do
+          obj <- toObject base
+          objDelete name (strict == Strict) obj
         deleteFromEnv (JSRef (VEnv base) name strict) = deleteBinding name base
 
 

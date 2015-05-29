@@ -47,12 +47,12 @@ objPrimitive (VObj this) _args = do
   objDefaultValue HintNone this
 objPrimitive this _args = return this
 
-toObject :: JSVal -> Runtime JSVal
-toObject v@(VObj _) = return v
+toObject :: JSVal -> Runtime (Shared JSObj)
+toObject (VObj objRef) = return objRef
 toObject (VStr str) = do
   obj <- newObject
   stringConstructor (VObj obj) [VStr str]
-  -- runExprStmt cxt (FunCall (NewExpr (ReadVar "String") [Str str]) [])
+  return obj
 toObject v = toString v >>= toObject . VStr
 
 
@@ -71,7 +71,7 @@ objFunction _this args =
   let arg = headDef VUndef args
   in if arg == VUndef || arg == VNull
      then VObj <$> newObject
-     else toObject (head args)
+     else VObj <$> toObject (head args)
 
 objConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 objConstructor _this _args = VObj <$> newObject
