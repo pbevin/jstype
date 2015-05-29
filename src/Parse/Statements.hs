@@ -366,16 +366,12 @@ arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets arrayContents
 
 arrayContents :: JSParser [Maybe Expr]
-arrayContents = nonEmptyContents <|> elisionFirst <|> return []
-  where nonEmptyContents = do
-          first <- assignmentExpr
-          rest <- many (tok "," >> optional assignmentExpr)
-          return $ (Just first) : rest
-        elisionFirst = do
-          tok ","
-          rest <- many (try $ optional assignmentExpr <* tok ",")
-          final <- optional assignmentExpr
-          return $ (Nothing:rest) ++ map Just (toList final)
+arrayContents = do
+  (++) <$> elision <*> (content <|> return [])
+  where elision = many (tok "," >> return Nothing)
+        content = do val <- assignmentExpr
+                     (tok "," >> more val) <|> return [Just val]
+                           where more v = (Just v :) <$> arrayContents
 
 
 objectLiteral :: JSParser Expr

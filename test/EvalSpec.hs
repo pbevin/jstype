@@ -125,6 +125,14 @@ spec = do
     it "has length 2" $ do
       jsEvalExpr "[,,].length" `shouldReturn` VNum 2
 
+  describe "an array with many elisions at the end" $ do
+    it "has the right length" $ do
+      jsEvalExpr "[4,5].length" `shouldReturn` VNum 2
+      jsEvalExpr "[4,5,].length" `shouldReturn` VNum 2
+      jsEvalExpr "[4,5,,].length" `shouldReturn` VNum 3
+      jsEvalExpr "[4,5,,,].length" `shouldReturn` VNum 4
+      jsEvalExpr "[4,5,,,,].length" `shouldReturn` VNum 5
+
   describe "comparison" $ do
     it "understands <" $ do
       jsEvalExpr "1 < 2" `shouldReturn` VBool True

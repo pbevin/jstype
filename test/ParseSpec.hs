@@ -108,7 +108,7 @@ spec = do
 
       it "parses an array literal with elision at the end" $ do
         parseExpr "[1,2,]" `shouldBe`
-          ArrayLiteral [Just $ Num 1, Just $ Num 2, Nothing ]
+          ArrayLiteral [Just $ Num 1, Just $ Num 2 ]
 
       it "parses an array literal with elision at the start" $ do
         parseExpr "[,1,2]" `shouldBe`
