@@ -209,6 +209,7 @@ createGlobalThis = do
   functionPrototype <- newObject
   function <- newObject >>= setCallMethod funConstructor
                         >>= objSetPrototype functionPrototype
+                        >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
 
   object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
                       >>= addOwnProperty "prototype" (VObj prototype)
