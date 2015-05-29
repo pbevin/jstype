@@ -36,6 +36,9 @@ getGlobalObjectPrototype = getGlobal "proto" globalObjectPrototype
 getGlobalContext :: Runtime JSCxt
 getGlobalContext = getGlobal "cxt" globalContext
 
+getGlobalStrictness :: Runtime Strictness
+getGlobalStrictness = cxtStrictness <$> getGlobalContext
+
 withGlobalContext :: (JSCxt -> JSCxt) -> Runtime a -> Runtime a
 withGlobalContext f action = do
   oldContext <- globalContext <$> get

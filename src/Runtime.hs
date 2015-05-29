@@ -326,7 +326,7 @@ getIdentifierReference (Just lexRef) name strict = do
   env <- deref lexRef
   bound <- hasBinding name (envRec env)
   if bound
-  then return $ JSRef (VEnv lexRef) name NotStrict
+  then return $ JSRef (VEnv lexRef) name strict
   else do
     getIdentifierReference (outer env) name strict
 
@@ -355,9 +355,10 @@ updateRef op lref rref =
     _ -> raiseReferenceError $ show lref ++ " is not assignable"
 
 memberGet :: JSVal -> String -> Runtime JSVal
-memberGet lval prop =
+memberGet lval prop = do
+  strict <- getGlobalStrictness
   case lval of
-    VObj _ -> return $ VRef (JSRef lval prop NotStrict)
+    VObj _ -> return $ VRef (JSRef lval prop strict)
     _ -> raiseReferenceError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
 
 funCall :: JSVal -> [JSVal] -> Runtime JSVal
