@@ -219,7 +219,7 @@ raiseProtoError t msg = throwError $ JSProtoError (t, msg)
 
 data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
 
-data PrimitiveHint = HintNone | HintNumber | HintString
+data PrimitiveHint = HintNone | HintNumber | HintString deriving (Show, Eq)
 
 debug :: Show a => a -> Runtime ()
 debug a = do

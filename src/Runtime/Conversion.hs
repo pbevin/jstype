@@ -22,15 +22,15 @@ toBoolean (VNum n)  = n /= 0 && not (isNaN $ fromJSNum n)
 toBoolean (VStr "") = False
 toBoolean _         = True
 
--- ref 9.3, incomplete
+-- ref 9.3
 toNumber :: JSVal -> Runtime JSNum
 toNumber VUndef     = return jsNaN
 toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
 toNumber (VNum n)   = return n
-toNumber (VStr s)   = return $ JSNum (fromMaybe 0 $ readMay s)
-toNumber v@(VObj _) = toNumber =<< toPrimitive HintNumber v
-toNumber _ = return 0
+toNumber (VStr s)   = return $ maybe jsNaN JSNum $ readMay s
+toNumber v@(VObj _) = toPrimitive HintNumber v >>= toNumber
+toNumber _ = return 7
 
 isString :: JSVal -> Bool
 isString (VStr _) = True

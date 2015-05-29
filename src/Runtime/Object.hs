@@ -83,9 +83,14 @@ objDefaultValue :: PrimitiveHint -> Shared JSObj -> Runtime JSVal
 objDefaultValue hint objRef = case hint of
   HintString -> call "toString" `orElse` call "valueOf"
   HintNumber -> call "valueOf" `orElse` call "toString"
-  HintNone   -> call "valueOf" `orElse` call "toString"
+  HintNone   -> do
+    cls <- objClass <$> deref objRef
+    if cls == "Date"
+    then objDefaultValue HintString objRef
+    else objDefaultValue HintNumber objRef
+
   where
-    orElse :: Runtime (Maybe a) -> Runtime (Maybe a) -> Runtime a
+    orElse :: Show a => Runtime (Maybe a) -> Runtime (Maybe a) -> Runtime a
     orElse p1 p2 = do
       m1 <- p1
       case m1 of
@@ -100,7 +105,7 @@ objDefaultValue hint objRef = case hint of
     call :: String -> Runtime (Maybe JSVal)
     call method = do
       m <- objGet method objRef
-      case m of
+      returnIfPrimitive <$> case m of
         VNative f -> do
           Just <$> f (VObj objRef) []
         VObj mRef -> do
@@ -108,11 +113,16 @@ objDefaultValue hint objRef = case hint of
           case mm of
             Nothing -> return Nothing
             Just f -> do
-              result <- f (VObj objRef) []
-              return $ if isPrimitive result
-              then Just result
-              else Nothing
+              Just <$> f (VObj objRef) []
         _ -> return Nothing
+
+
+    returnIfPrimitive :: Maybe JSVal -> Maybe JSVal
+    returnIfPrimitive Nothing = Nothing
+    returnIfPrimitive (Just val) =
+      if isPrimitive val
+      then Just val
+      else Nothing
 
 -- ref 8.12.9, incomplete
 objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime ()
@@ -199,8 +209,3 @@ isWrapperFor f defaultValue name =
         VObj obj -> do
           VObj <$> (setClass name obj >>= setPrimitiveValue val)
         _ -> raiseError $ name ++ " constructor called with this = " ++ show this
-
-
-fromHint :: PrimitiveHint -> JSVal
-fromHint HintNone = VUndef
-fromHint HintNumber = VNum 0

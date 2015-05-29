@@ -98,7 +98,7 @@ spec = do
       `shouldReturn` Right "true\n"
 
   it "can add a number and an object" $ do
-    runJStr "console.log(1 + new Object() == '1[object Object]')" `shouldReturn` Right "true\n"
+    runJStr "console.log(1 + new Object())" `shouldReturn` Right "1[object Object]\n"
 
   describe "an empty array" $ do
     it "has length 0" $ do
@@ -285,3 +285,8 @@ spec = do
                   "  }); ",
                   "  console.log(obj.prop);" ]
       runJStr prog `shouldReturn` Right "abc\n"
+
+  describe "Array" $ do
+    it "is NaN when coerced to Number" $ do
+      runJStr "console.log('1', +[1,2,3])" `shouldReturn` Right "1 NaN\n"
+      runJStr "console.log('2', +(new Array(1,2,3)))" `shouldReturn` Right "2 NaN\n"

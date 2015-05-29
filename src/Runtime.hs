@@ -181,7 +181,8 @@ createGlobalObjectPrototype =
                   ownProperties =
                     propsFromList [ ("prototype", VUndef),
                                     ("toString", VNative objToString),
-                                    ("hasOwnProperty", VNative objHasOwnProperty) ],
+                                    ("hasOwnProperty", VNative objHasOwnProperty),
+                                    ("valueOf", VNative objValueOf) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
                   cstrMethod = Nothing,
@@ -217,9 +218,7 @@ createGlobalThis = do
 
   array <- newObject >>= setCallMethod arrayConstructor
                      >>= setCstrMethod arrayConstructor
-
-  -- error <- newObject
-  -- modifyRef error $ \obj -> obj { callMethod = Just errConstructor }
+                     >>= addOwnProperty "prototype" (VObj prototype)
 
   errorPrototype <- newObject >>= setClass "Error"
                               >>= addOwnProperty "toString" (VNative errorToString)
@@ -239,6 +238,7 @@ createGlobalThis = do
                              >>= objSetPrototype prototype
                              >>= setCstrMethod dateConstructor
                              >>= addOwnProperty "toString" (VNative dateToString)
+                             >>= addOwnProperty "valueOf" (VNative dateValueOf)
 
   date <- newObject >>= setClass "Date"
                     >>= setCallMethod dateFunction
@@ -483,6 +483,10 @@ objPreventExtensions _this args =
 
 
 
+-- ref 15.2.4.4, incomplete
+objValueOf :: JSVal -> [JSVal] -> Runtime JSVal
+objValueOf this _args = VObj <$> toObject this
+
 -- ref 15.2.4.5
 objHasOwnProperty :: JSVal -> [JSVal] -> Runtime JSVal
 objHasOwnProperty this args =
@@ -505,10 +509,14 @@ dateFunction :: JSVal -> [JSVal] -> Runtime JSVal
 dateFunction = functionIsConstructor dateConstructor
 
 dateConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-dateConstructor _ _ = VObj <$> newObject
+dateConstructor this _ = case this of
+  VObj objRef -> VObj <$> (setClass "Date" objRef)
 
 dateToString :: JSVal -> [JSVal] -> Runtime JSVal
 dateToString _ _ = return $ VStr "1969-12-30 21:18:57 UTC"
+
+dateValueOf :: JSVal -> [JSVal] -> Runtime JSVal
+dateValueOf _ _ = return $ VNum 142857
 
 -- ref 8.10.5, incomplete
 toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)
