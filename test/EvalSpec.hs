@@ -111,9 +111,13 @@ spec = do
     it "has length 5" $ do
       jsEvalExpr "[1,2,3,4,5].length" `shouldReturn` VNum 5
 
-  describe "an array with 3 elisions" $ do
-    it "has length 3" $ do
-      jsEvalExpr "[,,].length" `shouldReturn` VNum 3
+  describe "an array with 1 elision" $ do
+    it "has length 1" $ do
+      jsEvalExpr "[,].length" `shouldReturn` VNum 1
+
+  describe "an array with 2 elisions" $ do
+    it "has length 2" $ do
+      jsEvalExpr "[,,].length" `shouldReturn` VNum 2
 
   describe "comparison" $ do
     it "understands <" $ do

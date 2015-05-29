@@ -6,6 +6,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
+import Control.Arrow
 import Data.Maybe
 import Safe
 
@@ -105,6 +106,10 @@ arrayConstructor this args =
     VObj obj -> do
       VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
     _ -> raiseError $ "arrayConstructor called with this = " ++ show this
+
+
+arrayAssigns :: [Maybe a] -> [(Integer, a)]
+arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
 
 createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =

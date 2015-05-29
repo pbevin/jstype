@@ -94,6 +94,9 @@ spec = do
       it "parses an empty array literal" $ do
         parseExpr "[]" `shouldBe` ArrayLiteral []
 
+      it "parses an array literal with one elision" $ do
+        parseExpr "[,]" `shouldBe` ArrayLiteral [Nothing]
+
       it "parses an array literal with one element" $ do
         parseExpr "[1]" `shouldBe` ArrayLiteral [Just $ Num 1]
 
@@ -109,10 +112,10 @@ spec = do
 
       it "parses an array literal with elision at the start" $ do
         parseExpr "[,1,2]" `shouldBe`
-          ArrayLiteral [Nothing,Just $ Num 1, Just $ Num 2 ]
+          ArrayLiteral [Nothing, Just $ Num 1, Just $ Num 2 ]
 
       it "parses an array literal with only elision" $ do
-        parseExpr "[,,]" `shouldBe` ArrayLiteral [Nothing,Nothing,Nothing]
+        parseExpr "[,,]" `shouldBe` ArrayLiteral [Nothing,Nothing]
 
     it "parses regular expression literals" $ do
       parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"

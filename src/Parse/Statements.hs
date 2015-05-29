@@ -5,6 +5,8 @@ module Parse.Statements where
 import Text.Parsec hiding (many, (<|>), optional)
 import Control.Monad (replicateM, liftM, when, guard)
 import Control.Applicative
+import Data.Maybe
+import Data.Foldable
 import Data.Char
 import Data.List (sortBy)
 import Numeric
@@ -370,8 +372,10 @@ arrayContents = nonEmptyContents <|> elisionFirst <|> return []
           rest <- many (tok "," >> optional assignmentExpr)
           return $ (Just first) : rest
         elisionFirst = do
-          rest <- many1 (tok "," >> optional assignmentExpr)
-          return $ Nothing : rest
+          tok ","
+          rest <- many (try $ optional assignmentExpr <* tok ",")
+          final <- optional assignmentExpr
+          return $ (Nothing:rest) ++ map Just (toList final)
 
 
 objectLiteral :: JSParser Expr
