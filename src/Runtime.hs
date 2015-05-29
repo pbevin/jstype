@@ -372,11 +372,10 @@ assignRef lref rref =
   case lref of
     VRef ref -> do
       rval <- getValue rref
+      disallowEvalAssignment ref
       putValue ref rval
       return rval
     _ -> raiseReferenceError $ show lref ++ " is not assignable"
-
-
 
 updateRef :: String -> JSVal -> JSVal -> Runtime JSVal
 updateRef op lref rref =
@@ -385,9 +384,21 @@ updateRef op lref rref =
       lval   <- getValue lref
       rval   <- getValue rref
       newVal <- evalBinOp op lval rval
+      disallowEvalAssignment ref
       putValue ref newVal
       return newVal
     _ -> raiseReferenceError $ show lref ++ " is not assignable"
+
+-- ref 11.13.1
+disallowEvalAssignment :: JSRef -> Runtime ()
+disallowEvalAssignment (JSRef (VEnv _) name strict)
+  | name /= "eval" && name /= "arguments" = debug name >> return ()
+  | strict == NotStrict                   = debug "b" >> return ()
+  | otherwise = cannotAssignTo name
+disallowEvalAssignment x = debug x >> return ()
+
+cannotAssignTo :: String -> Runtime ()
+cannotAssignTo name = raiseSyntaxError $ "Assignment of " ++ name ++ " in strict mode"
 
 memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop = do

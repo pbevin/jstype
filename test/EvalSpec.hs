@@ -43,6 +43,12 @@ spec = do
     it "will not assign an undeclared var in strict mode" $ do
       runJStr "'use strict'; a = 10; console.log(a)" `shouldError` "ReferenceError: a is not defined"
 
+    it "will not assign to a var called 'eval'" $ do
+      runJStr "'use strict'; var eval = 42;" `shouldError` "SyntaxError: Assignment of eval in strict mode"
+
+    it "will not assign to a var called 'arguments'" $ do
+      runJStr "'use strict'; var arguments = 42;" `shouldError` "SyntaxError: Assignment of arguments in strict mode"
+
     it "applies to an eval in a strict function" $ do
       let prog = unlines [ "function f() {",
                            "  'use strict';",

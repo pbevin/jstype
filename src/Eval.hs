@@ -164,6 +164,8 @@ runStmt s = case s of
       Nothing  -> putVar x VUndef
       Just e' -> do
         v <- getValue =<< runExprStmt e'
+        when (x == "eval" || x == "arguments") $
+          cannotAssignTo x
         putVar x v
     return (CTNormal, Nothing, Nothing)
 
