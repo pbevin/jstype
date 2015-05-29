@@ -119,21 +119,24 @@ doubleEquals v1 v2 = return $ VBool $ eq v1 v2
 hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
 hasInstance f val = do
   fun <- objGetProperty "prototype" f
-  case fun  of
+  case fun of
     Nothing -> raiseError "Object has no prototype"
-    Just o ->
-      if typeof (propValue o) /= TypeObject
+    Just o -> do
+      v <- propValue o
+      if typeof v /= TypeObject
       then raiseError "TypeError"
-      else searchPrototypes (propValue o) val
+      else searchPrototypes v val
   where
     searchPrototypes :: JSVal -> JSVal -> Runtime Bool
     searchPrototypes o v = do
       v' <- valGetProperty "prototype" v
       case v' of
         Nothing -> return False
-        Just p  -> if o == (propValue p)
-                   then return True
-                   else searchPrototypes o (propValue p)
+        Just p  -> do
+          v' <- propValue p
+          if o == v'
+          then return True
+          else searchPrototypes o v'
 
 -- ref 11.8.6
 jsInstanceOf :: JSVal -> JSVal -> Runtime JSVal
@@ -220,13 +223,3 @@ objIsNaN _this args = case args of
   (num:_) -> do
     a <- toNumber num
     return $ VBool (a /= a)
-
-printVal :: JSVal -> Runtime ()
-printVal (VObj objRef) = do
-  obj <- deref objRef
-  liftIO $ print $ "***** ***** ***** Object (class=" ++ objClass obj ++ ")"
-  mapM_ printProperty (propMapToList (ownProperties obj)) where
-    printProperty (key, val) =
-      when (key == "prototype") $
-        liftIO (print $ key ++ ":") >> printVal (propValue val)
-printVal v = liftIO $ print ("aa", showVal v)

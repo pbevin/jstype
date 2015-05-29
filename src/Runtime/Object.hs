@@ -44,7 +44,9 @@ valGetProperty _ _ = return Nothing
 objGet :: String -> Shared JSObj -> Runtime JSVal
 objGet name objRef = do
   prop <- objGetProperty name objRef
-  return $ fromMaybe VUndef $ propValue <$> prop
+  case prop of
+    Nothing -> return VUndef
+    Just desc -> propValue desc
 
 -- ref 8.12.4, incomplete
 objCanPut :: String -> Shared JSObj -> Runtime Bool
@@ -74,7 +76,7 @@ objDelete p throw objRef = do
                    else return (VBool False)
 
 
-  
+
 
 -- ref 8.12.8, incomplete
 objDefaultValue :: PrimitiveHint -> Shared JSObj -> Runtime JSVal
@@ -122,7 +124,7 @@ objDefineOwnProperty p desc throw objRef = do
                then _objCreateOwnProperty p desc objRef
                else raiseProtoError TypeError $ "Can't add to non-extensible object"
     Just desc' -> if propIsWritable desc'
-                  then _objCreateOwnProperty p (propSetValue (propValue desc) desc') objRef
+                  then _objCreateOwnProperty p (propCopyValue desc desc') objRef
                   else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
 
 
@@ -137,7 +139,7 @@ updateObj f objRef = modifyRef' objRef f
 
 getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
-  liftM (maybe VUndef propValue) (objGetOwnProperty name =<< getGlobalObject)
+  maybe (return VUndef) propValue =<< objGetOwnProperty name =<< getGlobalObject
 
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)

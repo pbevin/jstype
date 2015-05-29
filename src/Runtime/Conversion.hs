@@ -57,18 +57,6 @@ toString (VNum n)  = return $ numberToString $ fromJSNum n
 toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other
 
--- ref 8.10.5, incomplete
-toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)
-toPropertyDescriptor (VObj objRef) = do
-  enum <- toBoolean <$> objGet "enumerable" objRef
-  conf <- toBoolean <$> objGet "configurable" objRef
-  value <- objGet "value" objRef
-  writable <- toBoolean <$> objGet "writable" objRef
-
-  return $ DataPD value writable enum conf
-
-toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
-
 numberToString :: Double -> String
 numberToString n
   | n == 0/0  = "NaN"

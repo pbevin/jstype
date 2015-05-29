@@ -15,14 +15,36 @@ import JSNum
 
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
-data PropDesc a = DataPD {
-  propValue :: a,
-  propIsWritable :: Bool,
-  propIsEnumerable :: Bool,
-  propIsConfigurable :: Bool } deriving (Show, Eq)
+data PropDesc a = DataPD a Bool Bool Bool
+                | AccessorPD (Maybe (Runtime a)) (Maybe (a -> Runtime ())) Bool Bool
+
+instance Show a => Show (PropDesc a) where
+  show (DataPD a w e c) = unwords [ "DataPD", show a, show w, show e, show c ]
+  show (AccessorPD g s e c) = unwords [ "AccessorPD", show $ isJust g, show $ isJust s, show e, show c ]
+
+propValue :: PropDesc a -> Runtime a
+propValue (DataPD a _ _ _) = return a
+propValue (AccessorPD (Just get) _ _ _) = get
+propValue (AccessorPD Nothing _ _ _) = error "No value"
+
+propIsWritable :: PropDesc a -> Bool
+propIsWritable (DataPD _ w _ _) = w
+propIsWritable (AccessorPD _ (Just set) _ _) = True
+propIsWritable (AccessorPD _ Nothing _ _) = False
+
+propIsEnumerable :: PropDesc a -> Bool
+propIsEnumerable (DataPD _ _ e _) = e
+propIsEnumerable (AccessorPD _ _ e _) = e
+
+propIsConfigurable :: PropDesc a -> Bool
+propIsConfigurable (DataPD _ _ _ c) = c
+propIsConfigurable (AccessorPD _ _ _ c) = c
 
 valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
+
+propCopyValue :: PropDesc a -> PropDesc a -> PropDesc a
+propCopyValue (DataPD a _ _ _) (DataPD _ w e c) = DataPD a w e c
 
 propSetValue :: a -> PropDesc a -> PropDesc a
 propSetValue a (DataPD _ w e c) = DataPD a w e c

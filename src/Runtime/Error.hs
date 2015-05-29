@@ -51,7 +51,9 @@ errConstructor this args =
     _ -> raiseError "Bad this for Error constructor"
 
 dflt :: JSVal -> Maybe (PropDesc JSVal) -> Runtime JSVal
-dflt d = return . maybe d propValue
+dflt d prop = case prop of
+  Nothing -> return d
+  Just desc -> propValue desc
 
 errorToString :: JSFunction
 errorToString (VObj this) _args = do

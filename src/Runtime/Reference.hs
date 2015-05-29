@@ -57,7 +57,7 @@ getValuePropertyReference (JSRef (VObj objref) name _isStrict) = do
   val <- objGetProperty name objref
   case val of
     Nothing -> return VUndef
-    Just v  -> return $ propValue v
+    Just v  -> propValue v
 
 getValuePropertyReference _ = error "Internal error in getValuePropertyReference"
 
@@ -118,11 +118,13 @@ hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
 hasBinding name (ObjEnvRec obj) = liftM (propMapMember name . ownProperties) $ deref obj
 
 envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = liftM (lk name) $ deref m
-envLookup name (ObjEnvRec obj) = liftM (lk name . ownProperties) $ deref obj
+envLookup name (DeclEnvRec m) = lk name =<< deref m
+envLookup name (ObjEnvRec obj) = lk name . ownProperties =<< deref obj
 
-lk :: Ord k => k -> PropMap k (PropDesc a) -> Maybe a
-lk k m = propValue <$> propMapLookup k m
+lk :: Ord k => k -> PropMap k (PropDesc a) -> Runtime (Maybe a)
+lk k m = case propMapLookup k m of
+  Nothing -> return Nothing
+  Just desc -> Just <$> propValue desc
 
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))

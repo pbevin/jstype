@@ -260,3 +260,25 @@ spec = do
       runJStr "console.log(-Infinity)" `shouldReturn` Right "-Infinity\n"
       runJStr "console.log(Math.abs(-Infinity))" `shouldReturn` Right "Infinity\n"
       runJStr "console.log(NaN)" `shouldReturn` Right "NaN\n"
+
+  describe "Object" $ do
+    it "can define a property with a constant value" $ do
+      let prog = unlines [
+                  "  var obj = {}; ",
+                  "  Object.defineProperty(obj, 'prop', { ",
+                  "    value: 'cheese' ",
+                  "  }); ",
+                  "  console.log(obj.prop);" ]
+      runJStr prog `shouldReturn` Right "cheese\n"
+
+
+    it "can define a property with a getter" $ do
+      let prog = unlines [
+                  "  var obj = {}; ",
+                  "  Object.defineProperty(obj, 'prop', { ",
+                  "    get: function () { ",
+                  "      return 'abc';  ",
+                  "    } ",
+                  "  }); ",
+                  "  console.log(obj.prop);" ]
+      runJStr prog `shouldReturn` Right "abc\n"
