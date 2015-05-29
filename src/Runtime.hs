@@ -114,9 +114,16 @@ arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
 createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
   let len = VNum $ fromIntegral $ length vals
-  in do
-    obj <- newObject
-    VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
+      assigns = arrayAssigns vals
+  in do obj <- newObject >>= setClass "Array"
+                         >>= addOwnProperty "length" len
+                         >>= setArrayIndices assigns
+        return $ VObj obj
+
+setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
+setArrayIndices assigns objRef = do
+  mapM_ (\(n, v) -> objPut (show n) v False objRef) assigns
+  return objRef
 
 
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal

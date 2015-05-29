@@ -110,6 +110,12 @@ spec = do
   describe "an array with 5 elements" $ do
     it "has length 5" $ do
       jsEvalExpr "[1,2,3,4,5].length" `shouldReturn` VNum 5
+    it "has properties for each of its indices" $ do
+      jsEvalExpr "[1,2,3,4,5][0]" `shouldReturn` VNum 1
+      jsEvalExpr "[1,2,3,4,5][1]" `shouldReturn` VNum 2
+      jsEvalExpr "[1,2,3,4,5][2]" `shouldReturn` VNum 3
+      jsEvalExpr "[1,2,3,4,5][3]" `shouldReturn` VNum 4
+      jsEvalExpr "[1,2,3,4,5][4]" `shouldReturn` VNum 5
 
   describe "an array with 1 elision" $ do
     it "has length 1" $ do
