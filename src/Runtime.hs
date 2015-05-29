@@ -141,6 +141,8 @@ funcCall paramList strict body this args =
     cxt <- getGlobalContext
     env <- newEnv (lexEnv cxt)
     zipWithM_ (addToNewEnv env) paramList args
+    arguments <- newObject >>= addOwnProperty "callee" (VNum 42)
+    addToNewEnv env "arguments" (VObj arguments)
     withNewContext (newCxt cxt env) $ do
       result <- jsRunStmts body
       case result of
@@ -272,6 +274,8 @@ createGlobalThis = do
                     >>= addOwnProperty "atan2" (VNative $ mathFunc2 atan2)
                     >>= addOwnProperty "hypot" (VNative $ mathFunc2 hypot)
 
+  json <- newObject >>= addOwnProperty "stringify" (VNative jsonStringify)
+
   newObject >>= addOwnProperty "escape" (VNative objEscape)
             >>= addOwnProperty "console" (VObj console)
             >>= addOwnProperty "Function" (VObj function)
@@ -286,6 +290,7 @@ createGlobalThis = do
             >>= addOwnProperty "SyntaxError" (VObj syntaxError)
             >>= addOwnProperty "TypeError" (VObj typeError)
             >>= addOwnProperty "Math" (VObj math)
+            >>= addOwnProperty "JSON" (VObj json)
             >>= addOwnProperty "undefined" (VUndef)
             >>= addOwnProperty "null" (VNull)
             >>= addOwnProperty "eval" (VNative objEval)
@@ -473,6 +478,9 @@ objHasOwnProperty this args =
     o <- toObject this
     VBool . isJust <$> objGetOwnProperty p o
 
+
+jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
+jsonStringify _this _args = return $ VStr "not implemented"
 
 functionIsConstructor :: JSFunction -> JSFunction
 functionIsConstructor cstr _this args = do
