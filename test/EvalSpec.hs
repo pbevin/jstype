@@ -290,3 +290,6 @@ spec = do
     it "is NaN when coerced to Number" $ do
       runJStr "console.log('1', +[1,2,3])" `shouldReturn` Right "1 NaN\n"
       runJStr "console.log('2', +(new Array(1,2,3)))" `shouldReturn` Right "2 NaN\n"
+
+    it "is an instanceof Array" $ do
+      jsEvalExpr "[] instanceof Array" `shouldReturn` VBool True

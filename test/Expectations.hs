@@ -12,6 +12,10 @@ shouldBeError (Left err) errType = case err of
   _ -> expectationFailure $ show err
 shouldBeError (Right val) errType = expectationFailure $ "was a val (" ++ show val ++ "), not an error of type " ++ show errType
 
+shouldBeResult :: (Show a, Eq a) => Either JSError a -> a -> Expectation
+shouldBeResult (Left err) _ = expectationFailure $ "was an error (" ++ show err ++ ")"
+shouldBeResult (Right v) val = val `shouldBe` v
+
 shouldError :: Show b => IO (Either RuntimeError b) -> String -> Expectation
 shouldError val errorText = val >>= \case
   Left err -> errorMessage err `shouldBe` errorText

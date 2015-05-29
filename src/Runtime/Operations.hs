@@ -117,7 +117,12 @@ doubleEquals v1 v2 = return $ VBool $ eq v1 v2
 
 -- ref 15.3.5.3
 hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
-hasInstance f val = do
+hasInstance f val = case val of
+  VObj obj -> hasInstance' f obj
+  _ -> return False
+
+hasInstance' :: Shared JSObj -> Shared JSObj -> Runtime Bool
+hasInstance' f val = do
   fun <- objGetProperty "prototype" f
   case fun of
     Nothing -> raiseError "Object has no prototype"
@@ -127,16 +132,15 @@ hasInstance f val = do
       then raiseError "TypeError"
       else searchPrototypes v val
   where
-    searchPrototypes :: JSVal -> JSVal -> Runtime Bool
+    searchPrototypes :: JSVal -> Shared JSObj -> Runtime Bool
     searchPrototypes o v = do
-      v' <- valGetProperty "prototype" v
+      v' <- objPrototype <$> deref v
       case v' of
         Nothing -> return False
         Just p  -> do
-          v' <- propValue p
-          if o == v'
+          if o == VObj p
           then return True
-          else searchPrototypes o v'
+          else searchPrototypes o p
 
 -- ref 11.8.6
 jsInstanceOf :: JSVal -> JSVal -> Runtime JSVal
@@ -144,8 +148,8 @@ jsInstanceOf val cls =
   let typeError = raiseError "TypeError"
   in case cls of
     VObj objRef -> do
-      obj <- deref objRef
-      if isJust (callMethod obj)
+      callable <- isJust . callMethod <$> deref objRef
+      if callable
       then VBool <$> hasInstance objRef val
       else typeError
     _ -> typeError
