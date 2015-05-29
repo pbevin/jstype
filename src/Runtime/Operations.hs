@@ -4,6 +4,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
 import Data.Word
+import Data.Int
 import Data.Bits
 import Data.Fixed (mod')
 import Data.Maybe
@@ -33,7 +34,7 @@ evalBinOp op = case op of
   "&"          -> bitwise (.&.)           -- ref 11.10
   "|"          -> bitwise (.|.)           -- ref 11.10
   "^"          -> bitwise xor             -- ref 11.10
-  "<<"         -> bitshift shiftL
+  "<<"         -> lshift
   ">>"         -> bitshift shiftR
   ">>>"        -> bitshift shiftR
   ","          -> commaOperator
@@ -161,9 +162,31 @@ bitwise op a b = do
   n2 <- toNumber b
   return $ VNum $ fromIntegral $ floor n1 `op` floor n2
 
-bitshift :: (Word32 -> Int -> Word32) -> JSVal -> JSVal -> Runtime JSVal
-bitshift op = bitwise bop
-  where bop a b = a `op` (fromIntegral b)
+bitshift :: (Int32 -> Int -> Int32) -> JSVal -> JSVal -> Runtime JSVal
+bitshift op a b = do
+  n1 <- toNumber a
+  n2 <- toNumber b
+  return $ VNum $ fromIntegral $ floor n1 `op` floor n2
+
+lshift :: JSVal -> JSVal -> Runtime JSVal
+lshift lval rval = do
+  lnum <- toInt32 lval
+  rnum <- toUInt32 rval
+  return $ VNum $ fromIntegral $ shiftL lnum (fromIntegral rnum .&. 0x1f)
+
+toInt32 :: JSVal -> Runtime Int32
+toInt32 = to32Bit
+
+toUInt32 :: JSVal -> Runtime Word32
+toUInt32 = to32Bit
+
+to32Bit :: Integral a => JSVal -> Runtime a
+to32Bit val = do
+  JSNum number <- toNumber val
+  if number == 1/0 || number == -1/0 || number == 0 || number /= number
+  then return 0
+  else return $ sign number * floor (abs number)
+    where sign a = floor (signum a)
 
 chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
 chain f g h a = f a >>= g >>= h

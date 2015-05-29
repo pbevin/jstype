@@ -168,6 +168,12 @@ spec = do
     jsEvalExpr "3 << 2" `shouldReturn` VNum 12
     jsEvalExpr "12 >> 2" `shouldReturn` VNum 3
 
+  describe "left shift" $ do
+    it "does hard case 5" $ do
+      jsEvalExpr "6442450943.1 << 0" `shouldReturn` VNum 2147483647
+    it "does hard case 6" $ do
+      jsEvalExpr "-2147483649.1 << 0" `shouldReturn` VNum 2147483647
+
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"
 
