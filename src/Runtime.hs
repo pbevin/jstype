@@ -1,3 +1,5 @@
+{-# Language LambdaCase #-}
+
 module Runtime (module Runtime, module X) where
 import Control.Monad
 import Control.Monad.State
@@ -177,7 +179,7 @@ createGlobalObjectPrototype =
                   ownProperties =
                     propsFromList [ ("prototype", VUndef),
                                     ("toString", VNative objToString),
-                                    ("prim", VNative objPrimitive) ],
+                                    ("hasOwnProperty", VNative objHasOwnProperty) ],
                   objPrototype = Nothing,
                   callMethod = Nothing,
                   cstrMethod = Nothing,
@@ -418,6 +420,9 @@ objCstr func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
+first1 :: [JSVal] -> JSVal
+first1 xs = a where [a] = take 1 (xs ++ repeat VUndef)
+
 first2 :: [JSVal] -> (JSVal, JSVal)
 first2 xs = (a,b) where [a,b] = take 2 (xs ++ repeat VUndef)
 
@@ -450,7 +455,7 @@ objDefineProperty _this args =
 -- ref 15.2.3.10
 objPreventExtensions :: JSVal -> [JSVal] -> Runtime JSVal
 objPreventExtensions _this args =
-  let o = headDef VUndef args
+  let o = first1 args
   in case o of
     VObj obj -> do
       objSetExtensible False obj
@@ -459,6 +464,14 @@ objPreventExtensions _this args =
 
 
 
+-- ref 15.2.4.5
+objHasOwnProperty :: JSVal -> [JSVal] -> Runtime JSVal
+objHasOwnProperty this args =
+  let v = first1 args
+  in do
+    p <- toString v
+    o <- toObject this
+    VBool . isJust <$> objGetOwnProperty p o
 
 
 functionIsConstructor :: JSFunction -> JSFunction
