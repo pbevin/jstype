@@ -220,12 +220,8 @@ createGlobalThis = do
   string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") "String"
   boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) "Boolean"
   number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) "Number"
-                      >>= addOwnProperty "NaN" (VNum jsNaN)
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
-                      >>= addOwnProperty "POSITIVE_INFINITY" (VNum $ JSNum $ 1 / 0)
-                      >>= addOwnProperty "NEGATIVE_INFINITY" (VNum $ JSNum $ -1 / 0)
-                      >>= addOwnProperty "MAX_VALUE" (VNum $ jsMaxValue)
-                      >>= addOwnProperty "MIN_VALUE" (VNum $ jsMinValue)
+                      >>= addReadOnlyConstants numberConstants
 
 
   array <- newObject >>= setCallMethod arrayConstructor
@@ -309,20 +305,29 @@ mathObject = do
             >>= addOwnProperty "atan2" (VNative $ mathFunc2 atan2)
             >>= addOwnProperty "hypot" (VNative $ mathFunc2 hypot)
 
-mathConstants :: [(String, Double)]
-mathConstants = [ ("PI", pi),
-                  ("E", exp 1),
-                  ("LN2", log 2),
-                  ("LN10", log 10),
-                  ("LOG10E", 1 / log 10),
-                  ("LOG2E", 1 / log 2) ]
+mathConstants :: [(String, JSNum)]
+mathConstants = allToJSNum [ ("PI", pi),
+                             ("E", exp 1),
+                             ("LN2", log 2),
+                             ("LN10", log 10),
+                             ("LOG10E", 1 / log 10),
+                             ("LOG2E", 1 / log 2) ]
+  where allToJSNum = map (second JSNum)
 
-addReadOnlyConstants :: [(String, Double)] -> Shared JSObj -> Runtime (Shared JSObj)
+
+numberConstants :: [(String, JSNum)]
+numberConstants = [ ("NaN", JSNum $ 0/0),
+                    ("POSITIVE_INFINITY", JSNum $ 1/0),
+                    ("NEGATIVE_INFINITY", JSNum $ -1/0),
+                    ("MAX_VALUE", jsMaxValue),
+                    ("MIN_VALUE", jsMinValue) ]
+
+addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
 addReadOnlyConstants xs obj = do
   forM (map toReadOnlyPropDesc xs) $ \(name, desc) -> do
     objDefineOwnProperty name desc False obj
   return obj
-  where toReadOnlyPropDesc (name, value) = (name, DataPD (VNum $ JSNum value) False False False)
+  where toReadOnlyPropDesc (name, value) = (name, DataPD (VNum value) False False False)
 
 
 errorType :: String -> JSVal -> Runtime (Shared JSObj)
