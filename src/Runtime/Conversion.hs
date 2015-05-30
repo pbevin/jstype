@@ -1,6 +1,10 @@
+{-# Language LambdaCase #-}
+
 module Runtime.Conversion where
 
 import Data.Maybe
+import Data.Word
+import Data.Int
 import Safe
 import JSNum
 import Runtime.Types
@@ -52,6 +56,23 @@ showVal (VNative _) = "function"
 showVal (VStacktrace st) = "Stacktrace " ++ show st
 showVal other = show other
 
+-- ref 9.5
+toInt32 :: JSVal -> Runtime Int32
+toInt32 = to32Bit
+
+-- ref 9.6
+toUInt32 :: JSVal -> Runtime Word32
+toUInt32 = to32Bit
+
+to32Bit :: Integral a => JSVal -> Runtime a
+to32Bit val = do
+  JSNum number <- toNumber val
+  if number == 1/0 || number == -1/0 || number == 0 || number /= number
+  then return 0
+  else return $ sign number * floor (abs number)
+    where sign a = floor (signum a)
+
+-- ref 9.8
 toString :: JSVal -> Runtime String
 toString VUndef    = return "undefined"
 toString VNull     = return "null"
@@ -60,6 +81,12 @@ toString (VStr s)  = return s
 toString (VNum n)  = return $ numberToString $ fromJSNum n
 toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other
+
+-- ref 9.10
+checkObjectCoercible :: JSVal -> Runtime ()
+checkObjectCoercible VUndef = raiseProtoError TypeError "Undefined value not coercible"
+checkObjectCoercible VNull = raiseProtoError TypeError "Null value not coercible"
+checkObjectCoercible _ = return ()
 
 numberToString :: Double -> String
 numberToString n
@@ -71,3 +98,19 @@ numberToString n
 
 isInteger :: RealFloat a => a -> Bool
 isInteger n = n == fromInteger (round n)
+
+toObject :: JSVal -> Runtime (Shared JSObj)
+toObject (VObj objRef) = return objRef
+toObject (VStr str) = do
+  obj <- newObject
+  stringConstructor (VObj obj) [VStr str]
+  return obj
+toObject v = toString v >>= toObject . VStr
+
+stringConstructor :: JSFunction
+stringConstructor this args = do
+  objRef <- toObj <$> getGlobalProperty "String"
+  obj <- deref objRef
+  case cstrMethod obj of
+    Nothing -> raiseProtoError TypeError "Can't create string!"
+    Just cstr -> cstr this args

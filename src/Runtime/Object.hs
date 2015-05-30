@@ -173,6 +173,10 @@ setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc
   where wrapValInNativeFunc :: JSVal -> JSVal
         wrapValInNativeFunc v = VNative $ \_this _args -> return v
 
+setPrimitiveToString :: JSVal -> ObjectModifier
+setPrimitiveToString val = updateObj $ \obj -> objSetProperty "toString" (VNative f) obj
+  where f _this _args = return val
+
 objSetPrototype :: Shared JSObj -> ObjectModifier
 objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just prototype }
 
@@ -200,21 +204,6 @@ objSetExtensible extensible = updateObj $ \obj -> obj { objExtensible = extensib
 
 objIsExtensible :: Shared JSObj -> Runtime Bool
 objIsExtensible objRef = objExtensible <$> deref objRef
-
-isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> String -> ObjectModifier
-isWrapperFor f defaultValue name =
-  updateObj $ \obj -> obj { objClass = "Function",
-                            callMethod = Just call,
-                            cstrMethod = Just cstr }
-  where
-    call _this args =
-      if null args then return defaultValue else f (head args)
-    cstr this args = do
-      val <- call this args
-      case this of
-        VObj obj -> do
-          VObj <$> (setClass name obj >>= setPrimitiveValue val)
-        _ -> raiseError $ name ++ " constructor called with this = " ++ show this
 
 objFindPrototype :: String -> Runtime (Shared JSObj)
 objFindPrototype name =

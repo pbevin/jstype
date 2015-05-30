@@ -4,7 +4,6 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
 import Data.Word
-import Data.Int
 import Data.Bits
 import Data.Fixed (mod')
 import Data.Maybe
@@ -179,20 +178,6 @@ urshift lval rval = do
   lnum <- toUInt32 lval
   rnum <- toUInt32 rval
   return $ VNum $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
-
-toInt32 :: JSVal -> Runtime Int32
-toInt32 = to32Bit
-
-toUInt32 :: JSVal -> Runtime Word32
-toUInt32 = to32Bit
-
-to32Bit :: Integral a => JSVal -> Runtime a
-to32Bit val = do
-  JSNum number <- toNumber val
-  if number == 1/0 || number == -1/0 || number == 0 || number /= number
-  then return 0
-  else return $ sign number * floor (abs number)
-    where sign a = floor (signum a)
 
 chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
 chain f g h a = f a >>= g >>= h

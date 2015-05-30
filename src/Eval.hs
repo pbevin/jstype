@@ -310,9 +310,10 @@ runExprStmt expr = case expr of
   MemberDot e x      -> runExprStmt (MemberGet e (Str x)) -- ref 11.2.1
 
   MemberGet e x -> do -- ref 11.2.1
-    lval <- runExprStmt e >>= getValue
-    prop <- runExprStmt x >>= getValue >>= toString
-    memberGet lval prop
+    baseValue <- runExprStmt e >>= getValue
+    propertyNameValue <- runExprStmt x >>= getValue >>= toString
+    checkObjectCoercible(baseValue)
+    memberGet baseValue propertyNameValue
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt f

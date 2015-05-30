@@ -217,6 +217,9 @@ spec = do
     runJStr "if (console === console) console.log(\"OK\")" `shouldReturn` Right "OK\n"
     runJStr "if (console === this) console.log(\"wrong\")" `shouldReturn` Right ""
 
+  it "can call a method on true" $ do
+    jsEvalExpr "true.toString()" `shouldReturn` VStr "true"
+
   it "can define a simple object" $ do
     let prog = unlines [
           "function Counter() { this.val = 0; };",

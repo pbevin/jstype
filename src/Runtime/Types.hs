@@ -83,6 +83,9 @@ isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False
 
+toObj :: JSVal -> Shared JSObj
+toObj = fromJust . fromObj
+
 fromObj :: JSVal -> Maybe (Shared JSObj)
 fromObj (VObj v) = Just v
 fromObj _ = Nothing

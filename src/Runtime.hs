@@ -50,14 +50,6 @@ objPrimitive (VObj this) _args = do
   objDefaultValue HintNone this
 objPrimitive this _args = return this
 
-toObject :: JSVal -> Runtime (Shared JSObj)
-toObject (VObj objRef) = return objRef
-toObject (VStr str) = do
-  obj <- newObject
-  stringConstructor (VObj obj) [VStr str]
-  return obj
-toObject v = toString v >>= toObject . VStr
-
 
 computeThisValue :: JSCxt -> JSVal -> JSVal
 computeThisValue cxt v = case v of
@@ -88,16 +80,6 @@ numConstructor this args = do
     VObj obj -> do
       VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
-
-stringConstructor :: JSFunction
-stringConstructor this args = do
-  val <- VStr <$> if null args
-                  then return ""
-                  else toString (head args)
-  case this of
-    VObj obj -> do
-      VObj <$> (setClass "String" obj >>= setPrimitiveValue val)
-    _ -> raiseError $ "stringConstructor called with this = " ++ show this
 
 arrayConstructor :: JSFunction
 arrayConstructor this args =
@@ -240,9 +222,13 @@ createGlobalThis = do
                       >>= setCallMethod objFunction
                       >>= setCstrMethod objConstructor
 
-  string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") "String"
-  boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) "Boolean"
-  number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) "Number"
+  stringPrototype <- newObject >>= setClass "Number"
+  booleanPrototype <- newObject >>= setClass "Boolean"
+  numberPrototype <- newObject >>= setClass "Number"
+
+  string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") stringPrototype "String"
+  boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
+  number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
                       >>= addReadOnlyConstants numberConstants
 
@@ -441,12 +427,11 @@ disallowEvalAssignment x = return ()
 cannotAssignTo :: String -> Runtime ()
 cannotAssignTo name = raiseSyntaxError $ "Assignment of " ++ name ++ " in strict mode"
 
+-- ref. 11.2.1
 memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop = do
   strict <- getGlobalStrictness
-  case lval of
-    VObj _ -> return $ VRef (JSRef lval prop strict)
-    _ -> raiseReferenceError $ "Cannot read property '" ++ prop ++ "' of " ++ show lval
+  return $ VRef (JSRef lval prop strict)
 
 funCall :: JSVal -> [JSVal] -> Runtime JSVal
 funCall ref argList = do
@@ -633,3 +618,21 @@ mkSetter (VObj obj) = do
   call <- callMethod <$> deref obj
   return $ Just (\a -> raiseSyntaxError "mkSetter undefined")
 mkSetter _ = return Nothing
+
+isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> Shared JSObj -> String -> ObjectModifier
+isWrapperFor f defaultValue prototype name obj =
+  setClass "Function" obj >>= setCallMethod call
+                          >>= setCstrMethod cstr
+                          >>= addOwnProperty "prototype" (VObj prototype)
+  where
+    call _this args =
+      if null args then return defaultValue else f (head args)
+    cstr this args = do
+      val <- call this args
+      case this of
+        VObj obj -> do
+          str <- toString val
+          setClass name obj >>= setPrimitiveValue val
+                            >>= setPrimitiveToString (VStr str)
+          return (VObj obj)
+        _ -> raiseError $ name ++ " constructor called with this = " ++ show this

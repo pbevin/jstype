@@ -6,6 +6,7 @@ import Runtime.Object
 import Runtime.Types
 import Runtime.Global (getGlobalObject)
 import Runtime.Error
+import Runtime.Conversion
 import Runtime.PropMap
 import Expr
 
@@ -53,13 +54,27 @@ isUnresolvableReference ref =
 
 
 getValuePropertyReference :: JSRef -> Runtime JSVal
-getValuePropertyReference (JSRef (VObj objref) name _isStrict) = do
+getValuePropertyReference (JSRef base name _isStrict) =
+  case base of
+    VObj objRef -> getValueObject name objRef
+    _           -> getValuePrimitive name base
+
+getValueObject :: String -> Shared JSObj -> Runtime JSVal
+getValueObject name objref = do
   val <- objGetProperty name objref
   case val of
     Nothing -> return VUndef
     Just v  -> propValue v
-getValuePropertyReference _ = error "Internal error in getValuePropertyReference"
 
+getValuePrimitive :: String -> JSVal -> Runtime JSVal
+getValuePrimitive name base = do
+  o <- toObject base
+  desc <- objGetProperty name o
+  case desc of
+    Nothing -> return VUndef
+    Just (DataPD v _ _ _) -> return v
+    Just (AccessorPD Nothing _ _ _) -> return VUndef
+    Just (AccessorPD (Just getter) _ _ _) -> getter
 
 
 -- ref 10.2.1.1.4 incomplete
@@ -74,8 +89,6 @@ deleteBinding :: String -> JSEnv -> Runtime JSVal
 deleteBinding n envRef = do
   val <- deref envRef
   envDelete n (envRec val)
-
-  
 
 
 
