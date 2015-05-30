@@ -129,20 +129,30 @@ setArrayIndices assigns objRef = do
 
 
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-funConstructor _this [arg] = do
-  body <- toString arg
-  let Program strictness stmts = simpleParseInFunction body
-  createFunction [] strictness stmts
-funConstructor _this xs = error $ "Can't cstr Function with " ++ show xs
+funConstructor this args = case this of
+  VObj objRef -> do
+    let arg = first1 args
+    body <- toString arg
+    let Program strictness stmts = simpleParseInFunction body
+    constructFunction [] strictness stmts objRef
+    return this
+  _ -> raiseTypeError "Function constructor"
+
+
+constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Runtime (Shared JSObj)
+constructFunction paramList strict body this = do
+  newProto <- newObject
+  setClass "Function" this
+    >>= setCstrMethod (funcCall paramList strict body)
+    >>= setCallMethod (funcCall paramList strict body)
+    >>= addOwnProperty "prototype" (VObj newProto)
+
 
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
-  newProto <- newObject
-  objref <- newObject >>= setClass "Function"
-                      >>= setCstrMethod (funcCall paramList strict body)
-                      >>= setCallMethod (funcCall paramList strict body)
-                      >>= addOwnProperty "prototype" (VObj newProto)
-  return $ VObj objref
+  VObj <$> (newObject >>= constructFunction paramList strict body)
+
+
 
 -- ref 13.2.1, incomplete
 funcCall :: [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
@@ -218,10 +228,12 @@ createGlobalThis = do
 
   functionPrototype <- newObject
   function <- newObject >>= setCallMethod funConstructor
+                        >>= setCstrMethod funConstructor
                         >>= objSetPrototype functionPrototype
                         >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
 
-  object <- newObject >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+  object <- newObject >>= setClass "Function"
+                      >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
                       >>= addOwnProperty "prototype" (VObj prototype)
                       >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
                       >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
@@ -249,7 +261,8 @@ createGlobalThis = do
                               >>= addOwnProperty "toString" (VNative errorToString)
                               >>= addOwnProperty "prototype" (VObj prototype)
 
-  errorObj <- newObject >>= setCallMethod errFunction
+  errorObj <- newObject >>= setClass "Function"
+                        >>= setCallMethod errFunction
                         >>= setCstrMethod errConstructor
                         >>= addOwnProperty "prototype" (VObj errorPrototype)
 
@@ -265,7 +278,7 @@ createGlobalThis = do
                              >>= addOwnProperty "toString" (VNative dateToString)
                              >>= addOwnProperty "valueOf" (VNative dateValueOf)
 
-  date <- newObject >>= setClass "Date"
+  date <- newObject >>= setClass "Function"
                     >>= setCallMethod dateFunction
                     >>= setCstrMethod dateConstructor
                     >>= objSetPrototype functionPrototype
@@ -273,6 +286,15 @@ createGlobalThis = do
 
   math <- mathObject
   json <- newObject >>= addOwnProperty "stringify" (VNative jsonStringify)
+
+  regexpPrototype <- newObject >>= setClass "RegExp"
+                               >>= objSetPrototype prototype
+                               >>= addOwnProperty "exec" (VNative regexpExec)
+
+  regexp <- newObject >>= setClass "Function"
+                      >>= setCallMethod (regexpFunction regexpPrototype)
+                      >>= setCstrMethod regexpConstructor
+                      >>= addOwnProperty "prototype" (VObj regexpPrototype)
 
   newObject >>= addOwnProperty "escape" (VNative objEscape)
             >>= addOwnProperty "console" (VObj console)
@@ -284,6 +306,7 @@ createGlobalThis = do
             >>= addOwnProperty "Array" (VObj array)
             >>= addOwnProperty "Error" (VObj errorObj)
             >>= addOwnProperty "Date" (VObj date)
+            >>= addOwnProperty "RegExp" (VObj regexp)
             >>= addOwnProperty "ReferenceError" (VObj referenceError)
             >>= addOwnProperty "SyntaxError" (VObj syntaxError)
             >>= addOwnProperty "TypeError" (VObj typeError)
@@ -543,13 +566,13 @@ objHasOwnProperty this args =
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
 
-functionIsConstructor :: JSFunction -> JSFunction
-functionIsConstructor cstr _this args = do
-  this <- newObject
+functionIsConstructor :: JSFunction -> Shared JSObj -> JSFunction
+functionIsConstructor cstr proto _this args = do
+  this <- newObject >>= objSetPrototype proto
   cstr (VObj this) args
 
 dateFunction :: JSVal -> [JSVal] -> Runtime JSVal
-dateFunction = functionIsConstructor dateConstructor
+dateFunction _this _args = return $ VStr "[today's date]"
 
 dateConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 dateConstructor this _ = case this of
@@ -560,6 +583,17 @@ dateToString _ _ = return $ VStr "1969-12-30 21:18:57 UTC"
 
 dateValueOf :: JSVal -> [JSVal] -> Runtime JSVal
 dateValueOf _ _ = return $ VNum 142857
+
+regexpFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
+regexpFunction = functionIsConstructor regexpConstructor
+
+regexpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
+regexpConstructor this _ = case this of
+  VObj objRef -> VObj <$> (setClass "RegExp" objRef)
+
+-- ref 15.10.6.2, incomplete
+regexpExec :: JSVal -> [JSVal] -> Runtime JSVal
+regexpExec _ _ = VObj <$> newObject
 
 -- ref 15.4.4.2, incomplete
 arrayToString :: JSVal -> [JSVal] -> Runtime JSVal

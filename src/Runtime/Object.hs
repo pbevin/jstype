@@ -203,7 +203,7 @@ objIsExtensible objRef = objExtensible <$> deref objRef
 
 isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> String -> ObjectModifier
 isWrapperFor f defaultValue name =
-  updateObj $ \obj -> obj { objClass = name,
+  updateObj $ \obj -> obj { objClass = "Function",
                             callMethod = Just call,
                             cstrMethod = Just cstr }
   where

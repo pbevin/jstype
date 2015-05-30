@@ -446,11 +446,19 @@ evalTypeof val = do
   then return $ VStr "undefined"
   else do
     resolved <- getValue val
-    return $ VStr $ case typeof resolved of
-      TypeUndefined -> "undefined"
-      TypeNull      -> "null"
-      TypeBoolean   -> "boolean"
-      TypeNumber    -> "number"
-      TypeString    -> "string"
-      TypeObject    -> "object"  -- or "function"
-      _ -> showVal resolved
+    result <- case resolved of
+      VObj objRef -> do
+        cls <- objClass <$> deref objRef
+        debug cls
+        return $ if cls == "Function"
+        then "function"
+        else "object"
+      _ ->
+        return $ case typeof resolved of
+          TypeUndefined -> "undefined"
+          TypeNull      -> "object"
+          TypeBoolean   -> "boolean"
+          TypeNumber    -> "number"
+          TypeString    -> "string"
+          _ -> showVal resolved
+    return $ VStr result
