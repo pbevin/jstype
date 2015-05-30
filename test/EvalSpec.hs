@@ -25,6 +25,9 @@ spec = do
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum (10/3)
 
+  it "does Javascript-style mod for negative numbers" $ do
+    jsEvalExpr "-1 % 2" `shouldReturn` VNum (-1)
+
   it "evaluates a program" $ do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
     runJStr "var a = 3; console.log(a);" `shouldReturn` Right "3\n"

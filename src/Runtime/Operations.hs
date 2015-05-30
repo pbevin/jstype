@@ -3,9 +3,9 @@ module Runtime.Operations where
 import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
+import Data.Fixed (mod')
 import Data.Word
 import Data.Bits
-import Data.Fixed (mod')
 import Data.Maybe
 import Expr
 import JSNum
@@ -25,7 +25,7 @@ evalBinOp op = case op of
   "-"          -> numberOp (-)
   "*"          -> numberOp (*)
   "/"          -> numberOp (/)
-  "%"          -> numberOp $ mod'
+  "%"          -> numberOp $ fmod
   "<"          -> lessThan                -- ref 11.8.1
   ">"          -> flip (lessThan)         -- ref 11.8.2
   "<="         -> flip (invert lessThan)  -- ref 11.8.3
@@ -69,6 +69,11 @@ numberOp op a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   VNum <$> liftNum op a' b'
+
+fmod :: (Real a) => a -> a -> a
+fmod n d
+  | n >= 0 = mod' n d
+  | n < 0  = -mod' (-n) d
 
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> Runtime JSVal
 boolOp op a b = return (VBool $ op a b)
