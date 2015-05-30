@@ -48,7 +48,7 @@ showVal (VRef ref) = "(reference " ++ show ref ++ ")"
 showVal VUndef = "undefined"
 showVal VNull  = "null"
 showVal (VObj _) = "[Object object]"
-showVal (VNative _) = "(native function)"
+showVal (VNative _) = "function"
 showVal (VStacktrace st) = "Stacktrace " ++ show st
 showVal other = show other
 
