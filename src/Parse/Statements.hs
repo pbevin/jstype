@@ -453,7 +453,7 @@ unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit
 singleQuotedString :: JSParser String
 singleQuotedString = do
   char '\''
-  str <- many (noneOf "'\\" <|> (char '\\' >> anyChar))
+  str <- many (noneOf "'\\" <|> (char '\\' >> escape))
   char '\''
   whiteSpace
   return str

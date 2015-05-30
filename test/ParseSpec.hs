@@ -80,6 +80,9 @@ spec = do
       parseExpr "'single quoted'" `shouldBe` Str "single quoted"
       parseExpr "\"double quoted\"" `shouldBe` Str "double quoted"
 
+    it "allows escapes in single quoted strings" $ do
+      parseExpr "'a\\t'" `shouldBe` Str "a\t"
+
     it "parses escape characters in strings" $ do
       parseExpr "\"a\\u0009b\"" `shouldBe` Str "a\tb"
       parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
