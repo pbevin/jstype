@@ -4,11 +4,13 @@ module Parse ( parseJS
              , simpleParse
              , simpleParseInFunction
              , parseExpr
+             , parseNumber
              , ParseError) where
 
 import Control.Applicative
-import Text.Parsec
+import Text.Parsec hiding (optional)
 import Expr
+import JSNum
 
 import Parse.Types
 import Parse.Lexical
@@ -41,5 +43,25 @@ parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
   Right e  -> e
   Left err -> error (show err)
 
+parseNumber :: String -> JSNum
+parseNumber str = case jsParse numberParser NotStrict False "" str of
+  Right (Just num) -> JSNum num
+  Right Nothing    -> JSNum 0
+  Left err         -> jsNaN
+
 jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a
 jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text
+
+numberParser :: JSParser (Maybe Double)
+numberParser = do
+  whiteSpace
+  plusMinus <- optional (oneOf "+-")
+  num <- optional number
+  whiteSpace
+  eof
+
+  return $ case num of
+    Nothing -> Nothing
+    Just n -> Just $ if plusMinus == Just '-'
+                     then negate n
+                     else n

@@ -35,8 +35,8 @@ evalBinOp op = case op of
   "|"          -> bitwise (.|.)           -- ref 11.10
   "^"          -> bitwise xor             -- ref 11.10
   "<<"         -> lshift
-  ">>"         -> bitshift shiftR
-  ">>>"        -> bitshift shiftR
+  ">>"         -> rshift
+  ">>>"        -> urshift
   ","          -> commaOperator
   _            -> noSuchBinop op
   where invert f x y = unaryNot =<< f x y
@@ -162,17 +162,23 @@ bitwise op a b = do
   n2 <- toNumber b
   return $ VNum $ fromIntegral $ floor n1 `op` floor n2
 
-bitshift :: (Int32 -> Int -> Int32) -> JSVal -> JSVal -> Runtime JSVal
-bitshift op a b = do
-  n1 <- toNumber a
-  n2 <- toNumber b
-  return $ VNum $ fromIntegral $ floor n1 `op` floor n2
-
 lshift :: JSVal -> JSVal -> Runtime JSVal
 lshift lval rval = do
   lnum <- toInt32 lval
   rnum <- toUInt32 rval
   return $ VNum $ fromIntegral $ shiftL lnum (fromIntegral rnum .&. 0x1f)
+
+rshift :: JSVal -> JSVal -> Runtime JSVal
+rshift lval rval = do
+  lnum <- toInt32 lval
+  rnum <- toUInt32 rval
+  return $ VNum $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
+
+urshift :: JSVal -> JSVal -> Runtime JSVal
+urshift lval rval = do
+  lnum <- toUInt32 lval
+  rnum <- toUInt32 rval
+  return $ VNum $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
 
 toInt32 :: JSVal -> Runtime Int32
 toInt32 = to32Bit

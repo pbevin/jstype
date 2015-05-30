@@ -5,6 +5,7 @@ import Safe
 import JSNum
 import Runtime.Types
 import Runtime.Object
+import Parse
 
 
 -- ref 9.1, incomplete
@@ -28,9 +29,12 @@ toNumber VUndef     = return jsNaN
 toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
 toNumber (VNum n)   = return n
-toNumber (VStr s)   = return $ maybe jsNaN JSNum $ readMay s
+toNumber (VStr s)   = return $ strToNumber s
 toNumber v@(VObj _) = toPrimitive HintNumber v >>= toNumber
 toNumber _ = return 7
+
+strToNumber :: String -> JSNum
+strToNumber = parseNumber
 
 isString :: JSVal -> Bool
 isString (VStr _) = True
