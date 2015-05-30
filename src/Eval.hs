@@ -200,11 +200,23 @@ runStmt s = case s of
           CTNormal -> keepGoing nextVal
           _ -> return sval
 
-  For _loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3ToWhile _loc e1 e2 e3 stmt
+  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt $ transformFor3ToWhile loc e1 e2 e3 stmt
 
-  For _loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3VarToWhile _loc x e1 e2 e3 stmt
+  For loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
+    runStmt $ transformFor3VarToWhile loc x e1 e2 e3 stmt
+
+  For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
+    exprRef <- runExprStmt e
+    exprValue <- getValue exprRef
+    if (exprValue == VNull || exprValue == VUndef)
+    then return (CTNormal, Nothing, Nothing)
+    else do
+      obj <- toObject exprValue
+      return (CTNormal, Just (VObj obj), Nothing)
+
+  For loc (ForInVar (x, e1) e2) stmt -> do
+    runStmt $ transformFor3VarIn loc x e1 e2 stmt
 
   Block _loc stmts -> runStmts stmts
 
@@ -255,12 +267,16 @@ transformFor3VarToWhile _loc x e1 e2 e3 stmt =
 -- Turn "do { s } while (e)" into
 -- "while (true) { s; if (!e) break; }"
 transformDoWhileToWhile :: SrcLoc -> Expr -> Statement -> Statement
-transformDoWhileToWhile _loc e s =
-  let esc = IfStatement _loc (UnOp "!" e)
-              (BreakStatement _loc Nothing)
+transformDoWhileToWhile loc e s =
+  let esc = IfStatement loc (UnOp "!" e)
+              (BreakStatement loc Nothing)
               Nothing
-  in WhileStatement _loc (Boolean True) $ Block _loc [ s, esc ]
+  in WhileStatement loc (Boolean True) $ Block loc [ s, esc ]
 
+transformFor3VarIn :: SrcLoc -> Ident -> Maybe Expr -> Expr -> Statement -> Statement
+transformFor3VarIn loc x e1 e2 s =
+  let s1 = VarDecl loc [(x, e1)]
+  in Block loc [ s1, For loc (ForIn (ReadVar x) e2) s ]
 
 -- ref 12.14
 runCatch :: Maybe Catch -> JSVal -> Runtime StmtReturn
