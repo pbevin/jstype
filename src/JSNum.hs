@@ -2,7 +2,7 @@ module JSNum where
 
 newtype JSNum = JSNum Double deriving (Show, Read)
 instance Eq JSNum where
-  JSNum a == JSNum b = a == b || abs (a-b) < 0.001
+  JSNum a == JSNum b = a == b
 
 fromJSNum :: JSNum -> Double
 fromJSNum (JSNum a) = a

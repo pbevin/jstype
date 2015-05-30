@@ -449,7 +449,6 @@ evalTypeof val = do
     result <- case resolved of
       VObj objRef -> do
         cls <- objClass <$> deref objRef
-        debug cls
         return $ if cls == "Function"
         then "function"
         else "object"

@@ -23,7 +23,7 @@ spec = do
     jsEvalExpr "2+3*4" `shouldReturn` VNum 14
     jsEvalExpr "10-2"  `shouldReturn` VNum 8
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
-    jsEvalExpr "10/3"  `shouldReturn` VNum 3.33333333
+    jsEvalExpr "10/3"  `shouldReturn` VNum (10/3)
 
   it "evaluates a program" $ do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
