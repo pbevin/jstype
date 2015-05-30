@@ -177,6 +177,14 @@ objEval _this args = case args of
       (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
       _ -> return VUndef
 
+-- ref 15.1.2.2
+parseInt :: JSFunction
+parseInt _this args =
+  let arg = first1 args
+  in do
+    str <- toString arg
+    return $ VNum $ parseNumber str
+
 stackTrace :: JSError -> String
 stackTrace (JSError (err, stack)) = unlines $ show err : map show (reverse stack)
 stackTrace (JSProtoError (t, msg)) = show (show t ++ ": " ++ msg)
@@ -283,6 +291,7 @@ createGlobalThis = do
             >>= addOwnProperty "JSON" (VObj json)
             >>= addOwnProperty "eval" (VNative objEval)
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
+            >>= addOwnProperty "parseInt" (VNative parseInt)
             >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
             >>= addOwnConstant "NaN" (VNum $ jsNaN)
             >>= addOwnConstant "undefined" (VUndef)
