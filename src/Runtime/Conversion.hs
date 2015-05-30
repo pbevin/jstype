@@ -56,6 +56,15 @@ showVal (VNative _) = "function"
 showVal (VStacktrace st) = "Stacktrace " ++ show st
 showVal other = show other
 
+toInt :: JSVal -> Runtime Int
+toInt val = do
+  makeInt <$> toNumber val
+    -- where makeInt number
+    --         | isNaN number      = 0
+    --         | isInfinite number = 0
+    --         | otherwise         = makeInt number
+
+
 -- ref 9.5
 toInt32 :: JSVal -> Runtime Int32
 toInt32 = to32Bit
@@ -66,10 +75,13 @@ toUInt32 = to32Bit
 
 to32Bit :: Integral a => JSVal -> Runtime a
 to32Bit val = do
-  JSNum number <- toNumber val
+  number <- toNumber val
   if number == 1/0 || number == -1/0 || number == 0 || number /= number
   then return 0
-  else return $ sign number * floor (abs number)
+  else return $ makeInt number
+
+makeInt :: Integral a => JSNum -> a
+makeInt number = sign number * floor (abs number)
     where sign a = floor (signum a)
 
 -- ref 9.8
@@ -100,17 +112,18 @@ isInteger :: RealFloat a => a -> Bool
 isInteger n = n == fromInteger (round n)
 
 toObject :: JSVal -> Runtime (Shared JSObj)
-toObject (VObj objRef) = return objRef
-toObject (VStr str) = do
-  obj <- newObject
-  stringConstructor (VObj obj) [VStr str]
-  return obj
-toObject v = toString v >>= toObject . VStr
+toObject val = case val of
+  VObj objRef -> return objRef
+  VStr _      -> wrapPrimitive "String" val
+  VBool _     -> wrapPrimitive "Boolean" val
+  VNum _      -> wrapPrimitive "Number" val
+  _           -> toString val >>= toObject . VStr
 
-stringConstructor :: JSFunction
-stringConstructor this args = do
-  objRef <- toObj <$> getGlobalProperty "String"
-  obj <- deref objRef
+wrapPrimitive :: String -> JSVal -> Runtime (Shared JSObj)
+wrapPrimitive typeName val = do
+  this <- newObject
+  typeRef <- toObj <$> getGlobalProperty typeName
+  obj <- deref typeRef
   case cstrMethod obj of
     Nothing -> raiseProtoError TypeError "Can't create string!"
-    Just cstr -> cstr this args
+    Just cstr -> toObj <$> cstr (VObj this) [val]

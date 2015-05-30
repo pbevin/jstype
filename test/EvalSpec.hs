@@ -287,6 +287,11 @@ spec = do
     it "can construct a wrapped number" $ do
       runJStr "console.log(+(new Number(1.4)))" `shouldReturn` Right "1.4\n"
 
+    it "has toFixed()" $ do
+      runJStr "var a = 2.3; console.log(a.toFixed(2));" `shouldReturn` Right "2.30\n"
+      runJStr "var a = 2.3; console.log(a.toFixed(5));" `shouldReturn` Right "2.30000\n"
+      runJStr "var a = 2.335; console.log(a.toFixed(2));" `shouldReturn` Right "2.34\n"
+
   describe "Math" $ do
     it "understands infinity and NaN" $ do
       runJStr "console.log(Infinity)" `shouldReturn` Right "Infinity\n"

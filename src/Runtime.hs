@@ -7,6 +7,7 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Control.Arrow
+import Text.Printf
 import Data.Maybe
 import Safe
 
@@ -225,6 +226,7 @@ createGlobalThis = do
   stringPrototype <- newObject >>= setClass "Number"
   booleanPrototype <- newObject >>= setClass "Boolean"
   numberPrototype <- newObject >>= setClass "Number"
+                               >>= addOwnProperty "toFixed" (VNative toFixed)
 
   string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") stringPrototype "String"
   boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
@@ -547,6 +549,13 @@ objHasOwnProperty this args =
     o <- toObject this
     VBool . isJust <$> objGetOwnProperty p o
 
+-- ref 15.7.4.5, incomplete
+toFixed :: JSFunction
+toFixed this args = do
+  fractionDigits <- toInt (first1 args)
+  let fmt = "%." ++ show fractionDigits ++ "f"
+  x <- toNumber this
+  return $ VStr $ printf fmt (fromJSNum x)
 
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
@@ -634,5 +643,6 @@ isWrapperFor f defaultValue prototype name obj =
           str <- toString val
           setClass name obj >>= setPrimitiveValue val
                             >>= setPrimitiveToString (VStr str)
+                            >>= objSetPrototype prototype
           return (VObj obj)
         _ -> raiseError $ name ++ " constructor called with this = " ++ show this
