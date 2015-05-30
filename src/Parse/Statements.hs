@@ -256,7 +256,7 @@ baseMemberExpr p = do
 
 dotExt :: JSParser (Expr -> Expr)
 dotExt = try $ do
-  char '.'
+  lexeme (char '.')
   name <- identifier
   return (`MemberDot` name)
 

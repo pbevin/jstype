@@ -318,3 +318,5 @@ spec = do
 
     it "understands other kinds of whitespace" $ do
       simpleParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` simpleParse "1 + 1"
+      simpleParse "Number\t.\tPI" `shouldBe` simpleParse "Number.PI"
+      simpleParse "Number[\t'PI'\t]" `shouldBe` simpleParse "Number['PI']"
