@@ -29,10 +29,10 @@ evalBinOp op = case op of
   "*"          -> numberOp (*)
   "/"          -> numberOp (/)
   "%"          -> numberOp $ fmod
-  "<"          -> lessThan                -- ref 11.8.1
-  ">"          -> flip lessThan'          -- ref 11.8.2
-  "<="         -> flip (invert lessThan') -- ref 11.8.3
-  ">="         -> invert lessThan         -- ref 11.8.4
+  "<"          -> lessThan [LT]
+  ">"          -> lessThan [GT]
+  "<="         -> lessThan [LT, EQ]
+  ">="         -> lessThan [GT, EQ]
   "&"          -> bitwise (.&.)           -- ref 11.10
   "|"          -> bitwise (.|.)           -- ref 11.10
   "^"          -> bitwise xor             -- ref 11.10
@@ -62,41 +62,37 @@ jsAdd a b = do
   else VNum <$> liftNum (+) a' b'
 
 -- ref 11.8.5 (1)
-lessThan :: JSVal -> JSVal -> Runtime JSVal
-lessThan a b = do
+lessThan :: [Ordering] -> JSVal -> JSVal -> Runtime JSVal
+lessThan orderings a b = do
   a' <- toPrimitive HintNumber a
   b' <- toPrimitive HintNumber b
-  lt a' b'
+  if isString a' && isString b'
+  then cmp =<< cmpStrings a' b'
+  else cmp =<< cmpNumbers a' b'
 
--- ref 11.8.5 (2)
-lessThan' :: JSVal -> JSVal -> Runtime JSVal
-lessThan' a b = do
-  b' <- toPrimitive HintNumber b
-  a' <- toPrimitive HintNumber a
-  lt a' b'
+  where cmp :: Maybe Ordering -> Runtime JSVal
+        cmp = return . VBool . cmp'
+        cmp' (Just a) = a `elem` orderings
+        cmp' Nothing = False
 
 -- ref 11.8.5 (3)
-ltNum :: JSVal -> JSVal -> Runtime JSVal
-ltNum x y = do
+cmpNumbers :: JSVal -> JSVal -> Runtime (Maybe Ordering)
+cmpNumbers x y = do
   debug (x, y)
   f <$> toNumber x <*> toNumber y where
     f (JSNum nx) (JSNum ny)
-      | isNaN nx = VUndef
-      | isNaN ny = VUndef
-      | nx == ny = VBool False
-      | nx == (1/0) = VBool False
-      | ny == (1/0) = VBool True
-      | ny == (-1/0) = VBool False
-      | nx == (-1/0) = VBool True
-      | nx < ny = VBool True
-      | otherwise = VBool False
+      | isNaN nx = Nothing
+      | isNaN ny = Nothing
+      | nx == ny = Just EQ
+      | nx == (1/0) = Just GT
+      | ny == (1/0) = Just LT
+      | ny == (-1/0) = Just GT
+      | nx == (-1/0) = Just LT
+      | nx < ny = Just LT
+      | otherwise = Just GT
 
--- ref 11.8.5 (4)
-lt :: JSVal -> JSVal -> Runtime JSVal
-lt a' b' =
-  if isString a' && isString b'
-  then VBool <$> liftStr (<) a' b'
-  else ltNum a' b'
+cmpStrings :: JSVal -> JSVal -> Runtime (Maybe Ordering)
+cmpStrings (VStr x) (VStr y) = return $ Just $ compare x y
 
 numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> Runtime JSVal
 numberOp op a b = do
