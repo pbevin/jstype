@@ -67,6 +67,12 @@ numConstructor this args = do
       VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
 
+arrayFunction :: Shared JSObj -> JSFunction
+arrayFunction prototype _this args = do
+  obj <- newObject >>= setClass "Array"
+                   >>= objSetPrototype prototype
+  arrayConstructor (VObj obj) args
+
 arrayConstructor :: JSFunction
 arrayConstructor this args =
   let len = VNum $ fromIntegral $ length args
@@ -259,7 +265,7 @@ createGlobalThis = do
                               >>= addOwnProperty "toString" (VNative arrayToString)
                               >>= addOwnProperty "reduce" (VNative arrayReduce)
 
-  array <- newObject >>= setCallMethod arrayConstructor
+  array <- newObject >>= setCallMethod (arrayFunction arrayPrototype)
                      >>= setCstrMethod arrayConstructor
                      >>= addOwnProperty "prototype" (VObj arrayPrototype)
 
