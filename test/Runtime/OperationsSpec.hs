@@ -7,6 +7,7 @@ import Expr
 import Eval
 import Runtime
 import Expectations
+import JSNum
 
 fromRight :: Show a => Either a JSVal -> Bool
 fromRight (Right (VBool b)) = b
@@ -74,6 +75,19 @@ spec = do
       eqq (VNum 1) (VNum 2) `shouldReturn` False
       eqq (VNum $ 1/0) (VNum $ 1/0) `shouldReturn` True
 
+  describe "fmod" $ do
+    it "is handles + and - in both positions" $ do
+      JSNum 101 `fmod` JSNum 51 `shouldBe` JSNum 50
+      JSNum 101 `fmod` JSNum (-51) `shouldBe` JSNum 50
+      JSNum (-101) `fmod` JSNum 51 `shouldBe` JSNum (-50)
+      JSNum (-101) `fmod` JSNum (-51) `shouldBe` JSNum (-50)
+
+    it "is valid for edge cases" $ do
+      let jsInfinity = JSNum (1/0)
+          jsNaN = JSNum (0/0)
+          isJsNaN (JSNum a) = isNaN a
+      jsNaN `fmod` jsInfinity `shouldSatisfy` isJsNaN
+      1 `fmod` (-jsInfinity) `shouldBe` 1
 
   describe "bitwise" $ do
     it "can logical-and two numbers" $ do

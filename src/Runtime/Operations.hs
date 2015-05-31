@@ -101,13 +101,20 @@ numberOp op a b = do
   VNum <$> liftNum op a' b'
 
 fmod :: JSNum -> JSNum -> JSNum
-fmod n d
-  | d == 0     = 0/0
-  | infinite n = 0/0
-  | infinite d = d
-  | n >= 0     = mod' n d
-  | n < 0      = -mod' (-n) d
-  where infinite (JSNum x) = isInfinite x
+fmod (JSNum n') (JSNum d') = JSNum $ fmod' (abs n') (abs d') * signum n'
+  where fmod' n d
+          | isNaN n      = 0/0
+          | isNaN n      = 0/0
+          | d == 0       = 0/0
+          | isInfinite n = 0/0
+          | isInfinite d = n
+          | otherwise    = n - d * q
+            where q = fromIntegral $ truncate (n/d)
+          -- | n >= 0       = JSNum $ mod' n d
+          -- | n < 0        = JSNum $ -mod' (-n) d
+
+fquot :: Double -> Double -> Double
+fquot n d = fromIntegral $ floor (n/d)
 
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> Runtime JSVal
 boolOp op a b = return (VBool $ op a b)
