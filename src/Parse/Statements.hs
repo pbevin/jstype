@@ -427,10 +427,13 @@ getter = try $ do
 
 setter :: JSParser PropertyAssignment
 setter = try $ do
+  strict <- getStrictness
   tok "set"
   name <- propertyName
   tok "("
   param <- identifier
+  when (strict == Strict) $
+    guard (param /= "eval" && param /= "arguments")
   tok ")"
   let cxt = Just ("set " ++ name)
   stmts <- braces (withFunctionContext cxt $ many statement)

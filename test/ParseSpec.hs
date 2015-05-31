@@ -366,6 +366,11 @@ spec = do
       unparseableInStrictMode "var a = { x: 1, x: 1 }"
       unparseableInStrictMode "var a = { x: 1, x: 2 }"
 
+    it "disallows eval and arguments as setter args" $ do
+      unparseableInStrictMode "var obj = { set x(eval) {}};"
+      unparseableInStrictMode "var obj = { set x(arguments) {}};"
+      
+
   describe "with" $ do
     it "parses a with statement" $ do
       testParse "with(obj) { }" `shouldBe`
