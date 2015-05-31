@@ -46,6 +46,25 @@ spec = do
       eq VNull VUndef  `shouldReturn` True
       eq VNull VNull   `shouldReturn` True
 
+    it "compares a number and a string" $ do
+      eq (VNum 1) (VStr "1") `shouldReturn` True
+      eq (VNum 1) (VStr "2") `shouldReturn` False
+      eq (VStr "1") (VNum 1) `shouldReturn` True
+      eq (VStr "2") (VNum 1) `shouldReturn` False
+
+    it "compares a number and a bool" $ do
+      eq (VNum 0) (VBool True) `shouldReturn` False
+      eq (VNum 0) (VBool False) `shouldReturn` True
+      eq (VNum 1) (VBool True) `shouldReturn` True
+      eq (VNum 1) (VBool False) `shouldReturn` False
+      eq (VNum 2) (VBool True) `shouldReturn` False
+      eq (VNum 2) (VBool False) `shouldReturn` False
+      eq (VBool True) (VNum 0) `shouldReturn` False
+      eq (VBool False) (VNum 0) `shouldReturn` True
+      eq (VBool True) (VNum 1) `shouldReturn` True
+      eq (VBool False) (VNum 1) `shouldReturn` False
+      eq (VBool True) (VNum 2) `shouldReturn` False
+      eq (VBool False) (VNum 2) `shouldReturn` False
 
   describe "tripleEquals" $ do
     let eqq a b = runtime (doubleEquals a b) >>= return . fromRight

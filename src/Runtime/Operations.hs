@@ -109,13 +109,12 @@ tripleEquals v1 v2 = return $ VBool $ eq v1 v2
           | typeof x == TypeFunction    = x == y
           | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
+-- ref 11.9.3
 doubleEquals :: JSVal -> JSVal -> Runtime JSVal
-doubleEquals v1 v2 = return $ VBool $ eq v1 v2
-  where eq x y
-          | typeof x == typeof y = eq' x y
-          | typeof x == TypeUndefined && typeof y == TypeNull = True
-          | typeof x == TypeNull && typeof y == TypeUndefined = True
-          | otherwise = False
+doubleEquals v1 v2 = eq v1 v2
+  where eq x y = if typeof x == typeof y
+                 then return (VBool $ eq' x y)
+                 else eq'' (typeof x, typeof y) x y
         eq' VUndef VUndef = True
         eq' VNull VNull = True
         eq' (VNum a) (VNum b) = a == b
@@ -123,6 +122,20 @@ doubleEquals v1 v2 = return $ VBool $ eq v1 v2
         eq' (VBool a) (VBool b) = a == b
         eq' (VObj a) (VObj b) = a == b
         eq' _ _ = False
+
+        eq'' :: (JSType, JSType) -> JSVal -> JSVal -> Runtime JSVal
+        eq'' (tx, ty) x y = case (tx, ty) of
+          (TypeUndefined, TypeNull) -> return $ VBool True
+          (TypeNull, TypeUndefined) -> return $ VBool True
+          (TypeNumber, TypeString)  -> (x `doubleEquals`) =<< (VNum <$> toNumber y)
+          (TypeString, TypeNumber)  -> (`doubleEquals` y) =<< (VNum <$> toNumber x)
+          (_, TypeBoolean)          -> (x `doubleEquals`) =<< (VNum <$> toNumber y)
+          (TypeBoolean, _)          -> (`doubleEquals` y) =<< (VNum <$> toNumber x)
+          (TypeString, TypeObject)  -> (x `doubleEquals`) =<< (toPrimitive HintNone y)
+          (TypeNumber, TypeObject)  -> (x `doubleEquals`) =<< (toPrimitive HintNone y)
+          (TypeObject, TypeString)  -> (`doubleEquals` y) =<< (toPrimitive HintNone x)
+          (TypeObject, TypeNumber)  -> (`doubleEquals` y) =<< (toPrimitive HintNone x)
+          _ -> return $ VBool False
 
 -- ref 15.3.5.3
 hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
