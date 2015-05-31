@@ -37,6 +37,7 @@ data Statement = Block SrcLoc [Statement]
                | ContinueStatement SrcLoc (Maybe Label)
                | BreakStatement SrcLoc (Maybe Label)
                | Return SrcLoc (Maybe Expr)
+               | WithStatement SrcLoc Expr Statement
                | ThrowStatement SrcLoc Expr
                | TryStatement SrcLoc Statement (Maybe Catch) (Maybe Finally)
                | EmptyStatement SrcLoc

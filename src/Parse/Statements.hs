@@ -62,6 +62,7 @@ statement = choice [ block <?> "block",
                      ifStmt <?> "if",
                      forStmt <?> "for",
                      whileStmt <?> "while",
+                     withStmt <?> "with",
                      terminated doWhileStmt <?> "do...while",
                      terminated returnStmt <?> "return",
                      terminated breakStmt <?> "break",
@@ -112,6 +113,10 @@ returnStmt = ifInsideFunction $ do
   Return <$> srcLoc <*> if sameLine pos1 pos2
                         then optionMaybe expr
                         else pure Nothing
+
+withStmt :: JSParser Statement
+withStmt = keyword "with" >>
+             WithStatement <$> srcLoc <*> parens expr <*> statement
 
 ifStmt :: JSParser Statement
 ifStmt = do

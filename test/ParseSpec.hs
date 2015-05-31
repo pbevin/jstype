@@ -19,21 +19,22 @@ testParse input =
       srcLoc = SrcLoc "" 0 0
       overrideAll = map overrideSrcLoc
       overrideSrcLoc stmt = case stmt of
-        Block _ sts            ->  Block s $ overrideAll sts
+        Block _ sts            -> Block s $ overrideAll sts
         LabelledStatement _ label st -> LabelledStatement s label $ overrideSrcLoc st
-        VarDecl _ a            ->  VarDecl s (map fixVars a)
-        ExprStmt _ a           ->  ExprStmt s (fixExpr a)
-        IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
-        WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
-        DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
-        For _ a b              ->  For s a $ overrideSrcLoc b
-        ContinueStatement _ l  ->  ContinueStatement s l
-        BreakStatement _ l     ->  BreakStatement s l
-        Return _ a             ->  Return s a
-        ThrowStatement _ a     ->  ThrowStatement s a
-        TryStatement _ a b c   ->  TryStatement s a b c
-        EmptyStatement _       ->  EmptyStatement s
-        DebuggerStatement _    ->  DebuggerStatement s
+        VarDecl _ a            -> VarDecl s (map fixVars a)
+        ExprStmt _ a           -> ExprStmt s (fixExpr a)
+        IfStatement _ a b c    -> IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
+        WhileStatement _ a b   -> WhileStatement s a $ overrideSrcLoc b
+        DoWhileStatement _ a b -> DoWhileStatement s a $ overrideSrcLoc b
+        For _ a b              -> For s a $ overrideSrcLoc b
+        ContinueStatement _ l  -> ContinueStatement s l
+        BreakStatement _ l     -> BreakStatement s l
+        Return _ a             -> Return s a
+        WithStatement _ a b    -> WithStatement s a $ overrideSrcLoc b
+        ThrowStatement _ a     -> ThrowStatement s a
+        TryStatement _ a b c   -> TryStatement s a b c
+        EmptyStatement _       -> EmptyStatement s
+        DebuggerStatement _    -> DebuggerStatement s
       fixExpr e = case e of
         FunDef a b c body -> FunDef a b c (overrideAll body)
         ObjectLiteral a   -> ObjectLiteral $ map (second f) a
@@ -327,28 +328,28 @@ spec = do
   describe "Unicode whitespace" $ do
     describe "Newline characters" $ do
       let expectedParse =
-            Program NotStrict [ ExprStmt (SrcLoc "" 1 1 Nothing) (Num 1),
-                      ExprStmt (SrcLoc "" 2 1 Nothing) (Num 2) ]
+            Program NotStrict [ ExprStmt s (Num 1),
+                                ExprStmt s (Num 2) ]
 
       it "treats \\n as a line break" $
-        simpleParse "1\n2" `shouldBe` expectedParse
+        testParse "1\n2" `shouldBe` expectedParse
 
       it "treats \\r as a line break" $
-        simpleParse "1\r2" `shouldBe` expectedParse
+        testParse "1\r2" `shouldBe` expectedParse
 
       it "treats unicode line separator as a line break" $
-        simpleParse "1\x2028\&2" `shouldBe` expectedParse
+        testParse "1\x2028\&2" `shouldBe` expectedParse
 
       it "treats unicode paragraph separator as a line break" $
-        simpleParse "1\x2029\&2" `shouldBe` expectedParse
+        testParse "1\x2029\&2" `shouldBe` expectedParse
 
       it "treats \\r\\n as a single line break" $
-        simpleParse "1\r\n2" `shouldBe` expectedParse
+        testParse "1\r\n2" `shouldBe` expectedParse
 
     it "understands other kinds of whitespace" $ do
-      simpleParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` simpleParse "1 + 1"
-      simpleParse "Number\t.\tPI" `shouldBe` simpleParse "Number.PI"
-      simpleParse "Number[\t'PI'\t]" `shouldBe` simpleParse "Number['PI']"
+      testParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` testParse "1 + 1"
+      testParse "Number\t.\tPI" `shouldBe` testParse "Number.PI"
+      testParse "Number[\t'PI'\t]" `shouldBe` testParse "Number['PI']"
 
   describe "Strict mode" $ do
     it "disallows modifications of eval and arguments" $ do
@@ -360,3 +361,9 @@ spec = do
       unparseableInStrictMode "eval--"
       unparseableInStrictMode "arguments++"
       unparseableInStrictMode "arguments--"
+
+  describe "with" $ do
+    it "parses a with statement" $ do
+      testParse "with(obj) { }" `shouldBe`
+        Program NotStrict [
+          WithStatement s (ReadVar "obj") (Block s []) ]

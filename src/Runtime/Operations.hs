@@ -243,10 +243,3 @@ pow x y
 
 isOddInteger :: RealFloat a => a -> Bool
 isOddInteger y = not (isInfinite y) && isInteger ((y+1)/2) && abs y < 1e20
-
-objIsNaN :: JSFunction
-objIsNaN _this args = case args of
-  [] -> return VUndef
-  (num:_) -> do
-    a <- toNumber num
-    return $ VBool (a /= a)

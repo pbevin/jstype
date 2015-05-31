@@ -52,3 +52,6 @@ withNewContext cxt = withGlobalContext (const cxt)
 
 withStrictness :: Strictness -> Runtime a -> Runtime a
 withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = strictness }
+
+withLexEnv :: JSEnv -> Runtime a -> Runtime a
+withLexEnv env = withGlobalContext $ \cxt -> cxt { lexEnv = env }

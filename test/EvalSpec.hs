@@ -348,3 +348,24 @@ spec = do
   describe "String object" $ do
     it "has charAt" $ do
       jsEvalExpr "new String('abc').charAt(2)" `shouldReturn` VStr "c"
+
+  describe "the 'with' statement" $ do
+    it "creates variables in the outer environment" $ do
+      let prog = unlines [
+                  "  try { var obj = { x: 9 }; ",
+                  "  var x = 4; ",
+                  "  with (obj) { ",
+                  "    var x = 3; ",
+                  "    throw x; ",
+                  "  } } catch (e) { }",
+                  "  console.log(x, obj.x); " ]
+      runJStr prog `shouldReturn` Right "4 3\n"
+
+  describe "Declaration Binding Initialization" $ do -- ref 10.5
+    it "pre-declares variables" $ do
+      runJStr "console.log(a)" `shouldError` "ReferenceError: No such variable a"
+      runJStr "console.log(a); var a;" `shouldReturn` Right "undefined\n"
+      runJStr "console.log(a); var a = 5;" `shouldReturn` Right "undefined\n"
+
+    it "pre-declares function names" $ do
+      runJStr "'use strict'; function a() { }" `shouldReturn` Right ""

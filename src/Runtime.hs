@@ -27,21 +27,15 @@ import JSNum
 import Debug.Trace
 
 initialCxt :: Runtime JSCxt
-initialCxt = JSCxt <$> initialEnv
-                   <*> emptyEnv
-                   <*> (VObj <$> getGlobalObject)
-                   <*> pure NotStrict
+initialCxt = do
+  env <- initialEnv
+  obj <- VObj <$> getGlobalObject
+  return $ JSCxt env env obj NotStrict
 
 initialEnv :: Runtime JSEnv
 initialEnv = do
   global <- getGlobalObject
-  share $ LexEnv (ObjEnvRec global) Nothing
-
-
-emptyEnv :: Runtime JSEnv
-emptyEnv = do
-  m <- share emptyPropMap
-  share $ LexEnv (DeclEnvRec m) Nothing
+  share $ LexEnv (ObjEnvRec global False) Nothing
 
 objToString :: JSFunction
 objToString _this _args = return $ VStr "[object Object]"
@@ -51,15 +45,6 @@ objPrimitive (VObj this) _args = do
   objDefaultValue HintNone this
 objPrimitive this _args = return this
 
-
-computeThisValue :: JSCxt -> JSVal -> JSVal
-computeThisValue cxt v = case v of
-  VRef ref ->
-    if isPropertyReference ref
-    then getBase ref
-    else thisBinding cxt
-
-  _ -> thisBinding cxt
 
 -- ref 15.2.1.1
 objFunction :: JSVal -> [JSVal] -> Runtime JSVal
@@ -111,6 +96,12 @@ setArrayIndices assigns objRef = do
   return objRef
 
 
+funFunction :: Shared JSObj -> JSFunction
+funFunction prototype _this args = do
+  obj <- newObject >>= setClass "Function"
+                   >>= objSetPrototype prototype
+  funConstructor (VObj obj) args
+
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor this args = case this of
   VObj objRef -> do
@@ -151,6 +142,7 @@ funcCall paramList strict body this args =
     arguments <- newObject >>= addOwnProperty "callee" (VNum 42)
     addToNewEnv env "arguments" (VObj arguments)
     withNewContext (newCxt cxt env) $ do
+      performDBI DBIFunction strict body
       result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v
@@ -177,6 +169,30 @@ parseInt _this args =
   in do
     str <- toString arg
     return $ VNum $ parseNumber str
+
+-- ref 15.1.2.3
+parseFloat :: JSFunction
+parseFloat _this args =
+  let arg = first1 args
+  in do
+    str <- toString arg
+    return $ VNum $ parseNumber str
+
+-- ref 15.1.2.4
+objIsNaN :: JSFunction
+objIsNaN _this args =
+  let arg = first1 args
+  in VBool . isNaN . fromJSNum <$> toNumber arg
+
+objIsFinite :: JSFunction
+objIsFinite this args =
+  let arg = first1 args
+  in VBool . isFinite <$> toNumber arg
+    where isFinite (JSNum x)
+            | isNaN x   = False
+            | x == 1/0  = False
+            | x == -1/0 = False
+            | otherwise = True
 
 stackTrace :: JSError -> String
 stackTrace (JSError (err, stack)) = unlines $ show err : map show (reverse stack)
@@ -206,7 +222,7 @@ createGlobalThis = do
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
   functionPrototype <- newObject
-  function <- newObject >>= setCallMethod funConstructor
+  function <- newObject >>= setCallMethod (funFunction functionPrototype)
                         >>= setCstrMethod funConstructor
                         >>= objSetPrototype functionPrototype
                         >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
@@ -304,7 +320,9 @@ createGlobalThis = do
             >>= addOwnProperty "JSON" (VObj json)
             >>= addOwnProperty "eval" (VNative objEval)
             >>= addOwnProperty "isNaN" (VNative objIsNaN)
+            >>= addOwnProperty "isFinite" (VNative objIsFinite)
             >>= addOwnProperty "parseInt" (VNative parseInt)
+            >>= addOwnProperty "parseFloat" (VNative parseFloat)
             >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
             >>= addOwnConstant "NaN" (VNum $ jsNaN)
             >>= addOwnConstant "undefined" (VUndef)
@@ -381,8 +399,8 @@ jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
 putVar :: Ident -> JSVal -> Runtime ()
 putVar x v = do
   cxt <- getGlobalContext
-  putValue (ref cxt) v
-    where ref cxt = JSRef (VEnv $ lexEnv cxt) x (cxtStrictness cxt)
+  ref <- getIdentifierReference (Just $ lexEnv cxt) x (cxtStrictness cxt)
+  putValue ref v
 
 
 -- ref 10.2.2.1
@@ -390,11 +408,22 @@ getIdentifierReference :: Maybe JSEnv -> Ident -> Strictness -> Runtime JSRef
 getIdentifierReference Nothing name strict = return $ JSRef VUndef name strict
 getIdentifierReference (Just lexRef) name strict = do
   env <- deref lexRef
-  bound <- hasBinding name (envRec env)
-  if bound
+  exists <- hasBinding name (envRec env)
+  if exists
   then return $ JSRef (VEnv lexRef) name strict
   else do
     getIdentifierReference (outer env) name strict
+
+-- ref 10.2.2.2
+newDeclarativeEnvironment :: Maybe JSEnv -> Runtime JSEnv
+newDeclarativeEnvironment e = do
+  envRec <- share emptyPropMap
+  share $ LexEnv (DeclEnvRec envRec) e
+
+
+-- ref 10.2.2.3
+newObjectEnvironment :: Shared JSObj -> Maybe JSEnv -> Bool -> Runtime JSEnv
+newObjectEnvironment obj oldEnv provideThis = share $ LexEnv (ObjEnvRec obj provideThis) oldEnv
 
 
 -- ref 11.13.1
@@ -437,18 +466,40 @@ memberGet lval prop = do
   strict <- getGlobalStrictness
   return $ VRef (JSRef lval prop strict)
 
+-- ref 11.2.3
 funCall :: JSVal -> [JSVal] -> Runtime JSVal
 funCall ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
   if typeof func == TypeUndefined
   then raiseReferenceError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
-  else let thisValue = computeThisValue cxt ref
-       in objCall func thisValue argList
+  else do
+    thisValue <- computeThisValue cxt ref
+    objCall func thisValue argList
+
+  where
+    computeThisValue cxt v = case v of
+      VRef ref ->
+        if isPropertyReference ref
+        then return (getBase ref)
+        else case getBase ref of
+          VEnv env -> implicitThisValue . envRec <$> deref env
+
+      _ -> return $ thisBinding cxt
+
+    implicitThisValue (DeclEnvRec _) = VUndef
+    implicitThisValue (ObjEnvRec obj True) = (VObj obj)
+    implicitThisValue (ObjEnvRec _ False) = VUndef
 
 
+-- computeThisValue :: JSCxt -> JSVal -> Runtime JSVal
+-- computeThisValue cxt v = return $ case v of
+--   VRef ref ->
+--     if isPropertyReference ref
+--     then getBase ref
+--     else thisBinding cxt
 
-
+--   _ -> thisBinding cxt
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
@@ -659,3 +710,69 @@ isWrapperFor f defaultValue prototype name obj =
                             >>= objSetPrototype prototype
           return (VObj obj)
         _ -> raiseError $ name ++ " constructor called with this = " ++ show this
+
+-- ref 10.5
+data DBIType = DBIGlobal | DBIFunction | DBIEval
+performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
+performDBI dbiType strict stmts = do
+  env <- varEnv <$> getGlobalContext
+  mapM_ (bindVar env) (concatMap searchFunctionNames stmts)
+  mapM_ (bindVar env) (concatMap searchVariables stmts)
+    where
+      bindVar :: JSEnv -> Ident -> Runtime ()
+      bindVar env dn = do -- (8)
+        rec <- envRec <$> deref env
+        varAlreadyDeclared <- hasBinding dn rec
+        unless varAlreadyDeclared $ do
+          createMutableBinding dn env
+          setMutableBinding dn VUndef (strict == Strict) env
+
+searchFunctionNames :: Statement -> [Ident]
+searchFunctionNames = walkStatement (const []) fnFinder
+
+fnFinder :: Expr -> [Ident]
+fnFinder (FunDef (Just fn) _ _ _) = [fn]
+fnFinder _ = []
+
+searchVariables :: Statement -> [Ident]
+searchVariables = walkStatement varFinder (const [])
+
+varFinder :: Statement -> [Ident]
+varFinder (VarDecl _ ds) = map fst ds
+varFinder _ = []
+
+walkStatement :: (Statement -> [a]) -> (Expr -> [a]) -> Statement -> [a]
+walkStatement sv ev = walk where
+  walk stmt = sv stmt ++ case stmt of
+    Block _ ss               -> concatMap walk ss
+    VarDecl _ vds -> concatMap ewalk (catMaybes $ map snd vds)
+    ExprStmt _ e -> ewalk e
+    LabelledStatement _ _ s  -> walk s
+    IfStatement _ e s1 Nothing -> ewalk e ++ walk s1
+    IfStatement _ e s1 (Just s2) -> ewalk e ++ walk s1 ++ walk s2
+    WhileStatement _ e s     -> ewalk e ++ walk s
+    DoWhileStatement _ e s   -> ewalk e ++ walk s
+    Return _ (Just e)        -> ewalk e
+    WithStatement _ e s      -> ewalk e ++ walk s
+
+    _                        -> []
+  ewalk = walkExpr sv ev
+
+walkExpr :: (Statement -> [a]) -> (Expr -> [a]) -> Expr -> [a]
+walkExpr sv ev = walk where
+  walk e = ev e ++ case e of
+    ArrayLiteral es  -> concatMap walk (catMaybes es)
+    ObjectLiteral as -> concatMap walkPropAss as
+    BinOp _ e1 e2    -> walk e1 ++ walk e2
+    UnOp _ e         -> walk e
+    PostOp _ e       -> walk e
+    NewExpr e es     -> walk e ++ concatMap walk es
+    Assign e1 _ e2   -> walk e1 ++ walk e2
+    Cond e1 e2 e3    -> walk e1 ++ walk e2 ++ walk e3
+    MemberDot e _    -> walk e
+    MemberGet e1 e2  -> walk e1 ++ walk e2
+    FunCall e es     -> walk e ++ concatMap walk es
+    _                -> []
+
+  walkPropAss (_, Value e) = walk e
+  walkPropAss (_, _) = []

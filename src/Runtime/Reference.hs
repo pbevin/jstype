@@ -125,13 +125,28 @@ isReference (VRef _) = True
 isReference _ = False
 
 
+-- ref 10.2.1.1.1
 hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
-hasBinding name (ObjEnvRec obj) = liftM (propMapMember name . ownProperties) $ deref obj
+hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . ownProperties) $ deref obj
+
+-- ref 10.2.1.1.2, incomplete (D parameter)
+createMutableBinding :: Ident -> JSEnv -> Runtime ()
+createMutableBinding n envRef = do
+  lx <- deref envRef
+  envInsert n VUndef (envRec lx)
+
+-- ref 10.2.1.1.3, incomplete (S parameter)
+setMutableBinding :: Ident -> JSVal -> Bool -> JSEnv -> Runtime ()
+setMutableBinding n v _s envRef = do
+  lx <- deref envRef
+  envInsert n v (envRec lx)
+
+
 
 envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
 envLookup name (DeclEnvRec m) = lk name =<< deref m
-envLookup name (ObjEnvRec obj) = lk name . ownProperties =<< deref obj
+envLookup name (ObjEnvRec obj _) = lk name . ownProperties =<< deref obj
 
 lk :: Ord k => k -> PropMap k (PropDesc a) -> Runtime (Maybe a)
 lk k m = case propMapLookup k m of
@@ -140,11 +155,11 @@ lk k m = case propMapLookup k m of
 
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))
-envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj
+envInsert name val (ObjEnvRec obj _) = void $ addOwnProperty name val obj
 
 envDelete :: Ident -> EnvRec -> Runtime JSVal
 envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)
-envDelete name (ObjEnvRec obj) = objDelete name False obj
+envDelete name (ObjEnvRec obj _) = objDelete name False obj
 
 -- ref 8.10.5, incomplete
 toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)

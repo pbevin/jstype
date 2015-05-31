@@ -60,7 +60,8 @@ evalCode text = do
   currentStrictness <- return . cxtStrictness =<< getGlobalContext
   case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
-    Right (Program strictness stmts) ->
+    Right (Program strictness stmts) -> do
+      performDBI DBIEval strictness stmts
       withStrictness strictness (runStmts stmts)
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
@@ -92,6 +93,7 @@ initGlobals = do
 runProg :: Program -> Runtime (Maybe JSVal)
 runProg (Program strictness stmts) = do
   initGlobals
+  performDBI DBIGlobal strictness stmts
   result <- withStrictness strictness (runStmts stmts)
   case result of
     (CTNormal, v, _) -> return v
@@ -159,16 +161,7 @@ runStmt s = case s of
     val <- runExprStmt e >>= getValue
     return (CTNormal, Just val, Nothing)
 
-  VarDecl _loc assignments -> do
-    forM_ assignments $ \(x, e) -> case e of
-      Nothing  -> putVar x VUndef
-      Just e' -> do
-        v <- getValue =<< runExprStmt e'
-        when (x == "eval" || x == "arguments") $
-          cannotAssignTo x
-        putVar x v
-    return (CTNormal, Nothing, Nothing)
-
+  VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
   LabelledStatement _loc _label stmt -> runStmt stmt
 
   IfStatement _loc predicate ifThen ifElse -> do -- ref 12.5
@@ -218,6 +211,7 @@ runStmt s = case s of
   For loc (ForInVar (x, e1) e2) stmt -> do
     runStmt $ transformFor3VarIn loc x e1 e2 stmt
 
+  WithStatement _loc e s -> runWithStatement e s
   Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch _finally -> do -- ref 12.14  XXX ignoring finally block
@@ -240,6 +234,7 @@ runStmt s = case s of
   EmptyStatement _loc -> return (CTNormal, Nothing, Nothing)
 
   _ -> error ("Unimplemented stmt: " ++ show s)
+
 
 -- |
 -- Turn "for (e1; e2; e3) { s }" into
@@ -278,13 +273,36 @@ transformFor3VarIn loc x e1 e2 s =
   let s1 = VarDecl loc [(x, e1)]
   in Block loc [ s1, For loc (ForIn (ReadVar x) e2) s ]
 
+-- ref 12.2
+runVarDecl :: [VarDeclaration] -> Runtime StmtReturn
+runVarDecl assignments = do
+  forM_ assignments $ \(x, e) -> case e of
+    Nothing  -> putVar x VUndef
+    Just e' -> do
+      when (x == "eval" || x == "arguments") $
+        cannotAssignTo x
+      runExprStmt e' >>= getValue >>= putVar x
+  return (CTNormal, Nothing, Nothing)
+
+-- ref 12.10
+runWithStatement :: Expr -> Statement -> Runtime StmtReturn
+runWithStatement e s = do
+  val <- runExprStmt e
+  obj <- toObject =<< getValue val
+  oldEnv <- lexEnv <$> getGlobalContext
+  newEnv <- newObjectEnvironment obj (Just oldEnv) True
+  withLexEnv newEnv $ runStmt s
+
+
 -- ref 12.14
 runCatch :: Maybe Catch -> JSVal -> Runtime StmtReturn
 runCatch Nothing _ = return (CTNormal, Nothing, Nothing)
-runCatch (Just (Catch _loc var stmt)) exc = do
-  -- XXX create new environment
-  putVar var exc
-  runStmt stmt
+runCatch (Just (Catch _loc var stmt)) c = do
+  oldEnv <- lexEnv <$> getGlobalContext
+  catchEnv <- newDeclarativeEnvironment (Just oldEnv)
+  createMutableBinding var catchEnv
+  setMutableBinding var c False catchEnv
+  withLexEnv catchEnv $ runStmt stmt
 
 maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
 maybeValList = mapM evalOne

@@ -24,12 +24,12 @@ instance Show a => Show (PropDesc a) where
 
 propValue :: PropDesc a -> Runtime a
 propValue (DataPD a _ _ _) = return a
-propValue (AccessorPD (Just get) _ _ _) = get
+propValue (AccessorPD (Just getter) _ _ _) = getter
 propValue (AccessorPD Nothing _ _ _) = error "No value"
 
 propIsWritable :: PropDesc a -> Bool
 propIsWritable (DataPD _ w _ _) = w
-propIsWritable (AccessorPD _ (Just set) _ _) = True
+propIsWritable (AccessorPD _ (Just _) _ _) = True
 propIsWritable (AccessorPD _ Nothing _ _) = False
 
 propIsEnumerable :: PropDesc a -> Bool
@@ -140,7 +140,7 @@ data LexEnv = LexEnv {
 }
 
 data EnvRec = DeclEnvRec (Shared PropertyMap)
-            | ObjEnvRec (Shared JSObj)
+            | ObjEnvRec (Shared JSObj) Bool
 
 data JSType = TypeUndefined
             | TypeNull
