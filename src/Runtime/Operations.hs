@@ -7,6 +7,7 @@ import Control.Monad.Trans
 import Control.Applicative
 import Data.Fixed (mod')
 import Data.Word
+import Data.Int
 import Data.Bits
 import Data.Maybe
 import Expr
@@ -250,8 +251,8 @@ unaryMinus = unaryNumOp negate
 
 -- ref 11.4.8
 unaryBitwiseNot :: JSVal -> Runtime JSVal
-unaryBitwiseNot = unaryOp (VNum . fromIntegral) toWord32 (complement :: Word32 -> Word32)
-  where toWord32 = toNumber >=> return . floor
+unaryBitwiseNot = unaryOp (VNum . fromIntegral) toInt32 (complement :: Int32 -> Int32)
+  -- where toWord32 = toNumber >=> return . floor
 
 -- ref 11.4.9
 unaryNot :: JSVal -> Runtime JSVal

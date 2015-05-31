@@ -184,6 +184,9 @@ spec = do
     jsEvalExpr "3 << 2" `shouldReturn` VNum 12
     jsEvalExpr "12 >> 2" `shouldReturn` VNum 3
 
+  it "does bitwise not" $ do
+    jsEvalExpr "~0" `shouldReturn` VNum (-1)
+
   describe "left shift" $ do
     it "does hard case 5" $ do
       jsEvalExpr "6442450943.1 << 0" `shouldReturn` VNum 2147483647
