@@ -300,6 +300,7 @@ postfixExpr p = do
     where postfix e = do
             op <- choice $ map (try . tok) $ postfixOps jsLang
             whiteSpace
+            guard $ legalModification op e
             return $ PostOp op e
 
 unaryExpr :: JSParser Expr -> JSParser Expr
@@ -308,7 +309,15 @@ unaryExpr p = (try unop <|> p) <?> "unary expr"
           op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
           whiteSpace
           e <- unaryExpr p
+          guard $ legalModification op e
           return $ UnOp op e
+
+legalModification :: String -> Expr -> Bool
+legalModification "++" (ReadVar "eval") = False
+legalModification "--" (ReadVar "eval") = False
+legalModification "++" (ReadVar "arguments") = False
+legalModification "--" (ReadVar "arguments") = False
+legalModification _ _ = True
 
 binOps :: [String] -> JSParser Expr -> JSParser Expr
 binOps allowedOps p = do

@@ -48,6 +48,11 @@ testParse input =
 unparseable :: String -> IO ()
 unparseable str = parseJS str `shouldSatisfy` isLeft
 
+unparseableInStrictMode :: String -> IO ()
+unparseableInStrictMode str = parseJS'' str "" Strict False
+  `shouldSatisfy` isLeft
+
+
 spec :: Spec
 spec = do
   describe "ParseExpr" $ do
@@ -204,6 +209,7 @@ spec = do
     it "parses a strict-mode program" $ do
       testParse "'use strict';\nvar a;" `shouldBe`
         Program Strict [VarDecl s [("a", Nothing)]]
+
     it "parses a while statement" $ do
       testParse "while (a) { }" `shouldBe` Program NotStrict [WhileStatement s (ReadVar "a") (Block s [])]
 
@@ -343,3 +349,14 @@ spec = do
       simpleParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` simpleParse "1 + 1"
       simpleParse "Number\t.\tPI" `shouldBe` simpleParse "Number.PI"
       simpleParse "Number[\t'PI'\t]" `shouldBe` simpleParse "Number['PI']"
+
+  describe "Strict mode" $ do
+    it "disallows modifications of eval and arguments" $ do
+      unparseableInStrictMode "++eval"
+      unparseableInStrictMode "--eval"
+      unparseableInStrictMode "++arguments"
+      unparseableInStrictMode "--arguments"
+      unparseableInStrictMode "eval++"
+      unparseableInStrictMode "eval--"
+      unparseableInStrictMode "arguments++"
+      unparseableInStrictMode "arguments--"
