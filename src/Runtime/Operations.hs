@@ -70,10 +70,14 @@ numberOp op a b = do
   b' <- toPrimitive HintNone b
   VNum <$> liftNum op a' b'
 
-fmod :: (Real a) => a -> a -> a
+fmod :: JSNum -> JSNum -> JSNum
 fmod n d
-  | n >= 0 = mod' n d
-  | n < 0  = -mod' (-n) d
+  | d == 0     = 0/0
+  | infinite n = 0/0
+  | infinite d = d
+  | n >= 0     = mod' n d
+  | n < 0      = -mod' (-n) d
+  where infinite (JSNum x) = isInfinite x
 
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> Runtime JSVal
 boolOp op a b = return (VBool $ op a b)

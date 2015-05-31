@@ -376,14 +376,40 @@ arrayContents = do
 
 objectLiteral :: JSParser Expr
 objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
-  where
-    propertyAssignment = do
-      name <- IdentProp <$> identifier
-                <|> StringProp <$> quotedString
-                <|> NumProp <$> numericLiteral
-      tok ":"
-      val <- assignmentExpr
-      return (name, val)
+  where propertyAssignment = getter <|> setter <|> nameValuePair
+
+propertyName :: JSParser PropertyName
+propertyName = identifier
+           <|> quotedString
+           <|> show <$> numericLiteral
+    
+nameValuePair :: JSParser PropertyAssignment
+nameValuePair = do
+  name <- propertyName
+  tok ":"
+  val <- assignmentExpr
+  return (name, Value val)
+
+getter :: JSParser PropertyAssignment
+getter = try $ do
+  tok "get"
+  name <- propertyName
+  tok "("
+  tok ")"
+  let cxt = Just ("get " ++ name)
+  stmts <- braces (withFunctionContext cxt $ many statement)
+  return (name, Getter stmts)
+
+setter :: JSParser PropertyAssignment
+setter = try $ do
+  tok "set"
+  name <- propertyName
+  tok "("
+  param <- identifier
+  tok ")"
+  let cxt = Just ("set " ++ name)
+  stmts <- braces (withFunctionContext cxt $ many statement)
+  return (name, Setter param stmts)
 
 regexLiteral :: JSParser Expr
 regexLiteral = do

@@ -22,7 +22,7 @@ data Strictness = Strict | NotStrict deriving (Show, Eq)
 
 data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
                | For3Var Ident Expr (Maybe Expr) (Maybe Expr)
-               | ForIn LHS Expr
+               | ForIn Expr Expr
                | ForInVar VarDeclaration Expr
   deriving (Show, Eq)
 
@@ -48,11 +48,12 @@ data Finally = Finally SrcLoc Statement deriving (Show, Eq)
 
 type FunBody = [Statement]
 
-type LHS = Expr -- XXX
-data PropertyName = IdentProp String
-                  | StringProp String
-                  | NumProp JSNum
-                  deriving (Show, Eq)
+type PropertyAssignment = (PropertyName, PropertyValue)
+type PropertyName = String
+data PropertyValue = Value Expr
+                   | Getter [Statement]
+                   | Setter Ident [Statement]
+                   deriving (Show, Eq)
 
 data Expr = Num JSNum
           | Str String
@@ -60,7 +61,7 @@ data Expr = Num JSNum
           | LiteralNull
           | This
           | ArrayLiteral [Maybe Expr]
-          | ObjectLiteral [(PropertyName, Expr)]
+          | ObjectLiteral [PropertyAssignment]
           | RegularExpression String String
           | BinOp Operator Expr Expr
           | UnOp Operator Expr

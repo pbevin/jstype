@@ -109,6 +109,16 @@ spec = do
   it "can add a number and an object" $ do
     runJStr "console.log(1 + new Object())" `shouldReturn` Right "1[object Object]\n"
 
+  describe "Object literal" $ do
+    it "can have a getter" $ do
+      let prog = unlines [
+                  "  var obj = { ",
+                  "    get x() { return 1; } ",
+                  "  }; ",
+                  "  console.log(obj.x); " ]
+      runJStr prog `shouldReturn` Right "1\n"
+
+
   describe "an empty array" $ do
     it "has length 0" $ do
       jsEvalExpr "[].length" `shouldReturn` VNum 0

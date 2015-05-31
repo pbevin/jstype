@@ -409,19 +409,21 @@ purePrefix f e = runExprStmt e >>= getValue >>= f
 
 
 
-makeObjectLiteral :: [(PropertyName, Expr)] -> Runtime JSVal
-makeObjectLiteral nameValueList =
-  let nameOf :: PropertyName -> String
-      nameOf (IdentProp ident) = ident
-      nameOf (StringProp str)  = str
-      nameOf (NumProp n)       = show n
-      addProp :: Shared JSObj -> (PropertyName, Expr) -> Runtime (Shared JSObj)
-      addProp obj (p, v) = do
-        val <- runExprStmt v >>= getValue
-        addOwnProperty (nameOf p) val obj
-  in do
-    obj <- newObject
-    VObj <$> foldM addProp obj nameValueList
+makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal
+makeObjectLiteral nameValueList =do
+  obj <- newObject
+  mapM_ (addObjectProp obj) nameValueList
+  return (VObj obj)
+
+addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime ()
+addObjectProp obj (p, Value v) = do
+  val <- runExprStmt v >>= getValue
+  void $ addOwnProperty p val obj
+addObjectProp obj (p, Getter body) = do
+  strict <- getGlobalStrictness
+  func <- createFunction [] strict body >>= mkGetter
+  let desc = AccessorPD func Nothing True True
+  objDefineOwnProperty p desc False obj
 
 -- ref 11.4.1
 evalDelete :: JSVal -> Runtime JSVal

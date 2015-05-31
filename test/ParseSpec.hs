@@ -1,6 +1,7 @@
 module ParseSpec where
 
 import Control.Exception (evaluate)
+import Control.Arrow (second)
 import Data.Either
 import Test.Hspec
 
@@ -20,8 +21,8 @@ testParse input =
       overrideSrcLoc stmt = case stmt of
         Block _ sts            ->  Block s $ overrideAll sts
         LabelledStatement _ label st -> LabelledStatement s label $ overrideSrcLoc st
-        VarDecl _ a            ->  VarDecl s a
-        ExprStmt _ a           ->  ExprStmt s (fixFunDefSrcLoc a)
+        VarDecl _ a            ->  VarDecl s (map fixVars a)
+        ExprStmt _ a           ->  ExprStmt s (fixExpr a)
         IfStatement _ a b c    ->  IfStatement s a (overrideSrcLoc b) (fmap overrideSrcLoc c)
         WhileStatement _ a b   ->  WhileStatement s a $ overrideSrcLoc b
         DoWhileStatement _ a b ->  DoWhileStatement s a $ overrideSrcLoc b
@@ -33,9 +34,15 @@ testParse input =
         TryStatement _ a b c   ->  TryStatement s a b c
         EmptyStatement _       ->  EmptyStatement s
         DebuggerStatement _    ->  DebuggerStatement s
-      fixFunDefSrcLoc e = case e of
-        FunDef a b c body -> FunDef a b c (map overrideSrcLoc body)
+      fixExpr e = case e of
+        FunDef a b c body -> FunDef a b c (overrideAll body)
+        ObjectLiteral a   -> ObjectLiteral $ map (second f) a
+          where f (Value v) = Value v
+                f (Getter xs) = Getter (overrideAll xs)
+                f (Setter x xs) = Setter x (overrideAll xs)
         _ -> e
+      fixVars (x, Just e) = (x, Just (fixExpr e))
+      fixVars other = other
   in Program strictness $ overrideAll stmts
 
 unparseable :: String -> IO ()
@@ -90,8 +97,21 @@ spec = do
 
     it "parses object literals" $ do
       parseExpr "{}" `shouldBe` ObjectLiteral []
-      parseExpr "{a: 1}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1)]
-      parseExpr "{a: 1, b: 2}" `shouldBe` ObjectLiteral [(IdentProp "a", Num 1), (IdentProp "b", Num 2)]
+      parseExpr "{a: 1}" `shouldBe` ObjectLiteral [("a", Value $ Num 1)]
+      parseExpr "{a: 1, b: 2}" `shouldBe`
+        ObjectLiteral [("a", Value $ Num 1),
+                       ("b", Value $ Num 2)]
+
+    it "parses an object literal with a getter" $ do
+      let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]
+      testParse "var a = { get x() { return 1; } }" `shouldBe`
+        Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
+
+    it "parses an object literal with a setter" $ do
+      let obj = ObjectLiteral [ ("x", Setter "v" [ ]) ]
+      testParse "var a = { set x(v) { } }" `shouldBe`
+        Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
+
 
     describe "Array literals" $ do
       it "parses an empty array literal" $ do
