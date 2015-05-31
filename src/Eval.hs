@@ -345,6 +345,12 @@ runExprStmt expr = case expr of
       "=" -> assignRef lref rref
       _   -> updateRef (init op) lref rref
 
+  Cond e1 e2 e3 -> do
+    lref <- runExprStmt e1 >>= getValue
+    if toBoolean lref
+    then runExprStmt e2 >>= getValue
+    else runExprStmt e3 >>= getValue
+
   BinOp "&&" e1 e2 -> do
     v1 <- runExprStmt e1 >>= getValue
     if toBoolean v1
