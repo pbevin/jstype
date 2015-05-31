@@ -8,7 +8,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.Foldable
 import Data.Char
-import Data.List (sortBy)
+import Data.List (sortBy, nub)
 import Numeric
 import Parse.Types
 import Parse.State
@@ -389,8 +389,19 @@ arrayContents = do
 
 
 objectLiteral :: JSParser Expr
-objectLiteral = ObjectLiteral <$> braces (propertyAssignment `sepBy` comma)
-  where propertyAssignment = getter <|> setter <|> nameValuePair
+objectLiteral =
+  let propertyAssignment = getter <|> setter <|> nameValuePair
+  in do
+    assignments <- braces (propertyAssignment `sepBy` comma)
+    checkNoDuplicateKeys assignments
+    return $ ObjectLiteral assignments
+
+checkNoDuplicateKeys :: [PropertyAssignment] -> JSParser ()
+checkNoDuplicateKeys assignments = do
+  let keys = map fst assignments
+  if keys == nub keys
+  then return ()
+  else unexpected "Duplicate key in object literal"
 
 propertyName :: JSParser PropertyName
 propertyName = identifier

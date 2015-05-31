@@ -362,6 +362,10 @@ spec = do
       unparseableInStrictMode "arguments++"
       unparseableInStrictMode "arguments--"
 
+    it "disallows duplicate keys in object literals" $ do
+      unparseableInStrictMode "var a = { x: 1, x: 1 }"
+      unparseableInStrictMode "var a = { x: 1, x: 2 }"
+
   describe "with" $ do
     it "parses a with statement" $ do
       testParse "with(obj) { }" `shouldBe`
