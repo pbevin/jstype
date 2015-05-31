@@ -163,6 +163,9 @@ spec = do
       jsEvalExpr "2 <= 1" `shouldReturn` VBool False
       jsEvalExpr "1 <= 1" `shouldReturn` VBool True
 
+    it "understands <= edge cases" $ do
+      jsEvalExpr "null <= undefined" `shouldReturn` VBool False
+
     it "understands >" $ do
       jsEvalExpr "1 > 2" `shouldReturn` VBool False
       jsEvalExpr "2 > 1" `shouldReturn` VBool True
