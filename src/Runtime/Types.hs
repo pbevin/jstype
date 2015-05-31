@@ -104,7 +104,19 @@ data JSObj = JSObj {
   objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
+  objPrimitiveValue :: Maybe JSVal,
   objExtensible :: Bool
+}
+
+emptyObject :: JSObj
+emptyObject = JSObj {
+  objClass = "Object",
+  ownProperties = emptyPropMap,
+  objPrototype = Nothing,
+  callMethod = Nothing,
+  cstrMethod = Nothing,
+  objPrimitiveValue = Nothing,
+  objExtensible = True
 }
 
 data JSRef = JSRef {

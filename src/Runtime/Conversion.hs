@@ -91,6 +91,7 @@ toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
 toString (VNum n)  = return $ numberToString $ fromJSNum n
+toString v@(VObj _) = toPrimitive HintString v >>= toString
 toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other
 

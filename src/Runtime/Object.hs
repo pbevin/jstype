@@ -13,12 +13,7 @@ import Debug.Trace
 newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- getGlobalObjectPrototype
-  share JSObj { objClass = "Object",
-                ownProperties = emptyPropMap,
-                objPrototype = Just prototype,
-                callMethod = Nothing,
-                cstrMethod = Nothing,
-                objExtensible = True }
+  share $ emptyObject { objPrototype = Just prototype }
 
 -- ref 8.12.1
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -204,6 +199,12 @@ objSetExtensible extensible = updateObj $ \obj -> obj { objExtensible = extensib
 
 objIsExtensible :: Shared JSObj -> Runtime Bool
 objIsExtensible objRef = objExtensible <$> deref objRef
+
+objSetPrimitive :: JSVal -> ObjectModifier
+objSetPrimitive val = updateObj $ \obj -> obj { objPrimitiveValue = Just val }
+
+objGetPrimitive :: Shared JSObj -> Runtime JSVal
+objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
 
 objFindPrototype :: String -> Runtime (Shared JSObj)
 objFindPrototype name =

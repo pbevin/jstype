@@ -145,3 +145,34 @@ envInsert name val (ObjEnvRec obj) = void $ addOwnProperty name val obj
 envDelete :: Ident -> EnvRec -> Runtime JSVal
 envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)
 envDelete name (ObjEnvRec obj) = objDelete name False obj
+
+-- ref 8.10.5, incomplete
+toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)
+toPropertyDescriptor (VObj objRef) = do
+  enum <- toBoolean <$> objGet "enumerable" objRef
+  conf <- toBoolean <$> objGet "configurable" objRef
+  value <- objGet "value" objRef
+  writable <- toBoolean <$> objGet "writable" objRef
+  get <- objGet "get" objRef >>= mkGetter
+  set <- objGet "set" objRef >>= mkSetter
+
+  if isJust get || isJust set
+  then return $ AccessorPD get set enum conf
+  else return $ DataPD value writable enum conf
+
+toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
+
+mkGetter :: JSVal -> Runtime (Maybe (Runtime JSVal))
+mkGetter (VObj obj) = do
+  call <- callMethod <$> deref obj
+  case call of
+    Nothing -> return Nothing
+    Just f -> return $ Just (f VUndef [])
+mkGetter _ = return Nothing
+
+
+mkSetter :: JSVal -> Runtime (Maybe (JSVal -> Runtime ()))
+mkSetter (VObj obj) = do
+  call <- callMethod <$> deref obj
+  return $ Just (\a -> raiseSyntaxError "mkSetter undefined")
+mkSetter _ = return Nothing

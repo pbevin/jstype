@@ -192,16 +192,12 @@ propsFromList = propMapFromList . map f
 
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
-  share $ JSObj { objClass = "Object",
-                  ownProperties =
-                    propsFromList [ ("prototype", VUndef),
-                                    ("toString", VNative objToString),
-                                    ("hasOwnProperty", VNative objHasOwnProperty),
-                                    ("valueOf", VNative objValueOf) ],
-                  objPrototype = Nothing,
-                  callMethod = Nothing,
-                  cstrMethod = Nothing,
-                  objExtensible = True }
+  let props = propsFromList [
+                ("prototype", VUndef),
+                ("toString", VNative objToString),
+                ("hasOwnProperty", VNative objHasOwnProperty),
+                ("valueOf", VNative objValueOf) ]
+  in share $ emptyObject { ownProperties = props }
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -223,12 +219,18 @@ createGlobalThis = do
                       >>= setCallMethod objFunction
                       >>= setCstrMethod objConstructor
 
-  stringPrototype <- newObject >>= setClass "Number"
+  stringPrototype <- newObject >>= setClass "String"
+                               >>= addOwnProperty "charAt" (VNative stringCharAt)
+                               >>= addOwnProperty "toString" (VNative stringToString)
+  string <- newObject >>= setClass "Function"
+                      >>= setCallMethod strFunction
+                      >>= setCstrMethod (strConstructor stringPrototype)
+                      >>= addOwnProperty "prototype" (VObj prototype)
+
   booleanPrototype <- newObject >>= setClass "Boolean"
   numberPrototype <- newObject >>= setClass "Number"
                                >>= addOwnProperty "toFixed" (VNative toFixed)
 
-  string <- newObject >>= isWrapperFor (\s -> VStr <$> toString s) (VStr "") stringPrototype "String"
   boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
   number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
                       >>= addOwnProperty "isNaN" (VNative objIsNaN)
@@ -492,6 +494,10 @@ objCstr func this args = case func of
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
 
+firstArg :: JSVal -> [JSVal] -> JSVal
+firstArg defaultVal [] = defaultVal
+firstArg _ (x:xs) = x
+
 first1 :: [JSVal] -> JSVal
 first1 xs = a where [a] = take 1 (xs ++ repeat VUndef)
 
@@ -597,36 +603,43 @@ arrayToString _this _args = return $ VStr "[...]"
 arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
 arrayReduce _this _args = return VNull
 
--- ref 8.10.5, incomplete
-toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)
-toPropertyDescriptor (VObj objRef) = do
-  enum <- toBoolean <$> objGet "enumerable" objRef
-  conf <- toBoolean <$> objGet "configurable" objRef
-  value <- objGet "value" objRef
-  writable <- toBoolean <$> objGet "writable" objRef
-  get <- objGet "get" objRef >>= mkGetter
-  set <- objGet "set" objRef >>= mkSetter
+-- ref 15.5.1.1
+strFunction :: JSFunction
+strFunction this args =
+  let value = firstArg (VStr "") args
+  in VStr <$> toString value
 
-  if isJust get || isJust set
-  then return $ AccessorPD get set enum conf
-  else return $ DataPD value writable enum conf
+-- ref 15.5.2.1
+strConstructor :: Shared JSObj -> JSFunction
+strConstructor prototype this args =
+  let value = firstArg  (VStr "") args
+  in case this of
+    VObj obj -> do
+      str <- toString value
+      setClass "String" obj >>= objSetPrototype prototype
+                            >>= objSetExtensible True
+                            >>= objSetPrimitive value
+                            >>= addOwnProperty "length" (VNum $ fromIntegral $ length str)
+      return this
 
-toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
+-- ref 15.5.4.2
+stringToString :: JSFunction
+stringToString this _args = do
+  case this of
+    VObj obj -> objGetPrimitive obj
 
-mkGetter :: JSVal -> Runtime (Maybe (Runtime JSVal))
-mkGetter (VObj obj) = do
-  call <- callMethod <$> deref obj
-  case call of
-    Nothing -> return Nothing
-    Just f -> return $ Just (f VUndef [])
-mkGetter _ = return Nothing
+-- ref 15.5.4.4, incomplete
+stringCharAt :: JSFunction
+stringCharAt this args =
+  let pos = first1 args
+  in do
+    checkObjectCoercible this
+    str <- toString this
+    position <- toInt pos
+    return $ maybe VUndef charToStr $ atMay str position
+      where charToStr ch = VStr [ch]
 
 
-mkSetter :: JSVal -> Runtime (Maybe (JSVal -> Runtime ()))
-mkSetter (VObj obj) = do
-  call <- callMethod <$> deref obj
-  return $ Just (\a -> raiseSyntaxError "mkSetter undefined")
-mkSetter _ = return Nothing
 
 isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> Shared JSObj -> String -> ObjectModifier
 isWrapperFor f defaultValue prototype name obj =
