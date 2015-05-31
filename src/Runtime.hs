@@ -587,7 +587,7 @@ regexpConstructor this _ = case this of
 
 -- ref 15.10.6.2, incomplete
 regexpExec :: JSVal -> [JSVal] -> Runtime JSVal
-regexpExec _ _ = VObj <$> newObject
+regexpExec _ _ = return VNull
 
 -- ref 15.4.4.2, incomplete
 arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
