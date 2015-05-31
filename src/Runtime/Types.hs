@@ -16,16 +16,16 @@ import JSNum
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
 data PropDesc a = DataPD a Bool Bool Bool
-                | AccessorPD (Maybe (Runtime a)) (Maybe (a -> Runtime ())) Bool Bool
+                | AccessorPD (Maybe (JSVal -> Runtime a)) (Maybe (a -> Runtime ())) Bool Bool
 
 instance Show a => Show (PropDesc a) where
   show (DataPD a w e c) = unwords [ "DataPD", show a, show w, show e, show c ]
   show (AccessorPD g s e c) = unwords [ "AccessorPD", show $ isJust g, show $ isJust s, show e, show c ]
 
-propValue :: PropDesc a -> Runtime a
-propValue (DataPD a _ _ _) = return a
-propValue (AccessorPD (Just getter) _ _ _) = getter
-propValue (AccessorPD Nothing _ _ _) = error "No value"
+propValue :: PropDesc a -> JSVal -> Runtime a
+propValue (DataPD a _ _ _) _ = return a
+propValue (AccessorPD (Just getter) _ _ _) this = getter this
+propValue (AccessorPD Nothing _ _ _) _ = error "No value"
 
 propIsWritable :: PropDesc a -> Bool
 propIsWritable (DataPD _ w _ _) = w
@@ -141,6 +141,7 @@ data LexEnv = LexEnv {
 
 data EnvRec = DeclEnvRec (Shared PropertyMap)
             | ObjEnvRec (Shared JSObj) Bool
+            deriving (Show, Eq)
 
 data JSType = TypeUndefined
             | TypeNull

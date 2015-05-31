@@ -520,7 +520,7 @@ newObjectFromConstructor fun args = case fun of
     fromObj :: Maybe (PropDesc JSVal) -> Runtime (Maybe (Shared JSObj))
     fromObj Nothing = return Nothing
     fromObj (Just desc) = do
-      val <- propValue desc
+      val <- propValue desc fun -- XXX fun?
       case val of
         VObj obj -> return $ Just obj
         _        -> return Nothing

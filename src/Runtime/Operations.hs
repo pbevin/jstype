@@ -132,14 +132,11 @@ hasInstance f val = case val of
 
 hasInstance' :: Shared JSObj -> Shared JSObj -> Runtime Bool
 hasInstance' f val = do
-  fun <- objGetProperty "prototype" f
-  case fun of
-    Nothing -> raiseError "Object has no prototype"
-    Just o -> do
-      v <- propValue o
-      if typeof v /= TypeObject
-      then raiseError "TypeError"
-      else searchPrototypes v val
+  o <- objGet "prototype" f
+  if typeof o /= TypeObject
+  then raiseError "TypeError"
+  else searchPrototypes o val
+
   where
     searchPrototypes :: JSVal -> Shared JSObj -> Runtime Bool
     searchPrototypes o v = do

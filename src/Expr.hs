@@ -119,6 +119,7 @@ sourceLocation stmt = case stmt of
   ContinueStatement loc _ -> loc
   BreakStatement loc _ -> loc
   Return loc _ -> loc
+  WithStatement loc _ _ -> loc
   ThrowStatement loc _ -> loc
   TryStatement loc _ _ _ -> loc
   EmptyStatement loc -> loc

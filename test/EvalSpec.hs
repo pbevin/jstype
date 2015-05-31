@@ -361,6 +361,21 @@ spec = do
                   "  console.log(x, obj.x); " ]
       runJStr prog `shouldReturn` Right "4 3\n"
 
+    it "..." $ do
+      let prog = unlines [
+                  "  var x = 0; ",
+                  "  var scope = { ",
+                  "    get x() { ",
+                  "      delete this.x; ",
+                  "      return 2; ",
+                  "    } ",
+                  "  }; ",
+                  "  with (scope) { ",
+                  "    x--; ",
+                  "  } ",
+                  "  console.log(x, scope.x)" ]
+      runJStr prog `shouldReturn` Right "0 1\n"
+
   describe "Declaration Binding Initialization" $ do -- ref 10.5
     it "pre-declares variables" $ do
       runJStr "console.log(a)" `shouldError` "ReferenceError: No such variable a"

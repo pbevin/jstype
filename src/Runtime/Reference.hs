@@ -10,8 +10,6 @@ import Runtime.Conversion
 import Runtime.PropMap
 import Expr
 
-import Debug.Trace
-
 -- ref 8.7.1
 getValue :: JSVal -> Runtime JSVal
 getValue v
@@ -53,19 +51,22 @@ isUnresolvableReference ref =
     _      -> False
 
 
+-- ref 8.7.1
 getValuePropertyReference :: JSRef -> Runtime JSVal
 getValuePropertyReference (JSRef base name _isStrict) =
   case base of
     VObj objRef -> getValueObject name objRef
     _           -> getValuePrimitive name base
 
+-- ref 8.7.1
 getValueObject :: String -> Shared JSObj -> Runtime JSVal
 getValueObject name objref = do
   val <- objGetProperty name objref
   case val of
     Nothing -> return VUndef
-    Just v  -> propValue v
+    Just v  -> propValue v (VObj objref)
 
+-- ref 8.7.1
 getValuePrimitive :: String -> JSVal -> Runtime JSVal
 getValuePrimitive name base = do
   o <- toObject base
@@ -74,7 +75,7 @@ getValuePrimitive name base = do
     Nothing -> return VUndef
     Just (DataPD v _ _ _) -> return v
     Just (AccessorPD Nothing _ _ _) -> return VUndef
-    Just (AccessorPD (Just getter) _ _ _) -> getter
+    Just (AccessorPD (Just getter) _ _ _) -> getter base
 
 
 -- ref 10.2.1.1.4 incomplete
@@ -145,13 +146,13 @@ setMutableBinding n v _s envRef = do
 
 
 envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = lk name =<< deref m
-envLookup name (ObjEnvRec obj _) = lk name . ownProperties =<< deref obj
+envLookup name (DeclEnvRec m) = lk VUndef name =<< deref m -- XXX VUndef for this
+envLookup name (ObjEnvRec obj _) = lk (VObj obj) name . ownProperties =<< deref obj
 
-lk :: Ord k => k -> PropMap k (PropDesc a) -> Runtime (Maybe a)
-lk k m = case propMapLookup k m of
+lk :: Ord k => JSVal -> k -> PropMap k (PropDesc a) -> Runtime (Maybe a)
+lk this k m = case propMapLookup k m of
   Nothing -> return Nothing
-  Just desc -> Just <$> propValue desc
+  Just desc -> Just <$> propValue desc this
 
 envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
 envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))
@@ -177,12 +178,12 @@ toPropertyDescriptor (VObj objRef) = do
 
 toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
 
-mkGetter :: JSVal -> Runtime (Maybe (Runtime JSVal))
+mkGetter :: JSVal -> Runtime (Maybe (JSVal -> Runtime JSVal))
 mkGetter (VObj obj) = do
   call <- callMethod <$> deref obj
   case call of
     Nothing -> return Nothing
-    Just f -> return $ Just (f VUndef [])
+    Just f -> return $ Just (\this -> f this [])
 mkGetter _ = return Nothing
 
 

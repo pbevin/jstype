@@ -35,13 +35,13 @@ valGetProperty :: String -> JSVal -> Runtime (Maybe (PropDesc JSVal))
 valGetProperty name (VObj objRef) = objGetProperty name objRef
 valGetProperty _ _ = return Nothing
 
--- ref 8.12.3, incomplete
+-- ref 8.12.3
 objGet :: String -> Shared JSObj -> Runtime JSVal
 objGet name objRef = do
   prop <- objGetProperty name objRef
   case prop of
     Nothing -> return VUndef
-    Just desc -> propValue desc
+    Just desc -> propValue desc (VObj objRef)
 
 -- ref 8.12.4, incomplete
 objCanPut :: String -> Shared JSObj -> Runtime Bool
@@ -144,7 +144,9 @@ updateObj f objRef = modifyRef' objRef f
 
 getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
-  maybe (return VUndef) propValue =<< objGetOwnProperty name =<< getGlobalObject
+  obj <- getGlobalObject
+  prop <- objGetOwnProperty name obj
+  maybe (return VUndef) (flip propValue $ VObj obj) prop
 
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)
