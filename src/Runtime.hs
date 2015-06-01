@@ -68,23 +68,6 @@ numConstructor this args = do
       VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
 
-arrayFunction :: Shared JSObj -> JSFunction
-arrayFunction prototype _this args = do
-  obj <- newObject >>= setClass "Array"
-                   >>= objSetPrototype prototype
-  arrayConstructor (VObj obj) args
-
-arrayConstructor :: JSFunction
-arrayConstructor this args =
-  let len = VNum $ fromIntegral $ length args
-  in case this of
-    VObj obj -> do
-      cstr <- getGlobalProperty "Array"
-      VObj <$> (setClass "Array" obj
-                  >>= addOwnProperty "length" len
-                  >>= addOwnProperty "constructor" cstr)
-    _ -> raiseError $ "arrayConstructor called with this = " ++ show this
-
 
 arrayAssigns :: [Maybe a] -> [(Integer, a)]
 arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
@@ -240,11 +223,15 @@ createGlobalThis = do
   prototype <- getGlobalObjectPrototype
 
   functionPrototype <- newObject
+    >>= setCallMethod (\_this _args -> return VUndef)
+    >>= addOwnProperty "length" (VNum 0)
+
   function <- newObject
     >>= mkFunction "Function" functionPrototype
     >>= setCallMethod (funFunction functionPrototype)
     >>= setCstrMethod funConstructor
     >>= objSetPrototype functionPrototype
+    >>= addOwnProperty "prototype" (VObj functionPrototype)
     >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
 
   object <- functionObject "Object" prototype

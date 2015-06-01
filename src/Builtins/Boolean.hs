@@ -6,8 +6,7 @@ import Runtime
 
 makeBooleanClass :: Runtime (Shared JSObj)
 makeBooleanClass = do
-  booleanPrototype <- newObject
-    >>= setClass "Boolean"
+  booleanPrototype <- makePrototype "Boolean"
     >>= addOwnProperty "constructor" (VNative booleanConstructor)
 
   functionObject "Boolean" booleanPrototype
@@ -23,7 +22,7 @@ booleanFunction this args =
 
 
 booleanConstructor :: JSFunction
-booleanConstructor this args = 
+booleanConstructor this args =
   let val = headDef (VNum 0) args
   in case this of
     VObj obj -> do

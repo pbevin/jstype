@@ -9,6 +9,7 @@ import Builtins.Date
 import Builtins.Number
 import Builtins.Boolean
 import Builtins.String
+import Builtins.Array
 
 configureBuiltins :: Shared JSObj -> Runtime ()
 configureBuiltins obj = do
@@ -17,18 +18,7 @@ configureBuiltins obj = do
   string <- makeStringClass
   boolean <- makeBooleanClass
   number <- makeNumberClass
-
-  arrayPrototype <- newObject
-    >>= setClass "Array"
-    >>= objSetPrototype prototype
-    >>= addOwnProperty "prototype" (VObj prototype)
-    >>= addOwnProperty "length" (VNum 0)
-    >>= addOwnProperty "toString" (VNative arrayToString)
-    >>= addOwnProperty "reduce" (VNative arrayReduce)
-
-  array <- functionObject "Array" arrayPrototype
-    >>= setCallMethod (arrayFunction arrayPrototype)
-    >>= setCstrMethod arrayConstructor
+  array <- makeArrayClass
 
   errorPrototype <- newObject
     >>= setClass "Error"
@@ -160,11 +150,3 @@ regexpConstructor this _ = case this of
 -- ref 15.10.6.2, incomplete
 regexpExec :: JSVal -> [JSVal] -> Runtime JSVal
 regexpExec _ _ = return VNull
-
--- ref 15.4.4.2, incomplete
-arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
-arrayToString _this _args = return $ VStr "[...]"
-
--- ref 15.4.4.21, incomplete
-arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
-arrayReduce _this _args = return VNull

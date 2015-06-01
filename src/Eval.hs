@@ -482,11 +482,10 @@ evalTypeof val = do
   else do
     resolved <- getValue val
     result <- case resolved of
-      VObj objRef -> do
-        cls <- objClass <$> deref objRef
-        return $ if cls == "Function"
-        then "function"
-        else "object"
+      VObj objRef ->
+        callMethod <$> deref objRef >>= \case
+          Nothing -> return "object"
+          Just _  -> return "function"
       _ ->
         return $ case typeof resolved of
           TypeUndefined -> "undefined"
