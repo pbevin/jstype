@@ -327,6 +327,8 @@ runExprStmt expr = case expr of
   ReadVar name       -> readVar name
   This               -> thisBinding <$> getGlobalContext
   ArrayLiteral vals  -> evalArrayLiteral vals
+  ObjectLiteral map  -> makeObjectLiteral map
+
   MemberDot e x      -> runExprStmt (MemberGet e (Str x)) -- ref 11.2.1
 
   MemberGet e x -> do -- ref 11.2.1
@@ -405,8 +407,6 @@ runExprStmt expr = case expr of
 
   FunDef Nothing params strictness body -> createFunction params strictness body
 
-  ObjectLiteral nameValueList -> makeObjectLiteral nameValueList
-
   _              -> error ("Unimplemented expr: " ++ show expr)
 
 evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
@@ -435,6 +435,7 @@ purePrefix f e = runExprStmt e >>= getValue >>= f
 
 
 
+-- ref 11.1.5
 makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal
 makeObjectLiteral nameValueList =do
   cstr <- getGlobalProperty "Object"
@@ -442,15 +443,16 @@ makeObjectLiteral nameValueList =do
   mapM_ (addObjectProp obj) nameValueList
   return (VObj obj)
 
-addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime (Shared JSObj)
-addObjectProp obj (p, Value v) = do
-  val <- runExprStmt v >>= getValue
-  addOwnProperty p val obj
-addObjectProp obj (p, Getter body) = do
-  strict <- getGlobalStrictness
-  func <- createFunction [] strict body >>= mkGetter
-  let desc = AccessorPD func Nothing True True
-  objDefineOwnProperty p desc False obj
+  where
+    addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime (Shared JSObj)
+    addObjectProp obj (p, Value v) = do
+      val <- runExprStmt v >>= getValue
+      addOwnProperty p val obj
+    addObjectProp obj (p, Getter body) = do
+      strict <- getGlobalStrictness
+      func <- createFunction [] strict body >>= mkGetter
+      let desc = AccessorPD func Nothing True True
+      objDefineOwnProperty p desc False obj
 
 -- ref 11.4.1
 evalDelete :: JSVal -> Runtime JSVal

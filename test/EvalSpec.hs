@@ -110,6 +110,9 @@ spec = do
     runJStr "console.log(1 + new Object())" `shouldReturn` Right "1[object Object]\n"
 
   describe "Object literal" $ do
+    it "creates properties" $ do
+      jsEvalExpr "{ a: 1, 2: 3 }['a']" `shouldReturn` VNum 1
+      jsEvalExpr "{ a: 1, 2: 3 }['2']" `shouldReturn` VNum 3
     it "can have a getter" $ do
       let prog = unlines [
                   "  var obj = { ",

@@ -107,6 +107,10 @@ spec = do
       parseExpr "{a: 1, b: 2}" `shouldBe`
         ObjectLiteral [("a", Value $ Num 1),
                        ("b", Value $ Num 2)]
+      parseExpr "{a: 1, 2: 3}" `shouldBe`
+        ObjectLiteral [("a", Value $ Num 1),
+                       ("2", Value $ Num 3)]
+
 
     it "parses an object literal with a getter" $ do
       let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]

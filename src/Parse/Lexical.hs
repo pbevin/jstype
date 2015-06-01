@@ -11,6 +11,7 @@ import Data.Maybe
 import Expr
 import Parse.State
 
+import Debug.Trace
 
 sameLine :: SourcePos -> SourcePos -> Bool
 sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
@@ -105,21 +106,37 @@ plusminus :: JSParser String -> JSParser String
 plusminus p = (:) <$> oneOf "+-" <*> p <|> p
 
 number :: JSParser Double
-number = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
-  where decimal  = many1 digit
-        fracPart = (:) <$> char '.' <*> (decimal <|> return "0")
+number = read . snd <$> np
+
+numberText :: JSParser String
+numberText = fst <$> np
+
+np :: JSParser (String, String)
+np = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
+  where decimal  = dup $ many1 digit
+        fracPart = do
+          dec <- char '.' >> optional decimal
+          return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
+
         expPart  = (:) <$> oneOf "eE" <*> plusminus decimal
+
         numberWithoutDecimal = do
-          char '.'
-          b <- decimal
-          c <- optional expPart
-          return $ read $ "0." ++ b ++ fromMaybe "" c
+          b <- char '.' >> decimal
+          c <- fromMaybe "" <$> optional expPart
+          return ('.' : (b ++ c), "0." ++ (b ++ c))
+
         numberWithDecimal = do
           a <- decimal
-          b <- optional fracPart
-          c <- optional expPart
-          return $ read $ a ++ fromMaybe "" b ++ fromMaybe "" c
+          mb <- optional fracPart
+          c <- fromMaybe "" <$> optional expPart
+          case mb of
+            Nothing -> return $ dup (a ++ c)
+            Just (b, b') -> return $ (\x -> (a ++ x ++ c)) `applyTo` (b, b')
+
         hexNumber = do
-          try $ (char '0' >> oneOf "xX")
+          a <- try $ (char '0' >> oneOf "xX")
           b <- many hexDigit
-          return $ (fst . head . readHex) b
+          return $ dup $ '0':a:b
+
+        dup x = (x,x)
+        applyTo = fmap

@@ -411,7 +411,7 @@ checkNoDuplicateKeys assignments = do
 propertyName :: JSParser PropertyName
 propertyName = identifier
            <|> quotedString
-           <|> show <$> numericLiteral
+           <|> numberText
     
 nameValuePair :: JSParser PropertyAssignment
 nameValuePair = do
