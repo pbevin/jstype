@@ -78,7 +78,6 @@ lessThan orderings a b = do
 -- ref 11.8.5 (3)
 cmpNumbers :: JSVal -> JSVal -> Runtime (Maybe Ordering)
 cmpNumbers x y = do
-  debug (x, y)
   f <$> toNumber x <*> toNumber y where
     f (JSNum nx) (JSNum ny)
       | isNaN nx = Nothing

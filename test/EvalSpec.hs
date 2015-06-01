@@ -390,3 +390,18 @@ spec = do
 
     it "pre-declares function names" $ do
       runJStr "'use strict'; function a() { }" `shouldReturn` Right ""
+
+  describe "instanceof" $ do
+    it "is true for objects of the same type" $ do
+      jsEvalExpr "new Number instanceof Number" `shouldReturn` VBool True
+      jsEvalExpr "new Error instanceof Error" `shouldReturn` VBool True
+      jsEvalExpr "new TypeError instanceof TypeError" `shouldReturn` VBool True
+
+    it "is true for a subclass instance (typeError instanceof Error)" $ do
+      jsEvalExpr "new TypeError instanceof Error" `shouldReturn` VBool True
+
+    it "is false for unrelated types" $ do
+      jsEvalExpr "new Error instanceof Number" `shouldReturn` VBool False
+
+    it "is false for superclass instances" $ do
+      jsEvalExpr "new Error instanceof TypeError" `shouldReturn` VBool False

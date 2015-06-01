@@ -24,8 +24,6 @@ import Parse
 import Expr
 import JSNum
 
-import Debug.Trace
-
 initialCxt :: Runtime JSCxt
 initialCxt = do
   env <- initialEnv
@@ -279,9 +277,9 @@ createGlobalThis = do
                         >>= addOwnProperty "prototype" (VObj errorPrototype)
 
 
-  referenceError <- errorType "ReferenceError" (VObj errorPrototype)
-  syntaxError    <- errorType "SyntaxError" (VObj errorPrototype)
-  typeError      <- errorType "TypeError" (VObj errorPrototype)
+  referenceError <- errorSubtype "ReferenceError" (VObj errorPrototype)
+  syntaxError    <- errorSubtype "SyntaxError" (VObj errorPrototype)
+  typeError      <- errorSubtype "TypeError" (VObj errorPrototype)
 
 
   datePrototype <- newObject >>= setClass "Date"
@@ -382,10 +380,11 @@ addReadOnlyConstants xs obj = do
   forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
   return obj
 
-errorType :: String -> JSVal -> Runtime (Shared JSObj)
-errorType name parentPrototype = do
+errorSubtype :: String -> JSVal -> Runtime (Shared JSObj)
+errorSubtype name parentPrototype = do
   prototype <-
     newObject >>= setClass "Error"
+              >>= objSetPrototype (toObj parentPrototype)
               >>= addOwnProperty "prototype" parentPrototype
               >>= addOwnProperty "name" (VStr name)
 

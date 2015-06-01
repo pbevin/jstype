@@ -74,7 +74,7 @@ instance Show JSVal where
   show (VRef ref)       = "VRef " ++ show ref
   show VUndef           = "VUndef"
   show VNull            = "VNull"
-  show (VObj _)         = "VObj _"
+  show (VObj ref)       = "VObj " ++ show ref
   show (VNative _)      = "VNative _"
   show (VStacktrace st) = "VStacktrace " ++ show st
   show (VEnv env)       = "VEnv " ++ show env
@@ -106,7 +106,7 @@ data JSObj = JSObj {
   cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
   objPrimitiveValue :: Maybe JSVal,
   objExtensible :: Bool
-}
+} deriving Show
 
 emptyObject :: JSObj
 emptyObject = JSObj {
@@ -137,7 +137,7 @@ type JSEnv = Shared LexEnv -- XXX make this just LexEnv so it's obvious when sha
 data LexEnv = LexEnv {
   envRec :: EnvRec,
   outer  :: Maybe JSEnv
-}
+} deriving Show
 
 data EnvRec = DeclEnvRec (Shared PropertyMap)
             | ObjEnvRec (Shared JSObj) Bool
@@ -187,21 +187,29 @@ type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc]) | JSProtoError (ErrorType, String) deriving (Show, Eq)
 type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
-
-newtype Shared a = Shared (IORef a) deriving Eq
-
-instance Show (Shared a) where
-  show (Shared _) = "(shared)"
-
 data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
 type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)
 
-share :: a -> Runtime (Shared a)
-share a = liftM Shared $ liftIO $ newIORef a
+data Shared a = Shared (IORef a) Int deriving Eq
+
+instance Show (Shared a) where
+  show (Shared _ id) = "(shared #" ++ show id ++ ")"
+
+nextID :: Runtime Int
+nextID = do
+  global <- get
+  let id = 1 + globalNextID global
+  put global { globalNextID = id }
+  return id
+
+share :: Show a => a -> Runtime (Shared a)
+share a = do
+  id <- nextID
+  Shared <$> liftIO (newIORef a) <*> pure id
 deref :: Shared a -> Runtime a
-deref (Shared a) = liftIO $ readIORef a
+deref (Shared a _) = liftIO $ readIORef a
 modifyRef :: Shared a -> (a -> a) -> Runtime ()
-modifyRef (Shared a) f = liftIO $ modifyIORef a f
+modifyRef (Shared a _) f = liftIO $ modifyIORef a f
 modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
 modifyRef' a f = modifyRef a f >> return a
 
@@ -219,6 +227,7 @@ runRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
 
 
 data JSGlobal = JSGlobal {
+  globalNextID    :: Int,
   globalObject    :: Maybe (Shared JSObj),
   globalObjectPrototype :: Maybe (Shared JSObj),
   globalEvaluator :: Maybe (String -> Runtime StmtReturn),
@@ -227,7 +236,7 @@ data JSGlobal = JSGlobal {
 }
 
 emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal Nothing Nothing Nothing Nothing Nothing
+emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing
 
 
 raiseError :: String -> Runtime a

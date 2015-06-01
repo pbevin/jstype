@@ -32,9 +32,9 @@ createError errorType message = do
 
 errFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
 errFunction prototype this args = do
-  className <- valClassName this
-  obj <- newObject >>= setClass className
+  obj <- newObject >>= setClass "Error"
                    >>= objSetPrototype prototype
+                   >>= objSetExtensible True
   errConstructor (VObj obj) args
 
 errConstructor :: JSVal -> [JSVal] -> Runtime JSVal
@@ -42,8 +42,7 @@ errConstructor this args =
   let text = head args
   in case this of
     VObj obj -> do
-      name <- objClassName obj
-      liftM VObj $ setClass name obj
+      liftM VObj $ setClass "Error" obj
                >>= addOwnProperty "message" text
                >>= addOwnProperty "toString" (VNative errorToString)
     _ -> raiseError "Bad this for Error constructor"
