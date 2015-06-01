@@ -353,12 +353,12 @@ condExpr p = do
 assignExpr :: JSParser Expr -> JSParser Expr
 assignExpr p = do
   e <- p
-  assignment e <|> return e
+  assignment e p <|> return e
 
-assignment :: Expr -> JSParser Expr
-assignment lhs = do
+assignment :: Expr -> JSParser Expr -> JSParser Expr
+assignment lhs p = do
   op <- tok "=" <|> assignOp
-  rhs <- expr
+  rhs <- p
   return $ Assign lhs op rhs
 
 lhsExpr :: JSParser Expr

@@ -206,6 +206,13 @@ spec = do
     it "parses a double-bang" $ do
       parseExpr "!!x" `shouldBe` UnOp "!" (UnOp "!" (ReadVar "x"))
 
+    describe "The comma operator" $ do
+      it "separates expressions" $ do
+        parseExpr "1,2" `shouldBe` BinOp "," (Num 1) (Num 2)
+
+      it "separates assignments" $ do
+        parseExpr "a = 1,2" `shouldBe` BinOp "," (Assign (ReadVar "a") "=" (Num 1)) (Num 2)
+
   describe "Parsing programs" $ do
     it "parses a strict-mode program" $ do
       testParse "'use strict';\nvar a;" `shouldBe`
