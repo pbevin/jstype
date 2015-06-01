@@ -274,7 +274,7 @@ createGlobalThis = do
                               >>= addOwnProperty "prototype" (VObj prototype)
 
   errorObj <- newObject >>= setClass "Function"
-                        >>= setCallMethod errFunction
+                        >>= setCallMethod (errFunction errorPrototype)
                         >>= setCstrMethod errConstructor
                         >>= addOwnProperty "prototype" (VObj errorPrototype)
 
@@ -389,7 +389,7 @@ errorType name parentPrototype = do
               >>= addOwnProperty "prototype" parentPrototype
               >>= addOwnProperty "name" (VStr name)
 
-  newObject >>= setCallMethod errFunction
+  newObject >>= setCallMethod (errFunction prototype)
             >>= setCstrMethod errConstructor
             >>= addOwnProperty "prototype" (VObj prototype)
 

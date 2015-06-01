@@ -30,10 +30,11 @@ createError errorType message = do
   errConstructor (VObj obj) [message]
   where name = show errorType
 
-errFunction :: JSVal -> [JSVal] -> Runtime JSVal
-errFunction this args = do
+errFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
+errFunction prototype this args = do
   className <- valClassName this
   obj <- newObject >>= setClass className
+                   >>= objSetPrototype prototype
   errConstructor (VObj obj) args
 
 errConstructor :: JSVal -> [JSVal] -> Runtime JSVal
