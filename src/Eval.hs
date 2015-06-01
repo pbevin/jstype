@@ -91,6 +91,8 @@ initGlobals = do
   cxt <- initialCxt
   modify $ \st -> st { globalContext = Just cxt }
 
+  configureBuiltins newGlobalObject
+
 
 runProg :: Program -> Runtime (Maybe JSVal)
 runProg (Program strictness stmts) = do

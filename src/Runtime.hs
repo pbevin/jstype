@@ -21,6 +21,8 @@ import Runtime.Error as X
 import Runtime.PropMap as X
 import Runtime.PropDesc as X
 import Runtime.Function as X
+import Runtime.Date as X
+import Runtime.Prototype as X
 import Parse
 import Expr
 import JSNum
@@ -236,8 +238,6 @@ createGlobalObjectPrototype =
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
   prototype <- getGlobalObjectPrototype
-  console <- newObject
-  modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
   functionPrototype <- newObject
   function <- newObject
@@ -254,6 +254,14 @@ createGlobalThis = do
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
   addOwnProperty "constructor" (VObj object) object
+
+  newObject
+    >>= addOwnProperty "Object" (VObj object)
+    >>= addOwnProperty "Function" (VObj function)
+
+configureBuiltins :: Shared JSObj -> Runtime ()
+configureBuiltins obj = do
+  prototype <- getGlobalObjectPrototype
 
   stringPrototype <- newObject
     >>= setClass "String"
@@ -305,56 +313,51 @@ createGlobalThis = do
   syntaxError    <- errorSubtype "SyntaxError" (VObj errorPrototype)
   typeError      <- errorSubtype "TypeError" (VObj errorPrototype)
 
-
-  datePrototype <- newObject >>= setClass "Date"
-                             >>= objSetPrototype prototype
-                             >>= setCstrMethod dateConstructor
-                             >>= addOwnProperty "toString" (VNative dateToString)
-                             >>= addOwnProperty "valueOf" (VNative dateValueOf)
-
-  date <- newObject >>= setClass "Function"
-                    >>= setCallMethod dateFunction
-                    >>= setCstrMethod dateConstructor
-                    >>= objSetPrototype functionPrototype
-                    >>= addOwnProperty "prototype" (VObj datePrototype)
+  date <- makeDateClass
 
   math <- mathObject
-  json <- newObject >>= addOwnProperty "stringify" (VNative jsonStringify)
+  json <- newObject
+    >>= addOwnProperty "stringify" (VNative jsonStringify)
 
-  regexpPrototype <- newObject >>= setClass "RegExp"
-                               >>= objSetPrototype prototype
-                               >>= addOwnProperty "exec" (VNative regexpExec)
+  regexpPrototype <- newObject
+    >>= setClass "RegExp"
+    >>= objSetPrototype prototype
+    >>= addOwnProperty "exec" (VNative regexpExec)
 
-  regexp <- newObject >>= setClass "Function"
-                      >>= setCallMethod (regexpFunction regexpPrototype)
-                      >>= setCstrMethod regexpConstructor
-                      >>= addOwnProperty "prototype" (VObj regexpPrototype)
+  regexp <- newObject
+    >>= setClass "Function"
+    >>= setCallMethod (regexpFunction regexpPrototype)
+    >>= setCstrMethod regexpConstructor
+    >>= addOwnProperty "prototype" (VObj regexpPrototype)
 
-  newObject >>= addOwnProperty "escape" (VNative objEscape)
-            >>= addOwnProperty "console" (VObj console)
-            >>= addOwnProperty "Function" (VObj function)
-            >>= addOwnProperty "String" (VObj string)
-            >>= addOwnProperty "Number" (VObj number)
-            >>= addOwnProperty "Boolean" (VObj boolean)
-            >>= addOwnProperty "Object" (VObj object)
-            >>= addOwnProperty "Array" (VObj array)
-            >>= addOwnProperty "Error" (VObj errorObj)
-            >>= addOwnProperty "Date" (VObj date)
-            >>= addOwnProperty "RegExp" (VObj regexp)
-            >>= addOwnProperty "ReferenceError" (VObj referenceError)
-            >>= addOwnProperty "SyntaxError" (VObj syntaxError)
-            >>= addOwnProperty "TypeError" (VObj typeError)
-            >>= addOwnProperty "Math" (VObj math)
-            >>= addOwnProperty "JSON" (VObj json)
-            >>= addOwnProperty "eval" (VNative objEval)
-            >>= addOwnProperty "isNaN" (VNative objIsNaN)
-            >>= addOwnProperty "isFinite" (VNative objIsFinite)
-            >>= addOwnProperty "parseInt" (VNative parseInt)
-            >>= addOwnProperty "parseFloat" (VNative parseFloat)
-            >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
-            >>= addOwnConstant "NaN" (VNum $ jsNaN)
-            >>= addOwnConstant "undefined" (VUndef)
-            >>= addOwnConstant "null" (VNull)
+  console <- newObject
+    >>= addOwnProperty "log" (VNative jsConsoleLog)
+
+  addOwnProperty "escape" (VNative objEscape) obj
+    >>= addOwnProperty "console" (VObj console)
+    >>= addOwnProperty "String" (VObj string)
+    >>= addOwnProperty "Number" (VObj number)
+    >>= addOwnProperty "Boolean" (VObj boolean)
+    >>= addOwnProperty "Array" (VObj array)
+    >>= addOwnProperty "Error" (VObj errorObj)
+    >>= addOwnProperty "Date" (VObj date)
+    >>= addOwnProperty "RegExp" (VObj regexp)
+    >>= addOwnProperty "ReferenceError" (VObj referenceError)
+    >>= addOwnProperty "SyntaxError" (VObj syntaxError)
+    >>= addOwnProperty "TypeError" (VObj typeError)
+    >>= addOwnProperty "Math" (VObj math)
+    >>= addOwnProperty "JSON" (VObj json)
+    >>= addOwnProperty "eval" (VNative objEval)
+    >>= addOwnProperty "isNaN" (VNative objIsNaN)
+    >>= addOwnProperty "isFinite" (VNative objIsFinite)
+    >>= addOwnProperty "parseInt" (VNative parseInt)
+    >>= addOwnProperty "parseFloat" (VNative parseFloat)
+    >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
+    >>= addOwnConstant "NaN" (VNum $ jsNaN)
+    >>= addOwnConstant "undefined" (VUndef)
+    >>= addOwnConstant "null" (VNull)
+
+  return ()
 
 
 mathObject :: Runtime (Shared JSObj)
@@ -644,19 +647,6 @@ functionIsConstructor :: JSFunction -> Shared JSObj -> JSFunction
 functionIsConstructor cstr proto _this args = do
   this <- newObject >>= objSetPrototype proto
   cstr (VObj this) args
-
-dateFunction :: JSVal -> [JSVal] -> Runtime JSVal
-dateFunction _this _args = return $ VStr "[today's date]"
-
-dateConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-dateConstructor this _ = case this of
-  VObj objRef -> VObj <$> (setClass "Date" objRef)
-
-dateToString :: JSVal -> [JSVal] -> Runtime JSVal
-dateToString _ _ = return $ VStr "1969-12-30 21:18:57 UTC"
-
-dateValueOf :: JSVal -> [JSVal] -> Runtime JSVal
-dateValueOf _ _ = return $ VNum 142857
 
 regexpFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
 regexpFunction = functionIsConstructor regexpConstructor
