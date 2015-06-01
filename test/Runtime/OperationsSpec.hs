@@ -130,22 +130,3 @@ spec = do
         pow (-0) (-2) `shouldBe` inf
         pow (-0) (-inf) `shouldBe` inf
         pow (-0) (-1.79e308) `shouldBe` inf
-
-  describe "hasInstance" $ do
-    it "is true for Array and an array object" $ do
-      result <- runtime' $ do
-        arrayType <- getGlobalObject >>= objGet "Array"
-        array <- createArray [Just (VStr "a")]
-        let VObj cls = arrayType
-        cls `hasInstance` array
-
-      result `shouldBeResult` True
-
-    it "is true for TypeError and a type error" $ do
-      result <- runtime' $ do
-        errType <- getGlobalObject >>= objGet "TypeError"
-        err <- createError TypeError (VStr "bad type")
-        let VObj cls = errType
-        cls `hasInstance` err
-
-      result `shouldBeResult` True

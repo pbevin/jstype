@@ -102,8 +102,9 @@ data JSObj = JSObj {
   objClass :: String,
   ownProperties :: PropertyMap,
   objPrototype :: Maybe (Shared JSObj),
-  callMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
-  cstrMethod :: Maybe (JSVal -> [JSVal] -> Runtime JSVal),
+  callMethod :: Maybe JSFunction,
+  cstrMethod :: Maybe JSFunction,
+  hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
   objPrimitiveValue :: Maybe JSVal,
   objExtensible :: Bool
 } deriving Show
@@ -115,6 +116,7 @@ emptyObject = JSObj {
   objPrototype = Nothing,
   callMethod = Nothing,
   cstrMethod = Nothing,
+  hasInstanceMethod = Nothing,
   objPrimitiveValue = Nothing,
   objExtensible = True
 }
@@ -190,22 +192,25 @@ type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
 type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)
 
-data Shared a = Shared (IORef a) Int deriving Eq
+
+-- Shared type
+type ObjID = Int
+data Shared a = Shared (IORef a) ObjID deriving Eq
 
 instance Show (Shared a) where
-  show (Shared _ id) = "(shared #" ++ show id ++ ")"
+  show (Shared _ objId) = "(shared #" ++ show objId ++ ")"
 
 nextID :: Runtime Int
 nextID = do
   global <- get
-  let id = 1 + globalNextID global
-  put global { globalNextID = id }
-  return id
+  let objId = 1 + globalNextID global
+  put global { globalNextID = objId }
+  return objId
 
 share :: Show a => a -> Runtime (Shared a)
 share a = do
-  id <- nextID
-  Shared <$> liftIO (newIORef a) <*> pure id
+  objId <- nextID
+  Shared <$> liftIO (newIORef a) <*> pure objId
 deref :: Shared a -> Runtime a
 deref (Shared a _) = liftIO $ readIORef a
 modifyRef :: Shared a -> (a -> a) -> Runtime ()

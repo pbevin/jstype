@@ -20,6 +20,7 @@ import Runtime.Global as X
 import Runtime.Error as X
 import Runtime.PropMap as X
 import Runtime.PropDesc as X
+import Runtime.Function as X
 import Parse
 import Expr
 import JSNum
@@ -219,6 +220,7 @@ createGlobalObjectPrototype =
                 ("valueOf", VNative objValueOf) ]
   in share $ emptyObject { ownProperties = props }
 
+
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
   prototype <- getGlobalObjectPrototype
@@ -226,55 +228,59 @@ createGlobalThis = do
   modifyRef console $ objSetProperty "log" (VNative jsConsoleLog)
 
   functionPrototype <- newObject
-  function <- newObject >>= setCallMethod (funFunction functionPrototype)
-                        >>= setCstrMethod funConstructor
-                        >>= objSetPrototype functionPrototype
-                        >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
+  function <- newObject
+    >>= setCallMethod (funFunction functionPrototype)
+    >>= setCstrMethod funConstructor
+    >>= objSetPrototype functionPrototype
+    >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
 
-  object <- newObject >>= setClass "Function"
-                      >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
-                      >>= addOwnProperty "prototype" (VObj prototype)
-                      >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
-                      >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
-                      >>= setCallMethod objFunction
-                      >>= setCstrMethod objConstructor
+  object <- functionObject prototype
+    >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+    >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
+    >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
+    >>= setCallMethod objFunction
+    >>= setCstrMethod objConstructor
 
-  stringPrototype <- newObject >>= setClass "String"
-                               >>= addOwnProperty "charAt" (VNative stringCharAt)
-                               >>= addOwnProperty "toString" (VNative stringToString)
-  string <- newObject >>= setClass "Function"
-                      >>= setCallMethod strFunction
-                      >>= setCstrMethod (strConstructor stringPrototype)
-                      >>= addOwnProperty "prototype" (VObj prototype)
+  stringPrototype <- newObject
+    >>= setClass "String"
+    >>= addOwnProperty "charAt" (VNative stringCharAt)
+    >>= addOwnProperty "toString" (VNative stringToString)
+
+  string <- functionObject stringPrototype
+    >>= setCallMethod strFunction
+    >>= setCstrMethod (strConstructor stringPrototype)
 
   booleanPrototype <- newObject >>= setClass "Boolean"
-  numberPrototype <- newObject >>= setClass "Number"
-                               >>= addOwnProperty "toFixed" (VNative toFixed)
+  numberPrototype <- newObject
+    >>= setClass "Number"
+    >>= addOwnProperty "toFixed" (VNative toFixed)
 
   boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
-  number <- newObject >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
-                      >>= addOwnProperty "isNaN" (VNative objIsNaN)
-                      >>= addReadOnlyConstants numberConstants
+  number <- functionObject numberPrototype
+    >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
+    >>= addOwnProperty "isNaN" (VNative objIsNaN)
+    >>= addReadOnlyConstants numberConstants
 
-  arrayPrototype <- newObject >>= setClass "Array"
-                              >>= objSetPrototype prototype
-                              >>= addOwnProperty "prototype" (VObj prototype)
-                              >>= addOwnProperty "length" (VNum 0)
-                              >>= addOwnProperty "toString" (VNative arrayToString)
-                              >>= addOwnProperty "reduce" (VNative arrayReduce)
+  arrayPrototype <- newObject
+    >>= setClass "Array"
+    >>= objSetPrototype prototype
+    >>= addOwnProperty "prototype" (VObj prototype)
+    >>= addOwnProperty "length" (VNum 0)
+    >>= addOwnProperty "toString" (VNative arrayToString)
+    >>= addOwnProperty "reduce" (VNative arrayReduce)
 
-  array <- newObject >>= setCallMethod (arrayFunction arrayPrototype)
-                     >>= setCstrMethod arrayConstructor
-                     >>= addOwnProperty "prototype" (VObj arrayPrototype)
+  array <- functionObject arrayPrototype
+    >>= setCallMethod (arrayFunction arrayPrototype)
+    >>= setCstrMethod arrayConstructor
 
-  errorPrototype <- newObject >>= setClass "Error"
-                              >>= addOwnProperty "toString" (VNative errorToString)
-                              >>= addOwnProperty "prototype" (VObj prototype)
+  errorPrototype <- newObject
+    >>= setClass "Error"
+    >>= addOwnProperty "toString" (VNative errorToString)
+    >>= addOwnProperty "prototype" (VObj prototype)
 
-  errorObj <- newObject >>= setClass "Function"
-                        >>= setCallMethod (errFunction errorPrototype)
-                        >>= setCstrMethod errConstructor
-                        >>= addOwnProperty "prototype" (VObj errorPrototype)
+  errorObj <- functionObject errorPrototype
+    >>= setCallMethod (errFunction errorPrototype)
+    >>= setCstrMethod errConstructor
 
 
   referenceError <- errorSubtype "ReferenceError" (VObj errorPrototype)
@@ -388,9 +394,9 @@ errorSubtype name parentPrototype = do
               >>= addOwnProperty "prototype" parentPrototype
               >>= addOwnProperty "name" (VStr name)
 
-  newObject >>= setCallMethod (errFunction prototype)
+  functionObject prototype
+            >>= setCallMethod (errFunction prototype)
             >>= setCstrMethod errConstructor
-            >>= addOwnProperty "prototype" (VObj prototype)
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
@@ -699,9 +705,7 @@ stringCharAt this args =
 
 isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> Shared JSObj -> String -> ObjectModifier
 isWrapperFor f defaultValue prototype name obj =
-  setClass "Function" obj >>= setCallMethod call
-                          >>= setCstrMethod cstr
-                          >>= addOwnProperty "prototype" (VObj prototype)
+  setCallMethod call obj >>= setCstrMethod cstr
   where
     call _this args =
       if null args then return defaultValue else f (head args)

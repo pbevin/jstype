@@ -400,8 +400,14 @@ spec = do
     it "is true for a subclass instance (typeError instanceof Error)" $ do
       jsEvalExpr "new TypeError instanceof Error" `shouldReturn` VBool True
 
+    it "is true for a raised error" $ do
+      runJStr "try { ({}) instanceof this } catch (e) { if (e instanceof TypeError) console.log('ok') }" `shouldReturn` Right "ok\n"
+
     it "is false for unrelated types" $ do
       jsEvalExpr "new Error instanceof Number" `shouldReturn` VBool False
 
     it "is false for superclass instances" $ do
       jsEvalExpr "new Error instanceof TypeError" `shouldReturn` VBool False
+
+    it "is a type error when RHS is not a function object" $ do
+      runJStr "({}) instanceof this" `shouldError` "TypeError: Expecting a function in instanceof"

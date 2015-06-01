@@ -208,10 +208,13 @@ objSetPrimitive val = updateObj $ \obj -> obj { objPrimitiveValue = Just val }
 objGetPrimitive :: Shared JSObj -> Runtime JSVal
 objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
 
+objSetHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> ObjectModifier
+objSetHasInstance method = updateObj $ \obj -> obj { hasInstanceMethod = Just method }
+
 objFindPrototype :: String -> Runtime (Shared JSObj)
 objFindPrototype name =
   getGlobalProperty name >>= valGetPrototype >>= maybe oops return
     where
-      oops = raiseError $ "No prototype for " ++ name
       valGetPrototype (VObj objRef) = fromObj <$> objGet "prototype" objRef
       valGetPrototype _ = return Nothing
+      oops = raiseError $ "No prototype for " ++ name

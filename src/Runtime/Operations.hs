@@ -173,40 +173,15 @@ doubleEquals v1 v2 = eq v1 v2
           (TypeObject, TypeNumber)  -> (`doubleEquals` y) =<< (toPrimitive HintNone x)
           _ -> return $ VBool False
 
--- ref 15.3.5.3
-hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
-hasInstance f val = case val of
-  VObj obj -> hasInstance' f obj
-  _ -> return False
-
-hasInstance' :: Shared JSObj -> Shared JSObj -> Runtime Bool
-hasInstance' f val = do
-  o <- objGet "prototype" f
-  if typeof o /= TypeObject
-  then raiseError "TypeError"
-  else searchPrototypes o val
-
-  where
-    searchPrototypes :: JSVal -> Shared JSObj -> Runtime Bool
-    searchPrototypes o v = do
-      v' <- objPrototype <$> deref v
-      case v' of
-        Nothing -> return False
-        Just p  -> do
-          if o == VObj p
-          then return True
-          else searchPrototypes o p
-
 -- ref 11.8.6
 jsInstanceOf :: JSVal -> JSVal -> Runtime JSVal
 jsInstanceOf val cls =
-  let typeError = raiseError "TypeError"
+  let typeError = raiseProtoError TypeError "Expecting a function in instanceof"
   in case cls of
     VObj objRef -> do
-      callable <- isJust . callMethod <$> deref objRef
-      if callable
-      then VBool <$> hasInstance objRef val
-      else typeError
+      hasInstanceMethod <$> deref objRef >>= \case
+        Just method -> VBool <$> method objRef val
+        Nothing     -> typeError
     _ -> typeError
 
 -- ref 11.10
