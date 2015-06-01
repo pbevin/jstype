@@ -253,6 +253,7 @@ createGlobalThis = do
     >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
+  addOwnProperty "constructor" (VObj object) object
 
   stringPrototype <- newObject
     >>= setClass "String"
@@ -373,6 +374,7 @@ mathObject = do
             >>= addOwnProperty "round" (VNative $ mathFunc $ fromIntegral . round)
             >>= addOwnProperty "floor" (VNative $ mathFunc $ fromIntegral . floor)
             >>= addOwnProperty "trunc" (VNative $ mathFunc $ fromIntegral . truncate)
+            >>= addOwnProperty "random" (VNative $ mathFunc $ const 4) -- xkcd #221
 
             >>= addOwnProperty "max" (VNative $ mathMaxFunc maximum)
             >>= addOwnProperty "min" (VNative $ mathMaxFunc minimum)
@@ -383,6 +385,8 @@ mathObject = do
 
 mathConstants :: [(String, JSNum)]
 mathConstants = allToJSNum [ ("PI", pi),
+                             ("SQRT2", sqrt 2),
+                             ("SQRT1_2", sqrt 0.5),
                              ("E", exp 1),
                              ("LN2", log 2),
                              ("LN10", log 10),

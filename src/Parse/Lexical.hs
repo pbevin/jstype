@@ -113,7 +113,7 @@ numberText = fst <$> np
 
 np :: JSParser (String, String)
 np = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
-  where decimal  = dup $ many1 digit
+  where decimal  = many1 digit
         fracPart = do
           dec <- char '.' >> optional decimal
           return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
