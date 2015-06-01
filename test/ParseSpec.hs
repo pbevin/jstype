@@ -286,6 +286,9 @@ spec = do
       testParse "new X()" `shouldBe`
         Program NotStrict [ ExprStmt s $ NewExpr (ReadVar "X") [] ]
 
+    it "parses a new object without empty parens" $ do
+      testParse "new X" `shouldBe` testParse "new X()"
+
     it "doesn't get confused by variables starting with 'new'" $ do
       testParse "newx" `shouldBe` Program NotStrict [ ExprStmt s $ ReadVar "newx" ]
 

@@ -250,8 +250,13 @@ assignmentExpr = foldr ($) simple [
   memberExpr ] <?> "expr"
 
 memberExpr :: JSParser Expr -> JSParser Expr
-memberExpr p = (try (keyword "new") >> NewExpr <$> memberExpr p <*> parens argumentList)
-           <|> baseMemberExpr p
+memberExpr p = newExpr p <|> baseMemberExpr p
+
+newExpr :: JSParser Expr -> JSParser Expr
+newExpr p = do
+  keyword "new"
+  NewExpr <$> memberExpr p <*> args
+    where args = fromMaybe [] <$> optional (parens argumentList)
 
 baseMemberExpr :: JSParser Expr -> JSParser Expr
 baseMemberExpr p = do
