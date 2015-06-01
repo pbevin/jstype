@@ -77,7 +77,10 @@ arrayConstructor this args =
   let len = VNum $ fromIntegral $ length args
   in case this of
     VObj obj -> do
-      VObj <$> (setClass "Array" obj >>= addOwnProperty "length" len)
+      cstr <- getGlobalProperty "Array"
+      VObj <$> (setClass "Array" obj
+                  >>= addOwnProperty "length" len
+                  >>= addOwnProperty "constructor" cstr)
     _ -> raiseError $ "arrayConstructor called with this = " ++ show this
 
 
@@ -88,9 +91,11 @@ createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
   let len = VNum $ fromIntegral $ length vals
       assigns = arrayAssigns vals
-  in do arrayPrototype <- objFindPrototype "Array"
+  in do cstr <- getGlobalProperty "Array"
+        arrayPrototype <- objGet "prototype" (toObj cstr)
         obj <- newObject >>= setClass "Array"
-                         >>= objSetPrototype arrayPrototype
+                         >>= objSetPrototype (toObj arrayPrototype)
+                         >>= addOwnProperty "constructor" cstr
                          >>= addOwnProperty "length" len
                          >>= setArrayIndices assigns
         return $ VObj obj
@@ -121,15 +126,16 @@ funConstructor this args = case this of
 constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Runtime (Shared JSObj)
 constructFunction paramList strict body this = do
   newProto <- newObject
-  setClass "Function" this
+  mkFunction "XXX" newProto this
     >>= setCstrMethod (funcCall paramList strict body)
     >>= setCallMethod (funcCall paramList strict body)
-    >>= addOwnProperty "prototype" (VObj newProto)
 
 
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
-  VObj <$> (newObject >>= constructFunction paramList strict body)
+  prototype <- objFindPrototype "Function"
+  VObj <$> (newObject >>= constructFunction paramList strict body
+                      >>= objSetPrototype prototype)
 
 
 
@@ -229,12 +235,13 @@ createGlobalThis = do
 
   functionPrototype <- newObject
   function <- newObject
+    >>= mkFunction "Function" functionPrototype
     >>= setCallMethod (funFunction functionPrototype)
     >>= setCstrMethod funConstructor
     >>= objSetPrototype functionPrototype
     >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
 
-  object <- functionObject prototype
+  object <- functionObject "Object" prototype
     >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
     >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
     >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
@@ -246,17 +253,21 @@ createGlobalThis = do
     >>= addOwnProperty "charAt" (VNative stringCharAt)
     >>= addOwnProperty "toString" (VNative stringToString)
 
-  string <- functionObject stringPrototype
+  string <- functionObject "String" stringPrototype
     >>= setCallMethod strFunction
     >>= setCstrMethod (strConstructor stringPrototype)
 
-  booleanPrototype <- newObject >>= setClass "Boolean"
+  booleanPrototype <- newObject
+    >>= setClass "Boolean"
+
+  boolean <- functionObject "Boolean" booleanPrototype
+    >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
+
   numberPrototype <- newObject
     >>= setClass "Number"
     >>= addOwnProperty "toFixed" (VNative toFixed)
 
-  boolean <- newObject >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
-  number <- functionObject numberPrototype
+  number <- functionObject "Number" numberPrototype
     >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
     >>= addOwnProperty "isNaN" (VNative objIsNaN)
     >>= addReadOnlyConstants numberConstants
@@ -269,7 +280,7 @@ createGlobalThis = do
     >>= addOwnProperty "toString" (VNative arrayToString)
     >>= addOwnProperty "reduce" (VNative arrayReduce)
 
-  array <- functionObject arrayPrototype
+  array <- functionObject "Array" arrayPrototype
     >>= setCallMethod (arrayFunction arrayPrototype)
     >>= setCstrMethod arrayConstructor
 
@@ -278,7 +289,7 @@ createGlobalThis = do
     >>= addOwnProperty "toString" (VNative errorToString)
     >>= addOwnProperty "prototype" (VObj prototype)
 
-  errorObj <- functionObject errorPrototype
+  errorObj <- functionObject "Error" errorPrototype
     >>= setCallMethod (errFunction errorPrototype)
     >>= setCstrMethod errConstructor
 
@@ -394,7 +405,7 @@ errorSubtype name parentPrototype = do
               >>= addOwnProperty "prototype" parentPrototype
               >>= addOwnProperty "name" (VStr name)
 
-  functionObject prototype
+  functionObject name prototype
             >>= setCallMethod (errFunction prototype)
             >>= setCstrMethod errConstructor
 
@@ -525,6 +536,7 @@ newObjectFromConstructor fun args = case fun of
         prop <- objGetProperty "prototype" funref
         prototype <- fromObj prop
         setPrototype prototype obj
+        objDefineOwnProperty "constructor" (DataPD val True False True) False obj
         objCstr (VObj funref) (VObj obj) args
         return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name

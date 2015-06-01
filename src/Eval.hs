@@ -50,6 +50,8 @@ rethrowAsString :: JSError -> Runtime a
 rethrowAsString (JSError (err, s)) = do
   v <- callToString err
   throwError $ JSError (v, s)
+rethrowAsString (JSProtoError (etype, msg)) =
+  throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
 
 toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (map show stack)
@@ -435,14 +437,15 @@ purePrefix f e = runExprStmt e >>= getValue >>= f
 
 makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal
 makeObjectLiteral nameValueList =do
-  obj <- newObject
+  cstr <- getGlobalProperty "Object"
+  obj <- newObject >>= addOwnProperty "constructor" cstr
   mapM_ (addObjectProp obj) nameValueList
   return (VObj obj)
 
-addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime ()
+addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime (Shared JSObj)
 addObjectProp obj (p, Value v) = do
   val <- runExprStmt v >>= getValue
-  void $ addOwnProperty p val obj
+  addOwnProperty p val obj
 addObjectProp obj (p, Getter body) = do
   strict <- getGlobalStrictness
   func <- createFunction [] strict body >>= mkGetter

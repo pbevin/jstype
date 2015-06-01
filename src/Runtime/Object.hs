@@ -55,8 +55,8 @@ objPut p v throw objRef = do
   unless canPut $ raiseError $ "TypeError: " ++ "Cannot set property " ++ p ++ " of object"
   ownDesc <- objGetOwnProperty p objRef
   case ownDesc of
-    Just d -> objDefineOwnProperty p (propSetValue v d) throw objRef
-    Nothing -> objDefineOwnProperty p (valueToProp v) throw objRef
+    Just d -> void $ objDefineOwnProperty p (propSetValue v d) throw objRef
+    Nothing -> void $ objDefineOwnProperty p (valueToProp v) throw objRef
 
 -- ref 8.12.7
 objDelete :: String -> Bool -> Shared JSObj -> Runtime JSVal
@@ -120,7 +120,7 @@ objDefaultValue hint objRef = case hint of
       else Nothing
 
 -- ref 8.12.9, incomplete
-objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime ()
+objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
 objDefineOwnProperty p desc throw objRef = do
   current <- objGetOwnProperty p objRef
   extensible <- objIsExtensible objRef
@@ -133,8 +133,8 @@ objDefineOwnProperty p desc throw objRef = do
                   else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
 
 
-_objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime ()
-_objCreateOwnProperty p desc = void . updateObj (objSetPropertyDescriptor p desc)
+_objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
+_objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
 
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)

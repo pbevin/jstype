@@ -351,6 +351,9 @@ spec = do
     it "is an instanceof Array" $ do
       jsEvalExpr "[] instanceof Array" `shouldReturn` VBool True
 
+    it "has constructor Array" $ do
+      jsEvalExpr "[].constructor.name" `shouldReturn` VStr "Array"
+
   describe "String object" $ do
     it "has charAt" $ do
       jsEvalExpr "new String('abc').charAt(2)" `shouldReturn` VStr "c"
