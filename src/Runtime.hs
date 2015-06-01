@@ -139,26 +139,32 @@ createFunction paramList strict body = do
 
 
 
--- ref 13.2.1, incomplete
+-- ref 13.2.1
 funcCall :: [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
 funcCall paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
-      newCxt cxt env = cxt { thisBinding = this, lexEnv = env, cxtStrictness = strict }
+      newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, cxtStrictness = strict }
       addToNewEnv :: JSEnv -> Ident -> JSVal -> Runtime ()
       addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
+      findNewThis VNull  = getGlobalObject
+      findNewThis VUndef = getGlobalObject
+      findNewThis other  = toObject other
+
   in do
     cxt <- getGlobalContext
     env <- newEnv (lexEnv cxt)
     zipWithM_ (addToNewEnv env) paramList args
     arguments <- newObject >>= addOwnProperty "callee" (VNum 42)
     addToNewEnv env "arguments" (VObj arguments)
-    withNewContext (newCxt cxt env) $ do
+    newThis <- VObj <$> findNewThis this
+    withNewContext (newCxt cxt env newThis) $ do
       performDBI DBIFunction strict body
       result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v
         (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
         _ -> return VUndef
+
 
 
 -- ref 15.1.2.1
@@ -512,16 +518,6 @@ funCall ref argList = do
     implicitThisValue (DeclEnvRec _) = VUndef
     implicitThisValue (ObjEnvRec obj True) = (VObj obj)
     implicitThisValue (ObjEnvRec _ False) = VUndef
-
-
--- computeThisValue :: JSCxt -> JSVal -> Runtime JSVal
--- computeThisValue cxt v = return $ case v of
---   VRef ref ->
---     if isPropertyReference ref
---     then getBase ref
---     else thisBinding cxt
-
---   _ -> thisBinding cxt
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
