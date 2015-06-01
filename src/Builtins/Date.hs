@@ -1,4 +1,4 @@
-module Runtime.Date (makeDateClass) where
+module Builtins.Date (makeDateClass) where
 
 import Runtime.Types
 import Runtime.Object
