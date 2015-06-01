@@ -22,6 +22,7 @@ import Runtime.PropMap as X
 import Runtime.PropDesc as X
 import Runtime.Function as X
 import Runtime.Prototype as X
+import JSNum as X
 import Parse
 import Expr
 import JSNum
@@ -457,7 +458,7 @@ objHasOwnProperty this args =
 -- ref 10.5
 data DBIType = DBIGlobal | DBIFunction | DBIEval
 performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
-performDBI dbiType strict stmts = do
+performDBI _dbiType strict stmts = do
   env <- varEnv <$> getGlobalContext
   mapM_ (bindVar env) (concatMap searchFunctionNames stmts)
   mapM_ (bindVar env) (concatMap searchVariables stmts)
@@ -503,7 +504,7 @@ walkStatement sv ev = walk where
 
 walkExpr :: (Statement -> [a]) -> (Expr -> [a]) -> Expr -> [a]
 walkExpr sv ev = walk where
-  walk e = ev e ++ case e of
+  walk expr = ev expr ++ case expr of
     ArrayLiteral es  -> concatMap walk (catMaybes es)
     ObjectLiteral as -> concatMap walkPropAss as
     BinOp _ e1 e2    -> walk e1 ++ walk e2
@@ -532,3 +533,8 @@ first2 xs = (a,b) where [a,b] = take 2 (xs ++ repeat VUndef)
 
 first3 :: [JSVal] -> (JSVal, JSVal, JSVal)
 first3 xs = (a,b,c) where [a,b,c] = take 3 (xs ++ repeat VUndef)
+
+addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
+addReadOnlyConstants xs obj = do
+  forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
+  return obj

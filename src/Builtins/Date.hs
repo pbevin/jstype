@@ -1,11 +1,6 @@
 module Builtins.Date (makeDateClass) where
 
-import Runtime.Types
-import Runtime.Object
-import Runtime.Error
-import Runtime.Conversion
-import Runtime.Function
-import Runtime.Prototype
+import Runtime
 
 makeDatePrototype :: Runtime (Shared JSObj)
 makeDatePrototype =

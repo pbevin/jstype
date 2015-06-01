@@ -4,37 +4,19 @@ import Control.Monad
 import Control.Arrow
 import Text.Printf
 import Safe
-import Builtins.Date
 import Runtime
-import JSNum
+import Builtins.Date
+import Builtins.Number
+import Builtins.Boolean
+import Builtins.String
 
 configureBuiltins :: Shared JSObj -> Runtime ()
 configureBuiltins obj = do
   prototype <- getGlobalObjectPrototype
 
-  stringPrototype <- newObject
-    >>= setClass "String"
-    >>= addOwnProperty "charAt" (VNative stringCharAt)
-    >>= addOwnProperty "toString" (VNative stringToString)
-
-  string <- functionObject "String" stringPrototype
-    >>= setCallMethod strFunction
-    >>= setCstrMethod (strConstructor stringPrototype)
-
-  booleanPrototype <- newObject
-    >>= setClass "Boolean"
-
-  boolean <- functionObject "Boolean" booleanPrototype
-    >>= isWrapperFor (return . VBool . toBoolean) (VBool False) booleanPrototype "Boolean"
-
-  numberPrototype <- newObject
-    >>= setClass "Number"
-    >>= addOwnProperty "toFixed" (VNative toFixed)
-
-  number <- functionObject "Number" numberPrototype
-    >>= isWrapperFor (\s -> VNum <$> toNumber s) (VNum 0) numberPrototype "Number"
-    >>= addOwnProperty "isNaN" (VNative objIsNaN)
-    >>= addReadOnlyConstants numberConstants
+  string <- makeStringClass
+  boolean <- makeBooleanClass
+  number <- makeNumberClass
 
   arrayPrototype <- newObject
     >>= setClass "Array"
@@ -147,18 +129,6 @@ mathConstants = allToJSNum [ ("PI", pi),
   where allToJSNum = map (second JSNum)
 
 
-numberConstants :: [(String, JSNum)]
-numberConstants = [ ("NaN", JSNum $ 0/0),
-                    ("POSITIVE_INFINITY", JSNum $ 1/0),
-                    ("NEGATIVE_INFINITY", JSNum $ -1/0),
-                    ("MAX_VALUE", jsMaxValue),
-                    ("MIN_VALUE", jsMinValue) ]
-
-addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
-addReadOnlyConstants xs obj = do
-  forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
-  return obj
-
 errorSubtype :: String -> JSVal -> Runtime (Shared JSObj)
 errorSubtype name parentPrototype = do
   prototype <-
@@ -171,14 +141,6 @@ errorSubtype name parentPrototype = do
             >>= setCallMethod (errFunction prototype)
             >>= setCstrMethod errConstructor
 
-
--- ref 15.7.4.5, incomplete
-toFixed :: JSFunction
-toFixed this args = do
-  fractionDigits <- toInt (first1 args)
-  let fmt = "%." ++ show fractionDigits ++ "f"
-  x <- toNumber this
-  return $ VStr $ printf fmt (fromJSNum x)
 
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
@@ -206,58 +168,3 @@ arrayToString _this _args = return $ VStr "[...]"
 -- ref 15.4.4.21, incomplete
 arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
 arrayReduce _this _args = return VNull
-
--- ref 15.5.1.1
-strFunction :: JSFunction
-strFunction this args =
-  let value = firstArg (VStr "") args
-  in VStr <$> toString value
-
--- ref 15.5.2.1
-strConstructor :: Shared JSObj -> JSFunction
-strConstructor prototype this args =
-  let value = firstArg  (VStr "") args
-  in case this of
-    VObj obj -> do
-      str <- toString value
-      setClass "String" obj >>= objSetPrototype prototype
-                            >>= objSetExtensible True
-                            >>= objSetPrimitive value
-                            >>= addOwnProperty "length" (VNum $ fromIntegral $ length str)
-      return this
-
--- ref 15.5.4.2
-stringToString :: JSFunction
-stringToString this _args = do
-  case this of
-    VObj obj -> objGetPrimitive obj
-
--- ref 15.5.4.4, incomplete
-stringCharAt :: JSFunction
-stringCharAt this args =
-  let pos = first1 args
-  in do
-    checkObjectCoercible this
-    str <- toString this
-    position <- toInt pos
-    return $ maybe VUndef charToStr $ atMay str position
-      where charToStr ch = VStr [ch]
-
-
-
-isWrapperFor :: (JSVal -> Runtime JSVal) -> JSVal -> Shared JSObj -> String -> ObjectModifier
-isWrapperFor f defaultValue prototype name obj =
-  setCallMethod call obj >>= setCstrMethod cstr
-  where
-    call _this args =
-      if null args then return defaultValue else f (head args)
-    cstr this args = do
-      val <- call this args
-      case this of
-        VObj obj -> do
-          str <- toString val
-          setClass name obj >>= setPrimitiveValue val
-                            >>= setPrimitiveToString (VStr str)
-                            >>= objSetPrototype prototype
-          return (VObj obj)
-        _ -> raiseError $ name ++ " constructor called with this = " ++ show this
