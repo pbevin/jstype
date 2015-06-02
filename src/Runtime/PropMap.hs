@@ -24,3 +24,6 @@ propMapToList (PropMap m) = M.toList m
 
 propMapFromList :: Ord k => [(k, a)] -> PropMap k a
 propMapFromList = PropMap . M.fromList
+
+propMapKeys :: PropMap k a -> [k]
+propMapKeys (PropMap m) = M.keys m

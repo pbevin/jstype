@@ -401,7 +401,7 @@ runExprStmt expr = case expr of
   NewExpr f args -> do -- ref 11.2.2
     fun <- runExprStmt f >>= getValue
     argList <- evalArguments args
-    assertFunction cstrMethod fun
+    assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
     liftM VObj (newObjectFromConstructor fun argList)
 
   FunDef (Just name) params strictness body -> do

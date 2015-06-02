@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase #-}
 
 module Runtime.Types where
 
@@ -123,6 +123,7 @@ data JSObj = JSObj {
   callMethod :: Maybe JSFunction,
   cstrMethod :: Maybe JSFunction,
   hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
+  defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)),
   objPrimitiveValue :: Maybe JSVal,
   objExtensible :: Bool
 } deriving Show
@@ -135,9 +136,15 @@ emptyObject = JSObj {
   callMethod = Nothing,
   cstrMethod = Nothing,
   hasInstanceMethod = Nothing,
+  defineOwnPropertyMethod = Nothing,
   objPrimitiveValue = Nothing,
   objExtensible = True
 }
+
+objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+objDefineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
+  Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
+  Just m -> m name desc strict objRef
 
 data JSRef = JSRef {
   getBase :: JSVal,

@@ -236,6 +236,7 @@ createGlobalThis = do
 
   object <- functionObject "Object" prototype
     >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+    >>= addOwnProperty "getOwnPropertyNames" (VNative getOwnPropertyNames)
     >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
     >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
     >>= setCallMethod objFunction
@@ -330,7 +331,7 @@ funCall ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
   assertNotUndefinedVariable func ref
-  assertFunction callMethod func
+  assertFunction name callMethod func
   thisValue <- computeThisValue cxt ref
   objCall func thisValue argList
 
@@ -348,21 +349,27 @@ funCall ref argList = do
     implicitThisValue (ObjEnvRec obj True) = (VObj obj)
     implicitThisValue (ObjEnvRec _ False) = VUndef
 
+    name = case ref of
+      VRef (JSRef _ name _) -> name
+      _ -> ""
+
 assertNotUndefinedVariable :: JSVal -> JSVal -> Runtime ()
 assertNotUndefinedVariable VUndef (VRef (JSRef (VEnv _) name _)) =
   raiseReferenceError $ "Function " ++ name ++ " is undefined"
 assertNotUndefinedVariable _ _ = return ()
 
-assertFunction :: (JSObj -> Maybe a) -> JSVal -> Runtime ()
-assertFunction m val =
+assertFunction :: String -> (JSObj -> Maybe a) -> JSVal -> Runtime ()
+assertFunction name m val =
   case val of
     VNative _ -> return ()
     VObj o -> do
       m <$> deref o >>= \case
         Just _ -> return ()
-        Nothing -> error
-    _ -> error
-  where error = raiseTypeError $ showVal val ++ " is not a function"
+        Nothing -> error "is not a function"
+    VUndef -> error "is undefined"
+    _ -> error "is not a function"
+
+  where error reason = raiseTypeError $ unwords [name, reason]
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
@@ -419,6 +426,19 @@ getOwnPropertyDescriptor _this args =
       desc <- objGetOwnProperty name obj
       fromPropertyDescriptor desc
     _ -> raiseTypeError "Object.getOwnPropertyDescriptor called on non-object"
+
+-- ref 15.2.3.4
+getOwnPropertyNames :: JSFunction
+getOwnPropertyNames _this args =
+  let o = first1 args
+  in case o of
+    VObj obj -> do
+      ks <- propMapKeys . ownProperties <$> deref obj
+      createArray $ map (Just . VStr) ks
+
+      
+
+
 
 -- ref 15.2.3.6
 objDefineProperty :: JSVal -> [JSVal] -> Runtime JSVal

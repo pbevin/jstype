@@ -16,7 +16,7 @@ import Debug.Trace
 newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- getGlobalObjectPrototype
-  share $ emptyObject { objPrototype = Just prototype }
+  share $ emptyObject { objPrototype = Just prototype, defineOwnPropertyMethod = Just objDefineOwnPropertyObject }
 
 -- ref 8.12.1
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -129,8 +129,8 @@ objDefaultValue hint objRef = case hint of
       else Nothing
 
 -- ref 8.12.9, incomplete
-objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
-objDefineOwnProperty p desc throw objRef = do
+objDefineOwnPropertyObject :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+objDefineOwnPropertyObject p desc throw objRef = do
   extensible <- objIsExtensible objRef
   objGetOwnProperty p objRef >>= \case
     Nothing ->
