@@ -516,9 +516,15 @@ walkStatement sv ev = walk where
     DoWhileStatement _ e s   -> ewalk e ++ walk s
     Return _ (Just e)        -> ewalk e
     WithStatement _ e s      -> ewalk e ++ walk s
+    For l h s                -> hwalk l h ++ walk s
 
     _                        -> []
   ewalk = walkExpr sv ev
+  hwalk l header = case header of
+    For3 e1 e2 e3            -> concatMap ewalk (catMaybes [e1, e2, e3])
+    For3Var decls e2 e3      -> walk (VarDecl l decls) ++ concatMap ewalk (catMaybes [e2, e3])
+    ForIn e1 e2              -> ewalk e1 ++ ewalk e2
+    ForInVar decl e          -> walk (VarDecl l [decl]) ++ ewalk e
 
 walkExpr :: (Statement -> [a]) -> (Expr -> [a]) -> Expr -> [a]
 walkExpr sv ev = walk where

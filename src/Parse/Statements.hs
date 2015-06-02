@@ -160,10 +160,10 @@ forin = ForIn <$> exprNoIn <*> (keyword "in" >> expr)
 for3 = For3 <$> optionMaybe exprNoIn
             <*> (tok ";" >> optionMaybe expr)
             <*> (tok ";" >> optionMaybe expr)
-for3var = keyword "var" >>
-  For3Var <$> identifier <* tok "="
-          <*> exprNoIn
-          <*> (tok ";" >> optionMaybe expr)
+for3var = keyword "var" >> do
+  assigns <- varAssign `sepBy1` comma
+  For3Var assigns
+          <$> (tok ";" >> optionMaybe expr)
           <*> (tok ";" >> optionMaybe expr)
 
 exprStmt :: JSParser Statement

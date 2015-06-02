@@ -201,8 +201,8 @@ runStmt s = case s of
   For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
     runStmt $ transformFor3ToWhile loc e1 e2 e3 stmt
 
-  For loc (For3Var x e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3VarToWhile loc x e1 e2 e3 stmt
+  For loc (For3Var assigns e2 e3) stmt -> -- ref 12.6.3
+    runStmt $ transformFor3VarToWhile loc assigns e2 e3 stmt
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -256,10 +256,10 @@ transformFor3ToWhile _loc e1 e2 e3 stmt =
 -- Turn "for (var x = e1; e2; e3) { s }" into
 -- "var x = e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
-transformFor3VarToWhile :: SrcLoc -> Ident -> Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3VarToWhile _loc x e1 e2 e3 stmt =
+transformFor3VarToWhile :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> Statement
+transformFor3VarToWhile _loc decls e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
-      s1 = VarDecl _loc [(x, Just e1)]
+      s1 = VarDecl _loc decls
       s2 = [ stmt, maybe (EmptyStatement _loc) (ExprStmt _loc) e3 ]
   in Block _loc [ s1, WhileStatement _loc e (Block _loc s2) ]
 
