@@ -398,10 +398,19 @@ runExprStmt expr = case expr of
               _    -> const $ raiseError $ "No such postfix operator: " ++ op
     in f e
 
-  NewExpr f args -> do
-    fun <- runExprStmt f
-    argList <- evalArguments args
-    liftM VObj (newObjectFromConstructor fun argList)
+  NewExpr f args -> do -- ref 11.2.2
+    fun <- runExprStmt f >>= getValue
+    o <- case fun of
+      VObj o -> return o
+      _ ->
+        raiseTypeError $ show (typeof fun) ++ " is not a function"
+
+    cstrMethod <$> deref o >>= \case
+      Nothing -> 
+        raiseTypeError $ show (typeof fun) ++ " is not a function"
+      Just _ -> do
+        argList <- evalArguments args
+        liftM VObj (newObjectFromConstructor fun argList)
 
   FunDef (Just name) params strictness body -> do
     fun <- createFunction params strictness body
