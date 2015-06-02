@@ -287,7 +287,7 @@ spec = do
     runJStr "console.log(false || 2)" `shouldReturn` Right "2\n"
 
   it "raises runtime exceptions" $ do
-    runJStr "var a; a();" `shouldError` "ReferenceError: Function a is undefined"
+    runJStr "var a; a();" `shouldError` "TypeError: a is undefined"
 
   it "can throw an exception from a function" $ do
     let prog = unlines [

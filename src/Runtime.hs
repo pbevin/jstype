@@ -120,7 +120,8 @@ createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
   prototype <- objFindPrototype "Function"
   VObj <$> (newObject >>= constructFunction paramList strict body
-                      >>= objSetPrototype prototype)
+                      >>= objSetPrototype prototype
+                      >>= addOwnProperty "length" (VNum $ fromIntegral $ length paramList))
 
 
 
@@ -139,7 +140,8 @@ funcCall paramList strict body this args =
     cxt <- getGlobalContext
     env <- newEnv (lexEnv cxt)
     zipWithM_ (addToNewEnv env) paramList args
-    arguments <- newObject >>= addOwnProperty "callee" (VNum 42)
+    VObj arguments <- createArray (map Just args)
+    addOwnProperty "callee" (VNum 42) arguments
     addToNewEnv env "arguments" (VObj arguments)
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt env newThis) $ do
@@ -330,7 +332,6 @@ funCall :: JSVal -> [JSVal] -> Runtime JSVal
 funCall ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
-  assertNotUndefinedVariable func ref
   assertFunction name callMethod func
   thisValue <- computeThisValue cxt ref
   objCall func thisValue argList
@@ -352,11 +353,6 @@ funCall ref argList = do
     name = case ref of
       VRef (JSRef _ name _) -> name
       _ -> ""
-
-assertNotUndefinedVariable :: JSVal -> JSVal -> Runtime ()
-assertNotUndefinedVariable VUndef (VRef (JSRef (VEnv _) name _)) =
-  raiseReferenceError $ "Function " ++ name ++ " is undefined"
-assertNotUndefinedVariable _ _ = return ()
 
 assertFunction :: String -> (JSObj -> Maybe a) -> JSVal -> Runtime ()
 assertFunction name m val =
