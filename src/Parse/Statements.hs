@@ -8,7 +8,7 @@ import Control.Applicative
 import Data.Maybe
 import Data.Foldable
 import Data.Char
-import Data.List (sortBy, nub)
+import Data.List (sortBy, nub, union, intersect)
 import Numeric
 import Parse.Types
 import Parse.State
@@ -398,15 +398,32 @@ objectLiteral =
   let propertyAssignment = getter <|> setter <|> nameValuePair
   in do
     assignments <- braces (propertyAssignment `sepBy` comma)
-    checkNoDuplicateKeys assignments
+    guard (noDuplicateAccessorKeys assignments)
+    ifStrict $ guard (noDuplicateKeys assignments)
     return $ ObjectLiteral assignments
 
-checkNoDuplicateKeys :: [PropertyAssignment] -> JSParser ()
-checkNoDuplicateKeys assignments = do
+noDuplicateAccessorKeys :: [PropertyAssignment] -> Bool
+noDuplicateAccessorKeys assignments =
+  noMultipleGetters && noMultipleSetters && noAccessorWithValue
+    where
+      noMultipleGetters = getters == nub getters
+      noMultipleSetters = setters == nub setters
+      noAccessorWithValue = null $ values `intersect` (getters `union` setters)
+      getters, setters, values :: [String]
+      getters = map fst $ filter (isGetter . snd) assignments
+      setters = map fst $ filter (isSetter . snd) assignments
+      values  = map fst $ filter (isValue  . snd) assignments
+      isGetter (Getter _) = True
+      isGetter _ = False
+      isSetter (Setter _ _) = True
+      isSetter _ = False
+      isValue (Value _) = True
+      isValue _ = False
+
+noDuplicateKeys :: [PropertyAssignment] -> Bool
+noDuplicateKeys assignments =
   let keys = map fst assignments
-  if keys == nub keys
-  then return ()
-  else unexpected "Duplicate key in object literal"
+  in keys == nub keys
 
 propertyName :: JSParser PropertyName
 propertyName = identifier

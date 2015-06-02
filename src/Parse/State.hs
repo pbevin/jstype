@@ -1,7 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Parse.State where
 
-import Text.Parsec (getState, putState)
+import Control.Monad (void)
 import Control.Applicative
+import Text.Parsec (getState, putState)
 import Data.List
 import Data.Maybe
 import Expr
@@ -72,6 +75,12 @@ fromLabelSet p = do
 
 currentContext :: JSParser (Maybe String)
 currentContext = contextDescription <$> getState
+
+ifStrict :: JSParser a -> JSParser ()
+ifStrict p = do
+  getStrictness >>= \case
+    Strict -> void p
+    NotStrict -> return ()
 
 getStrictness :: JSParser Strictness
 getStrictness = strictnessState <$> getState

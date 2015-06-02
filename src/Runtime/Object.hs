@@ -1,8 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Runtime.Object where
 
 import Data.Functor
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Applicative
 import Data.Maybe
 import Runtime.Types
 import Runtime.Global
@@ -53,10 +56,12 @@ objPut :: String -> JSVal -> Bool -> Shared JSObj -> Runtime ()
 objPut p v throw objRef = do
   canPut <- objCanPut p objRef
   unless canPut $ raiseError $ "TypeError: " ++ "Cannot set property " ++ p ++ " of object"
-  ownDesc <- objGetOwnProperty p objRef
-  case ownDesc of
-    Just d -> void $ objDefineOwnProperty p (propSetValue v d) throw objRef
-    Nothing -> void $ objDefineOwnProperty p (valueToProp v) throw objRef
+  objGetOwnProperty p objRef >>= \case
+    Just (DataPD {}) ->
+      void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
+    _ -> objGetProperty p objRef >>= \case
+           Just (AccessorPD g (Just s) e c) -> void $ s v
+           _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
 
 -- ref 8.12.7
 objDelete :: String -> Bool -> Shared JSObj -> Runtime JSVal
@@ -122,19 +127,31 @@ objDefaultValue hint objRef = case hint of
 -- ref 8.12.9, incomplete
 objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
 objDefineOwnProperty p desc throw objRef = do
-  current <- objGetOwnProperty p objRef
   extensible <- objIsExtensible objRef
-  case current of
-    Nothing -> if extensible
-               then _objCreateOwnProperty p desc objRef
-               else raiseProtoError TypeError $ "Can't add to non-extensible object"
-    Just desc' -> if propIsWritable desc'
-                  then _objCreateOwnProperty p (propCopyValue desc desc') objRef
-                  else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
+  objGetOwnProperty p objRef >>= \case
+    Nothing ->
+      if extensible
+      then _objCreateOwnProperty p desc objRef
+      else raiseProtoError TypeError $ "Can't add to non-extensible object"
+    Just current -> _objUpdateOwnProperty p desc current objRef
+      -- if propIsWritable current
+      -- then _objUpdateOwnProperty p desc current objRef
+      -- else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
 
 
 _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
 _objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
+
+_objUpdateOwnProperty :: String -> PropDesc JSVal -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
+_objUpdateOwnProperty p (DataPD v w e c) (DataPD _ w' _ _) =
+  if w' == False
+  then const $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
+  else updateObj $ objSetPropertyDescriptor p (DataPD v w e c)
+_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) =
+  let newv = v' <|> v
+      neww = w' <|> w
+  in updateObj $ objSetPropertyDescriptor p (AccessorPD newv neww e c)
+_objUpdateOwnProperty p _ _ = return
 
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)

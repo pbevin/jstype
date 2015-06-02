@@ -113,6 +113,7 @@ spec = do
     it "creates properties" $ do
       jsEvalExpr "{ a: 1, 2: 3 }['a']" `shouldReturn` VNum 1
       jsEvalExpr "{ a: 1, 2: 3 }['2']" `shouldReturn` VNum 3
+
     it "can have a getter" $ do
       let prog = unlines [
                   "  var obj = { ",
@@ -120,6 +121,24 @@ spec = do
                   "  }; ",
                   "  console.log(obj.x); " ]
       runJStr prog `shouldReturn` Right "1\n"
+
+    it "can have a setter" $ do
+      let prog = unlines [
+                  "  var v = 2; ",
+                  "  var obj = { ",
+                  "    get foo() { ",
+                  "      return v + 1; ",
+                  "    }, ",
+                  "    set foo(x) { ",
+                  "      v = x - 1; ",
+                  "    } ",
+                  "  } ",
+                  "  console.log(obj.foo); ",
+                  "  obj.foo = 42; ",
+                  "  console.log(obj.foo); ",
+                  "  console.log(v); " ]
+      runJStr prog `shouldReturn` Right "3\n42\n41\n"
+
 
 
   describe "an empty array" $ do

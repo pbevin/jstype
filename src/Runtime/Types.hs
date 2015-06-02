@@ -55,6 +55,24 @@ propSetValue a (DataPD _ w e c) = DataPD a w e c
 readOnlyProperty :: a -> PropDesc a
 readOnlyProperty a = DataPD a False True True
 
+isDataDescriptor :: PropDesc a -> Bool
+isDataDescriptor DataPD {} = True
+isDataDescriptor AccessorPD {} = False
+
+isAccessorDescriptor :: PropDesc a -> Bool
+isAccessorDescriptor DataPD {} = False
+isAccessorDescriptor AccessorPD {} = True
+
+hasGetter :: PropDesc a -> Bool
+hasGetter DataPD {} = False
+hasGetter (AccessorPD Nothing _ _ _) = False
+hasGetter _ = True
+
+hasSetter :: PropDesc a -> Bool
+hasSetter DataPD {} = False
+hasSetter (AccessorPD _ Nothing _ _) = False
+hasSetter _ = True
+
 
 data JSVal = VNum JSNum
            | VStr String

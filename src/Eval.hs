@@ -448,14 +448,38 @@ makeObjectLiteral nameValueList =do
 
   where
     addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime (Shared JSObj)
-    addObjectProp obj (p, Value v) = do
-      val <- runExprStmt v >>= getValue
-      addOwnProperty p val obj
-    addObjectProp obj (p, Getter body) = do
+    addObjectProp obj (name, value) = do
+      desc <- makeDescriptor value
+      objGetOwnProperty name obj >>= \case
+        Just previous -> checkCompatible previous desc
+        Nothing -> return ()
+      objDefineOwnProperty name desc True obj
+
+    makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
+    makeDescriptor (Value e) = do
+      val <- runExprStmt e >>= getValue
+      return $ DataPD val True True True
+    makeDescriptor (Getter body) = do
       strict <- getGlobalStrictness
       func <- createFunction [] strict body >>= mkGetter
-      let desc = AccessorPD func Nothing True True
-      objDefineOwnProperty p desc False obj
+      return $ AccessorPD func Nothing True True
+    makeDescriptor (Setter param body) = do
+      strict <- getGlobalStrictness
+      func <- createFunction [param] strict body >>= mkSetter
+      return $ AccessorPD Nothing func True True
+
+    checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
+    checkCompatible a b = do
+      let fail = raiseSyntaxError "Cannot reassign property"
+      strict <- (== Strict) <$> getGlobalStrictness
+      when (strict && isDataDescriptor a && isDataDescriptor b) fail
+      when (isDataDescriptor a && isAccessorDescriptor b) fail
+      when (isAccessorDescriptor a && isDataDescriptor b) fail
+      when (isAccessorDescriptor a && isAccessorDescriptor b) $ do
+        when (hasGetter a && hasGetter b) fail
+        when (hasSetter a && hasSetter b) fail
+      return ()
+
 
 -- ref 11.4.1
 evalDelete :: JSVal -> Runtime JSVal

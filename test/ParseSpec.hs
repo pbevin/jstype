@@ -101,26 +101,31 @@ spec = do
       parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
       parseExpr "'back\\\\quote'" `shouldBe` Str "back\\quote"
 
-    it "parses object literals" $ do
-      parseExpr "{}" `shouldBe` ObjectLiteral []
-      parseExpr "{a: 1}" `shouldBe` ObjectLiteral [("a", Value $ Num 1)]
-      parseExpr "{a: 1, b: 2}" `shouldBe`
-        ObjectLiteral [("a", Value $ Num 1),
-                       ("b", Value $ Num 2)]
-      parseExpr "{a: 1, 2: 3}" `shouldBe`
-        ObjectLiteral [("a", Value $ Num 1),
-                       ("2", Value $ Num 3)]
+    describe "Object literals" $ do
+      it "parses object literals" $ do
+        parseExpr "{}" `shouldBe` ObjectLiteral []
+        parseExpr "{a: 1}" `shouldBe` ObjectLiteral [("a", Value $ Num 1)]
+        parseExpr "{a: 1, b: 2}" `shouldBe`
+          ObjectLiteral [("a", Value $ Num 1),
+                         ("b", Value $ Num 2)]
+        parseExpr "{a: 1, 2: 3}" `shouldBe`
+          ObjectLiteral [("a", Value $ Num 1),
+                         ("2", Value $ Num 3)]
 
+      it "parses an object literal with a getter" $ do
+        let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]
+        testParse "var a = { get x() { return 1; } }" `shouldBe`
+          Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
 
-    it "parses an object literal with a getter" $ do
-      let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]
-      testParse "var a = { get x() { return 1; } }" `shouldBe`
-        Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
+      it "parses an object literal with a setter" $ do
+        let obj = ObjectLiteral [ ("x", Setter "v" [ ]) ]
+        testParse "var a = { set x(v) { } }" `shouldBe`
+          Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
 
-    it "parses an object literal with a setter" $ do
-      let obj = ObjectLiteral [ ("x", Setter "v" [ ]) ]
-      testParse "var a = { set x(v) { } }" `shouldBe`
-        Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
+      it "doesn't count a getter and setter as duplicate keys" $ do
+        parseExpr "{get foo(){}, set foo(arg){}}" `shouldBe`
+          ObjectLiteral [ ("foo", Getter [] ),
+                          ("foo", Setter "arg" []) ]
 
 
     describe "Array literals" $ do
@@ -383,7 +388,6 @@ spec = do
     it "disallows eval and arguments as setter args" $ do
       unparseableInStrictMode "var obj = { set x(eval) {}};"
       unparseableInStrictMode "var obj = { set x(arguments) {}};"
-      
 
   describe "with" $ do
     it "parses a with statement" $ do
