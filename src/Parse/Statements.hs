@@ -510,7 +510,7 @@ doubleQuotedString = do
   return str
 
 escape :: JSParser Char
-escape = oneOf "'\"\\"
+escape = oneOf "'\"\\\n"
      <|> liftM singleCharEscape (oneOf "bfnrtv")
      <|> (char 'u' >> unicodeEscape)
 

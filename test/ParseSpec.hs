@@ -101,6 +101,10 @@ spec = do
       parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
       parseExpr "'back\\\\quote'" `shouldBe` Str "back\\quote"
 
+    it "allows line breaks in strings when preceded by backslash" $ do
+      parseExpr "\"abc\\\ndef\"" `shouldBe` Str "abc\ndef"
+      parseExpr "'abc\\\ndef'" `shouldBe` Str "abc\ndef"
+
     describe "Object literals" $ do
       it "parses object literals" $ do
         parseExpr "{}" `shouldBe` ObjectLiteral []
