@@ -329,11 +329,10 @@ funCall :: JSVal -> [JSVal] -> Runtime JSVal
 funCall ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
-  if typeof func == TypeUndefined
-  then raiseReferenceError $ "Function " ++ getReferencedName (unwrapRef ref) ++ " is undefined"
-  else do
-    thisValue <- computeThisValue cxt ref
-    objCall func thisValue argList
+  assertNotUndefinedVariable func ref
+  assertFunction callMethod func
+  thisValue <- computeThisValue cxt ref
+  objCall func thisValue argList
 
   where
     computeThisValue cxt v = case v of
@@ -348,6 +347,22 @@ funCall ref argList = do
     implicitThisValue (DeclEnvRec _) = VUndef
     implicitThisValue (ObjEnvRec obj True) = (VObj obj)
     implicitThisValue (ObjEnvRec _ False) = VUndef
+
+assertNotUndefinedVariable :: JSVal -> JSVal -> Runtime ()
+assertNotUndefinedVariable VUndef (VRef (JSRef (VEnv _) name _)) =
+  raiseReferenceError $ "Function " ++ name ++ " is undefined"
+assertNotUndefinedVariable _ _ = return ()
+
+assertFunction :: (JSObj -> Maybe a) -> JSVal -> Runtime ()
+assertFunction m val =
+  case val of
+    VNative _ -> return ()
+    VObj o -> do
+      m <$> deref o >>= \case
+        Just _ -> return ()
+        Nothing -> error
+    _ -> error
+  where error = raiseTypeError $ showVal val ++ " is not a function"
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
@@ -382,7 +397,7 @@ objCall func this args = case func of
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
-  VUndef -> raiseError "Undefined function"
+  VUndef -> raiseReferenceError "Function is undefined"
   _ -> raiseError $ "Can't call " ++ show func
 
 objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal

@@ -400,17 +400,9 @@ runExprStmt expr = case expr of
 
   NewExpr f args -> do -- ref 11.2.2
     fun <- runExprStmt f >>= getValue
-    o <- case fun of
-      VObj o -> return o
-      _ ->
-        raiseTypeError $ show (typeof fun) ++ " is not a function"
-
-    cstrMethod <$> deref o >>= \case
-      Nothing -> 
-        raiseTypeError $ show (typeof fun) ++ " is not a function"
-      Just _ -> do
-        argList <- evalArguments args
-        liftM VObj (newObjectFromConstructor fun argList)
+    argList <- evalArguments args
+    assertFunction cstrMethod fun
+    liftM VObj (newObjectFromConstructor fun argList)
 
   FunDef (Just name) params strictness body -> do
     fun <- createFunction params strictness body
