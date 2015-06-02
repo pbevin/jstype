@@ -78,20 +78,6 @@ getValuePrimitive name base = do
     Just (AccessorPD (Just getter) _ _ _) -> getter base
 
 
--- ref 10.2.1.1.4 incomplete
-getValueEnvironmentRecord :: JSRef -> Runtime JSVal
-getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
-  val <- deref envRef >>= envLookup name . envRec
-  return $ fromMaybe VUndef $ val
-getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
-
--- ref 10.2.1.2.5
-deleteBinding :: String -> JSEnv -> Runtime JSVal
-deleteBinding n envRef = do
-  val <- deref envRef
-  envDelete n (envRec val)
-
-
 
 
 putUnresolvable :: JSRef -> JSVal -> Runtime ()
@@ -141,7 +127,22 @@ createMutableBinding n envRef = do
 setMutableBinding :: Ident -> JSVal -> Bool -> JSEnv -> Runtime ()
 setMutableBinding n v _s envRef = do
   lx <- deref envRef
+  -- XXX deletable bindings
   envInsert n v (envRec lx)
+
+-- ref 10.2.1.1.4 incomplete
+getValueEnvironmentRecord :: JSRef -> Runtime JSVal
+getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
+  val <- deref envRef >>= envLookup name . envRec
+  return $ fromMaybe VUndef $ val
+getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
+
+-- ref 10.2.1.2.5
+deleteBinding :: String -> JSEnv -> Runtime JSVal
+deleteBinding n envRef = do
+  val <- deref envRef
+  -- XXX deletable bindings
+  return (VBool False)
 
 
 
