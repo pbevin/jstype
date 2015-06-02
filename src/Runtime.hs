@@ -81,7 +81,7 @@ createArray vals =
         obj <- newObject >>= setClass "Array"
                          >>= objSetPrototype (toObj arrayPrototype)
                          >>= addOwnProperty "constructor" cstr
-                         >>= addOwnProperty "length" len
+                         >>= addOwnPropertyDescriptor "length" (DataPD len True False False)
                          >>= setArrayIndices assigns
         return $ VObj obj
 

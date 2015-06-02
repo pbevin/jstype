@@ -202,14 +202,14 @@ objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just protot
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
 
+addOwnPropertyDescriptor :: String -> PropDesc JSVal -> ObjectModifier
+addOwnPropertyDescriptor name val = updateObj $ objSetPropertyDescriptor name val
+
 addOwnConstant :: String -> JSVal -> ObjectModifier
-addOwnConstant name val = updateObj $ objSetConstant name val
+addOwnConstant name val = addOwnPropertyDescriptor name (DataPD val False False False)
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = objSetPropertyDescriptor name (valueToProp value) obj
-
-objSetConstant :: String -> JSVal -> JSObj -> JSObj
-objSetConstant name value obj = objSetPropertyDescriptor name (valueToConst value) obj
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
 objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }

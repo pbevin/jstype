@@ -43,9 +43,6 @@ propIsConfigurable (AccessorPD _ _ _ c) = c
 valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
 
-valueToConst :: a -> PropDesc a
-valueToConst a = DataPD a False False False
-
 propCopyValue :: PropDesc a -> PropDesc a -> PropDesc a
 propCopyValue (DataPD a _ _ _) (DataPD _ w e c) = DataPD a w e c
 
