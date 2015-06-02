@@ -63,6 +63,10 @@ objPut p v throw objRef = do
            Just (AccessorPD g (Just s) e c) -> void $ s v
            _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
 
+-- ref 8.12.6
+objHasProperty :: String -> Shared JSObj -> Runtime Bool
+objHasProperty p objRef = isJust <$> objGetProperty p objRef
+
 -- ref 8.12.7
 objDelete :: String -> Bool -> Shared JSObj -> Runtime JSVal
 objDelete p throw objRef = do

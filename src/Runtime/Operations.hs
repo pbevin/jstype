@@ -24,6 +24,7 @@ evalBinOp op = case op of
   "=="         -> doubleEquals
   "!="         -> invert doubleEquals
   "instanceof" -> jsInstanceOf
+  "in"         -> jsHasProperty
   "+"          -> jsAdd
   "-"          -> numberOp (-)
   "*"          -> numberOp (*)
@@ -183,6 +184,17 @@ jsInstanceOf val cls =
         Just method -> VBool <$> method objRef val
         Nothing     -> typeError
     _ -> typeError
+
+-- ref 11.8.7
+jsHasProperty :: JSVal -> JSVal -> Runtime JSVal
+jsHasProperty lval rval = case rval of
+  VObj obj -> do
+    name <- toString lval
+    VBool <$> objHasProperty name obj
+  _ -> raiseProtoError TypeError $
+         "Cannot search for " ++ show lval ++ " in " ++ show rval
+
+
 
 -- ref 11.10
 bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> Runtime JSVal
