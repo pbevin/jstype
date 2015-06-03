@@ -97,9 +97,8 @@ putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 
 putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
-putEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) val = do
-  lx <- deref envRef
-  envInsert name val (envRec lx)
+putEnvironmentRecord (JSRef (VEnv env) name _isStrict) val = do
+  envInsert name val env
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
@@ -132,17 +131,16 @@ setMutableBinding n v _s envRef = do
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> Runtime JSVal
-getValueEnvironmentRecord (JSRef (VEnv envRef) name _isStrict) = do
-  val <- deref envRef >>= envLookup name . envRec
+getValueEnvironmentRecord (JSRef (VEnv env) name _isStrict) = do
+  val <- envLookup name env
   return $ fromMaybe VUndef $ val
 getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
 
--- ref 10.2.1.2.5
-deleteBinding :: String -> JSEnv -> Runtime JSVal
-deleteBinding n envRef = do
-  val <- deref envRef
-  -- XXX deletable bindings
-  return (VBool False)
+deleteBinding :: String -> EnvRec -> Runtime JSVal
+-- ref 10.2.1.1.5 (DeclEnvRec)
+deleteBinding n (DeclEnvRec m) = return (VBool False)
+-- ref 10.2.1.2.5 (ObjEnvRec)
+deleteBinding n (ObjEnvRec obj _) = objDelete n False obj
 
 
 

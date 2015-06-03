@@ -129,8 +129,8 @@ createFunction paramList strict body = do
 funcCall :: [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
 funcCall paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
-      newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, cxtStrictness = strict }
-      addToNewEnv :: JSEnv -> Ident -> JSVal -> Runtime ()
+      newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, varEnv = env, cxtStrictness = strict }
+      addToNewEnv :: EnvRec -> Ident -> JSVal -> Runtime ()
       addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
       findNewThis VNull  = getGlobalObject
       findNewThis VUndef = getGlobalObject
@@ -138,11 +138,12 @@ funcCall paramList strict body this args =
 
   in do
     cxt <- getGlobalContext
-    env <- newEnv (lexEnv cxt)
-    zipWithM_ (addToNewEnv env) paramList args
+    rec <- newEnvRec
+    env <- newEnv rec (lexEnv cxt)
+    zipWithM_ (addToNewEnv rec) paramList args
     VObj arguments <- createArray (map Just args)
     addOwnProperty "callee" (VNum 42) arguments
-    addToNewEnv env "arguments" (VObj arguments)
+    addToNewEnv rec "arguments" (VObj arguments)
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt env newThis) $ do
       performDBI DBIFunction strict body
@@ -271,7 +272,7 @@ getIdentifierReference (Just lexRef) name strict = do
   env <- deref lexRef
   exists <- hasBinding name (envRec env)
   if exists
-  then return $ JSRef (VEnv lexRef) name strict
+  then return $ JSRef (VEnv $ envRec env) name strict
   else do
     getIdentifierReference (outer env) name strict
 
@@ -342,7 +343,7 @@ funCall ref argList = do
         if isPropertyReference ref
         then return (getBase ref)
         else case getBase ref of
-          VEnv env -> implicitThisValue . envRec <$> deref env
+          VEnv env -> return (implicitThisValue env)
 
       _ -> return $ thisBinding cxt
 
@@ -432,7 +433,7 @@ getOwnPropertyNames _this args =
       ks <- propMapKeys . ownProperties <$> deref obj
       createArray $ map (Just . VStr) ks
 
-      
+
 
 
 

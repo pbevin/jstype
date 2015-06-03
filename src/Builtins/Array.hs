@@ -19,6 +19,7 @@ makeArrayClass = do
     >>= setCallMethod (arrayFunction arrayPrototype)
     >>= setCstrMethod arrayConstructor
     >>= addOwnProperty "length" (VNum 0)
+    >>= addOwnProperty "isArray" (VNative isArray)
 
 
 arrayFunction :: Shared JSObj -> JSFunction
@@ -54,3 +55,6 @@ arrayReverse _this _args = return VUndef
 
 arraySort :: JSFunction
 arraySort _this _args = return VUndef
+
+isArray :: JSFunction
+isArray _this _args = return (VBool True)

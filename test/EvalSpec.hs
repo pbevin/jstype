@@ -410,6 +410,14 @@ spec = do
                   "  console.log(x, scope.x)" ]
       runJStr prog `shouldReturn` Right "0 1\n"
 
+  describe "delete" $ do
+    it "will remove a variable from an object environment" $ do
+      runJStr "x = 1; delete x; x;" `shouldError` "ReferenceError: No such variable x"
+
+    it "will not remove a variable from a declarative environment" $ do
+      runJStr "function f() { var a = 1;return delete a; }; console.log(f())" `shouldReturn` Right "false\n"
+
+
   describe "Declaration Binding Initialization" $ do -- ref 10.5
     it "pre-declares variables" $ do
       runJStr "console.log(a)" `shouldError` "ReferenceError: No such variable a"

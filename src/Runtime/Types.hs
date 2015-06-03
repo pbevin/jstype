@@ -80,7 +80,7 @@ data JSVal = VNum JSNum
            | VObj (Shared JSObj)
            | VNative (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
-           | VEnv JSEnv
+           | VEnv EnvRec
 
 instance Show JSVal where
   show (VNum a)         = "VNum " ++ show a
@@ -164,7 +164,7 @@ data LexEnv = LexEnv {
 } deriving Show
 
 data EnvRec = DeclEnvRec (Shared PropertyMap)
-            | ObjEnvRec (Shared JSObj) Bool
+            | ObjEnvRec (Shared JSObj) Bool -- Bool = provideThis
             deriving (Show, Eq)
 
 data JSType = TypeUndefined
@@ -202,10 +202,14 @@ instance Eq JSVal where
 
 
 
-newEnv :: JSEnv -> Runtime JSEnv
-newEnv parent = do
+newEnv :: EnvRec -> JSEnv -> Runtime JSEnv
+newEnv rec parent = do
+  share $ LexEnv rec (Just parent)
+
+newEnvRec :: Runtime EnvRec
+newEnvRec = do
   m <- share emptyPropMap
-  share $ LexEnv (DeclEnvRec m) (Just parent)
+  return (DeclEnvRec m)
 
 type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc]) | JSProtoError (ErrorType, String) deriving (Show, Eq)
