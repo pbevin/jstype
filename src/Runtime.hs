@@ -165,7 +165,7 @@ createArgumentsObject func names args strict =
     objectPrototype <- getGlobalObjectPrototype
 
     map <- newObject
-    forM_ (reverse $ zip3 names args [0..]) $ \(name, val, indx) -> do
+    forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
       objDefineOwnProperty (show indx) (DataPD val True True True) False map
 
@@ -173,6 +173,12 @@ createArgumentsObject func names args strict =
                      >>= objSetPrototype objectPrototype
                      >>= objDefineOwnProperty "length" (DataPD (VNum len) True False True) False
                      >>= objSetParameterMap (VObj map) -- XXX missing step 12b
+
+    -- Hack because I'm not willing to define new [[get]] etc. methods as per step 12b
+    -- just now...
+    forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
+      -- XXX incomplete step 11
+      objDefineOwnProperty (show indx) (DataPD val True True True) False obj
 
     case strict of
       NotStrict -> objDefineOwnProperty "callee" (DataPD func True False True) False obj
