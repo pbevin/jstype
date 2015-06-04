@@ -168,6 +168,9 @@ spec = do
     it "parses a unop assignment" $ do
       parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num (JSNum 1)))
 
+    it "parses a chained assignment" $ do
+      parseExpr "x = x = 1" `shouldBe` Assign (ReadVar "x") "=" (Assign (ReadVar "x") "=" (Num 1))
+
     it "parses a plus-equals" $ do
       parseExpr "a += b" `shouldBe` Assign (ReadVar "a") "+=" (ReadVar "b")
 

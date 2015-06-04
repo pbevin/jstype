@@ -351,18 +351,9 @@ condExpr p = do
             return $ Cond test ifTrue ifFalse
 
 assignExpr :: JSParser Expr -> JSParser Expr
-assignExpr p = do
-  e <- p
-  assignment e p <|> return e
-
-assignment :: Expr -> JSParser Expr -> JSParser Expr
-assignment lhs p = do
-  op <- tok "=" <|> assignOp
-  rhs <- p
-  return $ Assign lhs op rhs
-
-lhsExpr :: JSParser Expr
-lhsExpr = memberExpr simple
+assignExpr p = chainr1 p $ try $ do
+                 op <- tok "=" <|> assignOp
+                 return $ \a b -> Assign a op b
 
 simple :: JSParser Expr
 simple = parens expr
