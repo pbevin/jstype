@@ -87,7 +87,7 @@ createArray vals =
 
 setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
 setArrayIndices assigns objRef = do
-  mapM_ (\(n, v) -> objPut (show n) v False objRef) assigns
+  mapM_ (\(n, v) -> objDefineOwnProperty (show n) (DataPD v True True True) False objRef) assigns
   return objRef
 
 
