@@ -141,7 +141,7 @@ funcCall paramList strict body this args =
     rec <- newEnvRec
     env <- newEnv rec (lexEnv cxt)
     zipWithM_ (addToNewEnv rec) paramList args
-    VObj arguments <- createArray (map Just args)
+    VObj arguments <- createArgumentsObject this paramList args strict
     addOwnProperty "callee" (VNum 42) arguments
     addToNewEnv rec "arguments" (VObj arguments)
     newThis <- VObj <$> findNewThis this
@@ -152,6 +152,33 @@ funcCall paramList strict body this args =
         (CTReturn, Just v, _) -> return v
         (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
         _ -> return VUndef
+
+-- ref 10.6
+createArgumentsObject :: JSVal -> [String] -> [JSVal] -> Strictness -> Runtime JSVal
+createArgumentsObject func names args strict =
+  let len = JSNum (fromIntegral $ length args)
+      thrower _ = raiseTypeError "Cannot access property"
+  in do
+    object <- getGlobalProperty "Object"
+    objectPrototype <- getGlobalObjectPrototype
+
+    map <- newObject
+    forM_ (reverse $ zip3 names args [0..]) $ \(name, val, indx) -> do
+      -- XXX incomplete step 11
+      objDefineOwnProperty (show indx) (DataPD val True True True) False map
+
+    obj <- newObject >>= setClass "Arguments"
+                     >>= objSetPrototype objectPrototype
+                     >>= objDefineOwnProperty "length" (DataPD (VNum len) True False True) False
+                     >>= objSetParameterMap (VObj map) -- XXX missing step 12b
+
+    case strict of
+      NotStrict -> objDefineOwnProperty "callee" (DataPD func True False True) False obj
+      Strict -> do
+        objDefineOwnProperty "caller" (AccessorPD (Just thrower) (Just thrower) False False) False obj
+        objDefineOwnProperty "callee" (AccessorPD (Just thrower) (Just thrower) False False) False obj
+
+    return (VObj obj)
 
 
 

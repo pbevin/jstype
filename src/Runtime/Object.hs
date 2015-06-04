@@ -230,6 +230,12 @@ objSetPrimitive val = updateObj $ \obj -> obj { objPrimitiveValue = Just val }
 objGetPrimitive :: Shared JSObj -> Runtime JSVal
 objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
 
+objSetParameterMap :: JSVal -> ObjectModifier
+objSetParameterMap map = updateObj $ \obj -> obj { objParameterMap = Just map }
+
+objGetParameterMap :: Shared JSObj -> Runtime JSVal
+objGetParameterMap objRef = fromMaybe VUndef . objParameterMap <$> deref objRef
+
 objSetHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> ObjectModifier
 objSetHasInstance method = updateObj $ \obj -> obj { hasInstanceMethod = Just method }
 

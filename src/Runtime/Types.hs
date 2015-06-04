@@ -25,7 +25,7 @@ instance Show a => Show (PropDesc a) where
 propValue :: PropDesc a -> JSVal -> Runtime a
 propValue (DataPD a _ _ _) _ = return a
 propValue (AccessorPD (Just getter) _ _ _) this = getter this
-propValue (AccessorPD Nothing _ _ _) _ = error "No value"
+propValue (AccessorPD Nothing _ _ _) _ = raiseProtoError ReferenceError "No value"
 
 propIsWritable :: PropDesc a -> Bool
 propIsWritable (DataPD _ w _ _) = w
@@ -122,6 +122,7 @@ data JSObj = JSObj {
   hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
   defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)),
   objPrimitiveValue :: Maybe JSVal,
+  objParameterMap :: Maybe JSVal,
   objExtensible :: Bool
 } deriving Show
 
@@ -135,6 +136,7 @@ emptyObject = JSObj {
   hasInstanceMethod = Nothing,
   defineOwnPropertyMethod = Nothing,
   objPrimitiveValue = Nothing,
+  objParameterMap = Nothing,
   objExtensible = True
 }
 
