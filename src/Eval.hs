@@ -63,9 +63,21 @@ evalCode text = do
   currentStrictness <- return . cxtStrictness =<< getGlobalContext
   case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
-    Right (Program strictness stmts) -> do
-      performDBI DBIEval strictness stmts
-      withStrictness strictness (runStmts stmts)
+    Right prog -> runInEvalContext prog
+ 
+-- ref 10.4.2
+runInEvalContext :: Program -> Runtime StmtReturn
+runInEvalContext (Program strictness stmts) = do
+      newCxt <- maybeNewContext strictness =<< getGlobalContext
+      withNewContext newCxt $ do
+        performDBI DBIEval strictness stmts
+        withStrictness strictness (runStmts stmts)
+
+  where maybeNewContext NotStrict cxt = return cxt
+        maybeNewContext Strict cxt = do
+          rec <- newEnvRec
+          env <- newEnv rec (lexEnv cxt)
+          return cxt { lexEnv = env, varEnv = env, cxtStrictness = Strict }
 
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
@@ -284,7 +296,7 @@ runVarDecl assignments = do
   forM_ assignments $ \(x, e) -> case e of
     Nothing  -> putVar x VUndef
     Just e' -> do
-      when (x == "eval" || x == "arguments") $
+      when (x == "eval" || x == "arguments") $ do
         cannotAssignTo x
       runExprStmt e' >>= getValue >>= putVar x
   return (CTNormal, Nothing, Nothing)

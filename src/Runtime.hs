@@ -103,15 +103,16 @@ funConstructor this args = case this of
     let arg = first1 args
     body <- toString arg
     let Program strictness stmts = simpleParseInFunction body
-    constructFunction [] strictness stmts objRef
+    newProto <- newObject
+    constructFunction [] strictness stmts newProto objRef
     return this
   _ -> raiseTypeError "Function constructor"
 
 
-constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Runtime (Shared JSObj)
-constructFunction paramList strict body this = do
-  newProto <- newObject
-  mkFunction "XXX" newProto this
+constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
+constructFunction paramList strict body prototype this = do
+  mkFunction "XXX" prototype this
+    >>= objDefineOwnProperty "prototype" (DataPD (VObj prototype) True False False) False
     >>= setCstrMethod (funcCall paramList strict body)
     >>= setCallMethod (funcCall paramList strict body)
 
@@ -119,7 +120,8 @@ constructFunction paramList strict body this = do
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 createFunction paramList strict body = do
   prototype <- objFindPrototype "Function"
-  VObj <$> (newObject >>= constructFunction paramList strict body
+  myPrototype <- newObject
+  VObj <$> (newObject >>= constructFunction paramList strict body myPrototype
                       >>= objSetPrototype prototype
                       >>= addOwnProperty "length" (VNum $ fromIntegral $ length paramList))
 
@@ -402,8 +404,7 @@ newObjectFromConstructor fun args = case fun of
     create name val = case val of
       VObj funref -> do
         obj <- newObject
-        prop <- objGetProperty "prototype" funref
-        prototype <- fromObj prop
+        prototype <- objGetProperty "prototype" funref >>= fromObj
         setPrototype prototype obj
         objDefineOwnProperty "constructor" (DataPD val True False True) False obj
         objCstr (VObj funref) (VObj obj) args
@@ -499,7 +500,7 @@ objHasOwnProperty this args =
     VBool . isJust <$> objGetOwnProperty p o
 
 -- ref 10.5
-data DBIType = DBIGlobal | DBIFunction | DBIEval
+data DBIType = DBIGlobal | DBIFunction | DBIEval deriving Show
 performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
 performDBI _dbiType strict stmts = do
   env <- varEnv <$> getGlobalContext

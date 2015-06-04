@@ -49,21 +49,37 @@ objGet name objRef = do
 
 -- ref 8.12.4, incomplete
 objCanPut :: String -> Shared JSObj -> Runtime Bool
-objCanPut p objRef = do
-  return True
+objCanPut p o = do
+  objGetOwnProperty p o >>= \case
+    Just (AccessorPD _ s _ _) -> return (isJust s)
+    Just (DataPD _ w _ _)     -> return w
+    Nothing ->
+      objPrototype <$> deref o >>= \case
+        Nothing -> objExtensible <$> deref o
+        Just _ -> do
+          objGetProperty p o >>= \case
+            Nothing -> objExtensible <$> deref o
+            Just (AccessorPD _ s _ _) -> return (isJust s)
+            Just (DataPD _ _ False _) -> return False
+            Just (DataPD _ w _ _) -> return w
 
--- ref 8.12.5, incomplete
+
+-- ref 8.12.5
 objPut :: String -> JSVal -> Bool -> Shared JSObj -> Runtime ()
 objPut p v throw objRef = do
   canPut <- objCanPut p objRef
-  unless canPut $ raiseError $ "TypeError: " ++ "Cannot set property " ++ p ++ " of object"
-  objGetOwnProperty p objRef >>= \case
-    Just (DataPD {}) ->
-      void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
-    _ -> objGetProperty p objRef >>= \case
-           Just (AccessorPD g (Just s) e c) -> void $ s v
-           Just (AccessorPD _ Nothing _ _) -> raiseProtoError TypeError "Cannot assign to property without a setter"
-           _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
+  if not canPut
+  then if throw
+       then raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
+       else return ()
+  else do
+    objGetOwnProperty p objRef >>= \case
+      Just (DataPD {}) ->
+        void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
+      _ -> objGetProperty p objRef >>= \case
+             Just (AccessorPD _ (Just s) _ _) -> void $ s v
+             Just (AccessorPD _ Nothing _ _) -> raiseProtoError TypeError "Cannot assign to property without a setter"
+             _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
 
 -- ref 8.12.6
 objHasProperty :: String -> Shared JSObj -> Runtime Bool
@@ -156,11 +172,11 @@ _objUpdateOwnProperty p (DataPD v w e c) (DataPD _ w' _ _) throw =
        then const $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
        else return . id
   else updateObj $ objSetPropertyDescriptor p (DataPD v w e c)
-_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) throw =
+_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) _ =
   let newv = v' <|> v
       neww = w' <|> w
   in updateObj $ objSetPropertyDescriptor p (AccessorPD newv neww e c)
-_objUpdateOwnProperty p _ _ _ = return
+_objUpdateOwnProperty _ _ _ _ = return
 
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
@@ -235,7 +251,7 @@ objGetPrimitive :: Shared JSObj -> Runtime JSVal
 objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
 
 objSetParameterMap :: JSVal -> ObjectModifier
-objSetParameterMap map = updateObj $ \obj -> obj { objParameterMap = Just map }
+objSetParameterMap m = updateObj $ \obj -> obj { objParameterMap = Just m }
 
 objGetParameterMap :: Shared JSObj -> Runtime JSVal
 objGetParameterMap objRef = fromMaybe VUndef . objParameterMap <$> deref objRef

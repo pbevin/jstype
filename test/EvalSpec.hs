@@ -460,3 +460,6 @@ spec = do
       -- language/expressions/assignment/11.13.1-4-28gs
       runJStr "'use strict'; Math.E = 1; console.log(Math.E)" `shouldError`
         "TypeError: Attempt to overwrite read-only property E"
+
+    it "refuses to assign to a prototype property" $ do
+      runJStr "function x() {}; Object.defineProperty(x.prototype, 'y', {value:33, writable: false}); xx = new x(); xx.y = 4; console.log(xx.y)" `shouldReturn` Right "33\n"
