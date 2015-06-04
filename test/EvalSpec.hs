@@ -175,6 +175,11 @@ spec = do
       jsEvalExpr "[4,5,,,].length" `shouldReturn` VNum 4
       jsEvalExpr "[4,5,,,,].length" `shouldReturn` VNum 5
 
+  describe "printing an array" $ do
+    it "prints the elements joined by comma" $ do
+      runJStr "console.log(new Array(1,2,3).toString())" `shouldReturn` Right "1,2,3\n"
+      runJStr "console.log([4,5,6].toString())" `shouldReturn` Right "4,5,6\n"
+
   describe "comparison" $ do
     it "understands <" $ do
       jsEvalExpr "1 < 2" `shouldReturn` VBool True

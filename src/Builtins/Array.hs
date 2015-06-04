@@ -1,6 +1,9 @@
 module Builtins.Array (makeArrayClass) where
 
+import Control.Monad
+import Data.List (intercalate)
 import Safe
+import Data.Int
 import Runtime
 
 
@@ -34,21 +37,51 @@ arrayConstructor this args =
   in case this of
     VObj obj -> do
       cstr <- getGlobalProperty "Array"
-      VObj <$> (setClass "Array" obj
-                  >>= addOwnProperty "length" len
-                  >>= addOwnProperty "constructor" cstr)
+      o <- setClass "Array" obj
+        >>= addOwnProperty "length" len
+        >>= addOwnProperty "constructor" cstr
+
+      forM_ (zip args [0..]) $ \(item, idx) -> do
+        addOwnProperty (show idx) item o
+
+      return (VObj o)
+      
     _ -> raiseError $ "arrayConstructor called with this = " ++ show this
 
 -- ref 15.4.4.2, incomplete
 arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
-arrayToString _this _args = return $ VStr "[...]"
+arrayToString this _args = arrayJoin this []
+
+-- ref 15.4.4.5, incomplete
+arrayJoin :: JSFunction
+arrayJoin this args =
+  let separator = first1 args
+  in do
+    o <- toObject this
+    lenVal <- objGet "length" o
+    len <- toInt32 lenVal
+    sep <- toString separator
+    if len == 0
+    then return (VStr "")
+    else do
+      d <- sequence $ forM [0..len-1] $ \k -> objGet (show k) o >>= stringOrEmpty
+      return (intercalate "," d)
+
+
+        
+
+
+
+
+  where
+    stringOrEmpty VUndef = return ""
+    stringOrEmpty VNull  = return ""
+    stringOrEmpty val    = toString val
+
 
 -- ref 15.4.4.21, incomplete
 arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
 arrayReduce _this _args = return VNull
-
-arrayJoin :: JSFunction
-arrayJoin _this _args = return VUndef
 
 arrayReverse :: JSFunction
 arrayReverse _this _args = return VUndef
