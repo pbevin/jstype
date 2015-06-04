@@ -455,7 +455,7 @@ makeObjectLiteral nameValueList =do
       objGetOwnProperty name obj >>= \case
         Just previous -> checkCompatible previous desc
         Nothing -> return ()
-      objDefineOwnProperty name desc True obj
+      objDefineOwnProperty name desc False obj
 
     makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
     makeDescriptor (Value e) = do

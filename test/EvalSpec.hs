@@ -32,6 +32,7 @@ spec = do
     runJStr "console.log(1);" `shouldReturn` Right "1\n"
     runJStr "var a = 3; console.log(a);" `shouldReturn` Right "3\n"
     runJStr "var a = 3; console.log(a+4);" `shouldReturn` Right "7\n"
+    runJStr "Object.prototype.x = 1; console.log(Object.prototype.x)" `shouldReturn` Right "1\n"
 
   it "does update-assignments" $ do
     runJStr "var a = 10; a += 1; console.log(a);" `shouldReturn` Right "11\n"

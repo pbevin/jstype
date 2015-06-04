@@ -240,13 +240,10 @@ propsFromList = propMapFromList . map f
 
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
-  let props = propsFromList [
-                ("prototype", VUndef),
-                ("toString", VNative objToString),
-                ("hasOwnProperty", VNative objHasOwnProperty),
-                ("valueOf", VNative objValueOf) ]
-  in share $ emptyObject { ownProperties = props }
-
+  newObject >>= addOwnProperty "prototype" VUndef
+            >>= addOwnProperty "toString" (VNative objToString)
+            >>= addOwnProperty "hasOwnProperty" (VNative objHasOwnProperty)
+            >>= addOwnProperty "valueOf" (VNative objValueOf)
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
