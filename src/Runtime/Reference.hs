@@ -21,10 +21,11 @@ getValue v
 
 -- ref 8.7.2
 putValue :: JSRef -> JSVal -> Runtime ()
-putValue ref w
+putValue ref@(JSRef base name strict) w
   | isUnresolvableReference ref = putUnresolvable ref w
   | isPropertyReference ref     = putPropertyReference ref w
-  | otherwise                   = putEnvironmentRecord ref w
+  | otherwise                   = setMutableBinding name w (strict == Strict) env
+    where (VEnv env) = base
 
 -- ref 8.7
 hasPrimitiveBase :: JSRef -> Bool
@@ -96,12 +97,6 @@ putPropertyReference (JSRef (VObj objRef) name strict) val =
 putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 
-putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
-putEnvironmentRecord (JSRef (VEnv env) name _isStrict) val = do
-  envInsert name val True env
-putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
-
-
 unwrapRef :: JSVal -> JSRef
 unwrapRef (VRef ref) = ref
 unwrapRef v = error $ "Can't unwrap " ++ show v
@@ -122,14 +117,12 @@ createMutableBinding n d envRef = do
   lx <- deref envRef
   envInsert n VUndef d (envRec lx)
 
--- ref 10.2.1.1.3, incomplete (S parameter)
-setMutableBinding :: Ident -> JSVal -> Bool -> JSEnv -> Runtime ()
-setMutableBinding n v _s envRef = do
-  lx <- deref envRef
-  -- XXX deletable bindings
-  envInsert n v True (envRec lx)
+-- ref 10.2.1.1.3
+setMutableBinding :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
+setMutableBinding n v s envRec = do
+  envInsert n v s envRec
 
--- ref 10.2.1.1.4 incomplete
+-- ref 10.2.1.1.4
 getValueEnvironmentRecord :: JSRef -> Runtime JSVal
 getValueEnvironmentRecord (JSRef (VEnv env) name _isStrict) = do
   val <- envLookup name env
@@ -157,7 +150,6 @@ envInsert :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
 envInsert name val d (DeclEnvRec m) = do
   modifyRef m (propMapInsert' name (valueToProp val) d)
 envInsert name val d (ObjEnvRec obj _) = void $ do
-  debug (name, "d", d)
   addOwnPropertyDescriptor name desc obj
     where desc = DataPD val True True d
 

@@ -131,7 +131,7 @@ funcCall paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
       newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, varEnv = env, cxtStrictness = strict }
       addToNewEnv :: EnvRec -> Ident -> JSVal -> Runtime ()
-      addToNewEnv env x v = putEnvironmentRecord (makeRef env x) v
+      addToNewEnv env x v = putValue (makeRef env x) v
       findNewThis VNull  = getGlobalObject
       findNewThis VUndef = getGlobalObject
       findNewThis other  = toObject other
@@ -488,7 +488,7 @@ performDBI _dbiType strict stmts = do
         varAlreadyDeclared <- hasBinding dn rec
         unless varAlreadyDeclared $ do
           createMutableBinding dn False env
-          setMutableBinding dn VUndef (strict == Strict) env
+          setMutableBinding dn VUndef (strict == Strict) rec
 
 searchFunctionNames :: Statement -> [Ident]
 searchFunctionNames = walkStatement (const []) fnFinder
