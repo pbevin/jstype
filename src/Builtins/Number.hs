@@ -44,10 +44,11 @@ numberConstructor this args =
   in case this of
     VObj obj -> do
       prototype <- objFindPrototype "Number"
-      str <- toString val
+      num <- VNum <$> toNumber val
+      str <- VStr <$> toString num
       setClass "Number" obj
-        >>= setPrimitiveValue val
-        >>= setPrimitiveToString (VStr str)
+        >>= setPrimitiveValue num
+        >>= setPrimitiveToString str
         >>= objSetPrototype prototype
       return (VObj obj)
     _ -> raiseError $ "Number constructor called with this = " ++ show this
