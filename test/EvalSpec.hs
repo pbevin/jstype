@@ -411,11 +411,13 @@ spec = do
       runJStr prog `shouldReturn` Right "0 1\n"
 
   describe "delete" $ do
-    it "will remove a variable from an object environment" $ do
-      runJStr "x = 1; delete x; x;" `shouldError` "ReferenceError: No such variable x"
+    it "deletes an undeclared variable" $ do
+      runJStr "x = 1; delete x; console.log(x);"
+        `shouldError` "ReferenceError: No such variable x"
 
-    it "will not remove a variable from a declarative environment" $ do
-      runJStr "function f() { var a = 1;return delete a; }; console.log(f())" `shouldReturn` Right "false\n"
+    it "will not delete a declared variable" $ do
+      runJStr "var x = 1; delete x; console.log(x)"
+        `shouldReturn` Right "1\n"
 
 
   describe "Declaration Binding Initialization" $ do -- ref 10.5

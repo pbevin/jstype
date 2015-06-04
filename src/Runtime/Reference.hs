@@ -98,7 +98,7 @@ putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 putEnvironmentRecord :: JSRef -> JSVal -> Runtime ()
 putEnvironmentRecord (JSRef (VEnv env) name _isStrict) val = do
-  envInsert name val env
+  envInsert name val True env
 putEnvironmentRecord _ _ = error "Internal error in putEnvironmentRecord"
 
 
@@ -116,18 +116,18 @@ hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
 hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . ownProperties) $ deref obj
 
--- ref 10.2.1.1.2, incomplete (D parameter)
-createMutableBinding :: Ident -> JSEnv -> Runtime ()
-createMutableBinding n envRef = do
+-- ref 10.2.1.1.2
+createMutableBinding :: Ident -> Bool -> JSEnv -> Runtime ()
+createMutableBinding n d envRef = do
   lx <- deref envRef
-  envInsert n VUndef (envRec lx)
+  envInsert n VUndef d (envRec lx)
 
 -- ref 10.2.1.1.3, incomplete (S parameter)
 setMutableBinding :: Ident -> JSVal -> Bool -> JSEnv -> Runtime ()
 setMutableBinding n v _s envRef = do
   lx <- deref envRef
   -- XXX deletable bindings
-  envInsert n v (envRec lx)
+  envInsert n v True (envRec lx)
 
 -- ref 10.2.1.1.4 incomplete
 getValueEnvironmentRecord :: JSRef -> Runtime JSVal
@@ -153,9 +153,13 @@ lk this k m = case propMapLookup k m of
   Nothing -> return Nothing
   Just desc -> Just <$> propValue desc this
 
-envInsert :: Ident -> JSVal -> EnvRec -> Runtime ()
-envInsert name val (DeclEnvRec m) = modifyRef m (propMapInsert name (valueToProp val))
-envInsert name val (ObjEnvRec obj _) = void $ addOwnProperty name val obj
+envInsert :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
+envInsert name val d (DeclEnvRec m) = do
+  modifyRef m (propMapInsert' name (valueToProp val) d)
+envInsert name val d (ObjEnvRec obj _) = void $ do
+  debug (name, "d", d)
+  addOwnPropertyDescriptor name desc obj
+    where desc = DataPD val True True d
 
 envDelete :: Ident -> EnvRec -> Runtime JSVal
 envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)

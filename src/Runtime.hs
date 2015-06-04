@@ -487,7 +487,7 @@ performDBI _dbiType strict stmts = do
         rec <- envRec <$> deref env
         varAlreadyDeclared <- hasBinding dn rec
         unless varAlreadyDeclared $ do
-          createMutableBinding dn env
+          createMutableBinding dn False env
           setMutableBinding dn VUndef (strict == Strict) env
 
 searchFunctionNames :: Statement -> [Ident]

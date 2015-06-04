@@ -305,7 +305,7 @@ runCatch Nothing _ = return (CTNormal, Nothing, Nothing)
 runCatch (Just (Catch _loc var stmt)) c = do
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
-  createMutableBinding var catchEnv
+  createMutableBinding var True catchEnv
   setMutableBinding var c False catchEnv
   withLexEnv catchEnv $ runStmt stmt
 

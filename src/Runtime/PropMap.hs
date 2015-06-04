@@ -14,7 +14,10 @@ propMapLookup :: Ord k => k -> PropMap k a -> Maybe a
 propMapLookup k (PropMap m) = fst <$> M.lookup k m
 
 propMapInsert :: Ord k => k -> a -> PropMap k a -> PropMap k a
-propMapInsert k a (PropMap m) = PropMap $ M.insert k (a, False) m
+propMapInsert k a = propMapInsert' k a True
+
+propMapInsert' :: Ord k => k -> a -> Bool -> PropMap k a -> PropMap k a
+propMapInsert' k a d (PropMap m) = PropMap $ M.insert k (a, d) m
 
 propMapDelete :: Ord k => k -> PropMap k a -> PropMap k a
 propMapDelete k (PropMap m) = PropMap $ M.delete k m

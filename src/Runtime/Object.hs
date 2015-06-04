@@ -71,6 +71,7 @@ objHasProperty p objRef = isJust <$> objGetProperty p objRef
 objDelete :: String -> Bool -> Shared JSObj -> Runtime JSVal
 objDelete p throw objRef = do
   desc <- objGetOwnProperty p objRef
+  debug desc
   case desc of
     Nothing -> return (VBool True)
     Just d -> if propIsConfigurable d
