@@ -450,3 +450,13 @@ spec = do
 
     it "is a type error when RHS is not a function object" $ do
       runJStr "({}) instanceof this" `shouldError` "TypeError: Expecting a function in instanceof"
+
+  describe "Property assignment" $ do
+    it "silently refuses to assign to Math.E" $ do
+      -- language/expressions/assignment/S8.12.4_A1
+      runJStr "Math.E = 1; console.log(Math.E)" `shouldReturn` Right "2.718281828459045\n"
+
+    it "throws a type exception whe assigning to Math.E in strict mode" $ do
+      -- language/expressions/assignment/11.13.1-4-28gs
+      runJStr "'use strict'; Math.E = 1; console.log(Math.E)" `shouldError`
+        "TypeError: Attempt to overwrite read-only property E"

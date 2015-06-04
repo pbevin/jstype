@@ -10,6 +10,7 @@ import Data.Maybe
 import Runtime.Types
 import Runtime.Global
 import Runtime.PropMap
+import Expr
 
 import Debug.Trace
 
@@ -61,6 +62,7 @@ objPut p v throw objRef = do
       void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
     _ -> objGetProperty p objRef >>= \case
            Just (AccessorPD g (Just s) e c) -> void $ s v
+           Just (AccessorPD _ Nothing _ _) -> raiseProtoError TypeError "Cannot assign to property without a setter"
            _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
 
 -- ref 8.12.6
@@ -138,7 +140,7 @@ objDefineOwnPropertyObject p desc throw objRef = do
       if extensible
       then _objCreateOwnProperty p desc objRef
       else raiseProtoError TypeError $ "Can't add to non-extensible object"
-    Just current -> _objUpdateOwnProperty p desc current objRef
+    Just current -> _objUpdateOwnProperty p desc current throw objRef
       -- if propIsWritable current
       -- then _objUpdateOwnProperty p desc current objRef
       -- else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
@@ -147,16 +149,18 @@ objDefineOwnPropertyObject p desc throw objRef = do
 _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
 _objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
 
-_objUpdateOwnProperty :: String -> PropDesc JSVal -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
-_objUpdateOwnProperty p (DataPD v w e c) (DataPD _ w' _ _) =
+_objUpdateOwnProperty :: String -> PropDesc JSVal -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+_objUpdateOwnProperty p (DataPD v w e c) (DataPD _ w' _ _) throw =
   if w' == False
-  then const $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
+  then if throw
+       then const $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
+       else return . id
   else updateObj $ objSetPropertyDescriptor p (DataPD v w e c)
-_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) =
+_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) throw =
   let newv = v' <|> v
       neww = w' <|> w
   in updateObj $ objSetPropertyDescriptor p (AccessorPD newv neww e c)
-_objUpdateOwnProperty p _ _ = return
+_objUpdateOwnProperty p _ _ _ = return
 
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
