@@ -60,20 +60,17 @@ arrayJoin this args =
     o <- toObject this
     lenVal <- objGet "length" o
     len <- toInt32 lenVal
-    sep <- toString separator
+    sep <- toString $ ifUndefined (VStr ",") separator
     if len == 0
     then return (VStr "")
     else do
-      d <- sequence $ forM [0..len-1] $ \k -> objGet (show k) o >>= stringOrEmpty
-      return (intercalate "," d)
-
-
-        
-
-
-
+      d <- forM [0..len-1] $ getString o
+      return $ VStr (intercalate sep d)
 
   where
+    getString :: Show a => Shared JSObj -> a -> Runtime String
+    getString o k = objGet (show k) o >>= stringOrEmpty
+    stringOrEmpty :: JSVal -> Runtime String
     stringOrEmpty VUndef = return ""
     stringOrEmpty VNull  = return ""
     stringOrEmpty val    = toString val

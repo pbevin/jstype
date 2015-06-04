@@ -105,6 +105,10 @@ fromObj :: JSVal -> Maybe (Shared JSObj)
 fromObj (VObj v) = Just v
 fromObj _ = Nothing
 
+ifUndefined :: JSVal -> JSVal -> JSVal
+ifUndefined dflt VUndef = dflt
+ifUndefined _ val       = val
+
 isPrimitive :: JSVal -> Bool
 isPrimitive VUndef    = True
 isPrimitive VNull     = True
