@@ -561,6 +561,9 @@ walkStatement sv ev = walk where
     Return _ (Just e)        -> ewalk e
     WithStatement _ e s      -> ewalk e ++ walk s
     For l h s                -> hwalk l h ++ walk s
+    TryStatement _ s c f     -> walk s ++ concatMap walk (catMaybes [c, f])
+    Catch _ _ s              -> walk s
+    Finally _ s              -> walk s
 
     _                        -> []
   ewalk = walkExpr sv ev

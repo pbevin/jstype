@@ -39,13 +39,12 @@ data Statement = Block SrcLoc [Statement]
                | Return SrcLoc (Maybe Expr)
                | WithStatement SrcLoc Expr Statement
                | ThrowStatement SrcLoc Expr
-               | TryStatement SrcLoc Statement (Maybe Catch) (Maybe Finally)
+               | TryStatement SrcLoc Statement (Maybe Statement) (Maybe Statement)
+               | Catch SrcLoc Ident Statement
+               | Finally SrcLoc Statement
                | EmptyStatement SrcLoc
                | DebuggerStatement SrcLoc
   deriving (Show, Eq)
-
-data Catch = Catch SrcLoc Ident Statement deriving (Show, Eq)
-data Finally = Finally SrcLoc Statement deriving (Show, Eq)
 
 type FunBody = [Statement]
 

@@ -312,7 +312,7 @@ runWithStatement e s = do
 
 
 -- ref 12.14
-runCatch :: Maybe Catch -> JSVal -> Runtime StmtReturn
+runCatch :: Maybe Statement -> JSVal -> Runtime StmtReturn
 runCatch Nothing _ = return (CTNormal, Nothing, Nothing)
 runCatch (Just (Catch _loc var stmt)) c = do
   oldEnv <- lexEnv <$> getGlobalContext
