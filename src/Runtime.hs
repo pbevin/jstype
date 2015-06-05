@@ -106,35 +106,35 @@ funConstructor this args = case this of
     body <- toString arg
     let Program strictness stmts = simpleParseInFunction body
     newProto <- newObject
-    constructFunction [] strictness stmts newProto objRef
+    constructFunction Nothing [] strictness stmts newProto objRef
     return this
   _ -> raiseTypeError "Function constructor"
 
 
-constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
-constructFunction paramList strict body prototype this = do
+constructFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
+constructFunction name paramList strict body prototype this = do
   func <- mkFunction "XXX" prototype this
     >>= objDefineOwnProperty "prototype" (DataPD (VObj prototype) True False False) False
 
-  setCstrMethod (funcCall (VObj func) paramList strict body) func
-  setCallMethod (funcCall (VObj func) paramList strict body) func
+  setCstrMethod (funcCall name (VObj func) paramList strict body) func
+  setCallMethod (funcCall name (VObj func) paramList strict body) func
 
   return func
 
 
-createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
-createFunction paramList strict body = do
+createFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
+createFunction name paramList strict body = do
   prototype <- objFindPrototype "Function"
   myPrototype <- newObject
-  VObj <$> (newObject >>= constructFunction paramList strict body myPrototype
+  VObj <$> (newObject >>= constructFunction name paramList strict body myPrototype
                       >>= objSetPrototype prototype
                       >>= addOwnProperty "length" (VNum $ fromIntegral $ length paramList))
 
 
 
 -- ref 13.2.1
-funcCall :: JSVal -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
-funcCall func paramList strict body this args =
+funcCall :: Maybe Ident -> JSVal -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
+funcCall name func paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
       newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, varEnv = env, cxtStrictness = strict }
       addToNewEnv :: EnvRec -> Ident -> JSVal -> Runtime ()
@@ -150,6 +150,9 @@ funcCall func paramList strict body this args =
     zipWithM_ (addToNewEnv rec) paramList args
     VObj arguments <- createArgumentsObject func paramList args strict
     addToNewEnv rec "arguments" (VObj arguments)
+    case name of
+      Just n -> addToNewEnv rec n func
+      _      -> return ()
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt env newThis) $ do
       performDBI DBIFunction strict body
@@ -527,7 +530,7 @@ performDBI _dbiType strict stmts = do
     where
       bindFunc :: JSEnv -> Statement -> Runtime ()
       bindFunc env (FunDecl _ fn paramList strict body) = do -- (5)
-        fo <- createFunction paramList strict body -- (5b)
+        fo <- createFunction (Just fn) paramList strict body -- (5b)
         rec <- envRec <$> deref env
         funcAlreadyDeclared <- hasBinding fn rec -- (5c)
 

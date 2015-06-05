@@ -418,11 +418,8 @@ runExprStmt expr = case expr of
     assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
     liftM VObj (newObjectFromConstructor fun argList)
 
-  FunExpr (Just name) params strictness body -> do
-    fun <- createFunction params strictness body
-    return fun
-
-  FunExpr Nothing params strictness body -> createFunction params strictness body
+  FunExpr name params strictness body ->
+    createFunction name params strictness body
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 
@@ -475,11 +472,11 @@ makeObjectLiteral nameValueList =do
       return $ DataPD val True True True
     makeDescriptor (Getter body) = do
       strict <- getGlobalStrictness
-      func <- createFunction [] strict body >>= mkGetter
+      func <- createFunction Nothing [] strict body >>= mkGetter
       return $ AccessorPD func Nothing True True
     makeDescriptor (Setter param body) = do
       strict <- getGlobalStrictness
-      func <- createFunction [param] strict body >>= mkSetter
+      func <- createFunction Nothing [param] strict body >>= mkSetter
       return $ AccessorPD Nothing func True True
 
     checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
