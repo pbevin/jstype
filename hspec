@@ -1,1 +1,3 @@
-cabal exec runhaskell -- -isrc -itest RunSpecs
+#!/bin/sh
+
+cabal exec runhaskell -- -isrc -itest Main --format=progress "$@"
