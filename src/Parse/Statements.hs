@@ -320,7 +320,7 @@ postfixExpr p = do
     where postfix e = do
             op <- choice $ map (try . tok) $ postfixOps jsLang
             whiteSpace
-            guard $ legalModification op e
+            ifStrict (guard $ legalModification op e)
             return $ PostOp op e
 
 unaryExpr :: JSParser Expr -> JSParser Expr
@@ -329,7 +329,7 @@ unaryExpr p = (try unop <|> p) <?> "unary expr"
           op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
           whiteSpace
           e <- unaryExpr p
-          guard $ legalModification op e
+          ifStrict (guard $ legalModification op e)
           return $ UnOp op e
 
 legalModification :: String -> Expr -> Bool
@@ -361,9 +361,18 @@ condExpr p = do
             return $ Cond test ifTrue ifFalse
 
 assignExpr :: JSParser Expr -> JSParser Expr
-assignExpr p = chainr1 p $ try $ do
+assignExpr p = chainr1 (notExprOrAssign p) $ try $ do
                  op <- tok "=" <|> assignOp
                  return $ \a b -> Assign a op b
+
+notExprOrAssign :: JSParser Expr -> JSParser Expr
+notExprOrAssign p = do
+  e <- p
+  ifStrict $ do
+    guard (e /= ReadVar "eval")
+    guard (e /= ReadVar "arguments")
+
+  return e
 
 simple :: JSParser Expr
 simple = parens expr

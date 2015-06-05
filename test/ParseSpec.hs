@@ -51,8 +51,9 @@ unparseable :: String -> IO ()
 unparseable str = parseJS str `shouldSatisfy` isLeft
 
 unparseableInStrictMode :: String -> IO ()
-unparseableInStrictMode str = parseJS'' str "" Strict False
-  `shouldSatisfy` isLeft
+unparseableInStrictMode str = do
+  parseJS'' str "" Strict False `shouldSatisfy` isLeft
+  parseJS'' str "" NotStrict False `shouldSatisfy` isRight
 
 
 spec :: Spec
@@ -397,6 +398,12 @@ spec = do
     it "disallows eval and arguments as setter args" $ do
       unparseableInStrictMode "var obj = { set x(eval) {}};"
       unparseableInStrictMode "var obj = { set x(arguments) {}};"
+
+    it "disallows eval and arguments as LHS of assignments" $ do
+      unparseableInStrictMode "eval = 42"
+      unparseableInStrictMode "arguments = 42"
+      unparseableInStrictMode "x = eval = 42"
+      unparseableInStrictMode "x = arguments = 42"
 
   describe "with" $ do
     it "parses a with statement" $ do

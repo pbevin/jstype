@@ -483,11 +483,6 @@ spec = do
       runJStr "eval('console.log(h()); function h() { return \"ok\" }')"
         `shouldReturn` Right "ok\n"
 
-
     it "handles arguments.constructor properly" $ do
       -- language/arguments-object/S10.6_A2
       jsEvalExpr "(function() { return arguments.constructor.prototype; })() === Object.prototype" `shouldReturn` VBool True
-
-    it "treats an function object with a strict mode declaration as strict" $ do
-      runJStr "var f = new Function(' ', \"'use strict'; eval = 42;\"); f();"
-        `shouldError` "SyntaxError: Assignment of eval in strict mode"
