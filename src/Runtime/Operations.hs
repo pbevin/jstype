@@ -135,7 +135,6 @@ liftStr op a b = do
 -- ref 11.9.6, incomplete
 tripleEquals :: JSVal -> JSVal -> Runtime JSVal
 tripleEquals v1 v2 = do
-  debug (v1, v2)
   return $ VBool $ eq v1 v2
   where eq x y
           | typeof x /= typeof y        = False
