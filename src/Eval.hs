@@ -174,6 +174,7 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
 
 runStmt :: Statement -> Runtime StmtReturn
 runStmt s = case s of
+  FunDecl {} -> return (CTNormal, Nothing, Nothing)
   ExprStmt _loc e -> do
     val <- runExprStmt e >>= getValue
     return (CTNormal, Just val, Nothing)
@@ -417,12 +418,11 @@ runExprStmt expr = case expr of
     assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
     liftM VObj (newObjectFromConstructor fun argList)
 
-  FunDef (Just name) params strictness body -> do
+  FunExpr (Just name) params strictness body -> do
     fun <- createFunction params strictness body
-    putVar name fun
     return fun
 
-  FunDef Nothing params strictness body -> createFunction params strictness body
+  FunExpr Nothing params strictness body -> createFunction params strictness body
 
   _              -> error ("Unimplemented expr: " ++ show expr)
 

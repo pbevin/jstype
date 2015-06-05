@@ -44,6 +44,7 @@ data Statement = Block SrcLoc [Statement]
                | Finally SrcLoc Statement
                | EmptyStatement SrcLoc
                | DebuggerStatement SrcLoc
+               | FunDecl SrcLoc Ident ParameterList Strictness FunBody
   deriving (Show, Eq)
 
 type FunBody = [Statement]
@@ -73,7 +74,7 @@ data Expr = Num JSNum
           | MemberDot Expr Ident  -- e.g., point.x
           | MemberGet Expr Expr   -- e.g., point["x"]
           | FunCall Expr [Expr]
-          | FunDef (Maybe Ident) ParameterList Strictness FunBody
+          | FunExpr (Maybe Ident) ParameterList Strictness FunBody
   deriving (Show, Eq)
 
 data Lang = Lang {

@@ -471,9 +471,21 @@ spec = do
 
 
   describe "Function handling" $ do
+    it "can invoke a function defined later" $
+      runJStr "console.log(f()); function f() { return 'nice' }"
+        `shouldReturn` Right "nice\n"
+
+    it "can invoke an inner function defined later" $
+      runJStr "g(); function g() { console.log(f()); function f() { return 'inner' } }"
+        `shouldReturn` Right "inner\n"
+
+    it "can invoke a function defined later in eval" $
+      runJStr "eval('console.log(h()); function h() { return \"ok\" }')"
+        `shouldReturn` Right "ok\n"
+
+
     it "handles arguments.constructor properly" $ do
       -- language/arguments-object/S10.6_A2
-      -- runJStr "console.log((function() { return arguments.constructor.__objid(); })())" `shouldReturn` Right ""
       jsEvalExpr "(function() { return arguments.constructor.prototype; })() === Object.prototype" `shouldReturn` VBool True
 
     it "treats an function object with a strict mode declaration as strict" $ do

@@ -35,8 +35,9 @@ testParse input =
         TryStatement _ a b c   -> TryStatement s a b c
         EmptyStatement _       -> EmptyStatement s
         DebuggerStatement _    -> DebuggerStatement s
+        FunDecl _ a b c d      -> FunDecl s a b c $ overrideAll d
       fixExpr e = case e of
-        FunDef a b c body -> FunDef a b c (overrideAll body)
+        FunExpr a b c body -> FunExpr a b c (overrideAll body)
         ObjectLiteral a   -> ObjectLiteral $ map (second f) a
           where f (Value v) = Value v
                 f (Getter xs) = Getter (overrideAll xs)
@@ -340,11 +341,12 @@ spec = do
       unparseable "return"
 
     it "parses a return statement with a value" $ do
-      testParse "function() { return 4 }" `shouldBe`
-        Program NotStrict [ ExprStmt s $ FunDef Nothing [] NotStrict $ [ Return s $ Just $ Num 4 ] ]
+      testParse "function f() { return 4 }" `shouldBe`
+        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s $ Just $ Num 4 ] ]
 
     it "does not let a return statement break onto a newline" $ do
-      testParse "function() { return\n5\n}" `shouldBe` Program NotStrict [ ExprStmt s $ FunDef Nothing [] NotStrict $ [ Return s Nothing, ExprStmt s (Num 5) ] ]
+      testParse "function f() { return\n5\n}" `shouldBe`
+        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s Nothing, ExprStmt s (Num 5) ] ]
 
     it "splits a statement on ++ if on a new line" $ do
       testParse "a=b\n++c" `shouldBe`
@@ -401,3 +403,12 @@ spec = do
       testParse "with(obj) { }" `shouldBe`
         Program NotStrict [
           WithStatement s (ReadVar "obj") (Block s []) ]
+
+  describe "An ExpressionStatement" $ do
+    it "cannot begin with a curly bracket" $
+      testParse "{}" `shouldBe`
+        Program NotStrict [ Block s [ ] ]
+
+    it "cannot begin with the word 'function'" $
+      testParse "function f() { }" `shouldBe`
+        Program NotStrict [ FunDecl s "f" [] NotStrict [] ]

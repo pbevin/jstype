@@ -56,6 +56,7 @@ terminated p = do
 
 statement :: JSParser Statement
 statement = choice [ block <?> "block",
+                     funDecl <?> "function declaration",
                      labelledStmt <?> "label",
                      terminated exprStmt <?> "expression",
                      terminated varDecl <?> "var declaration",
@@ -82,6 +83,15 @@ block = do
 
 realblock :: JSParser Statement
 realblock = Block <$> srcLoc <*> braces (many statement)
+
+funDecl :: JSParser Statement
+funDecl = do
+  loc <- srcLoc
+  try $ keyword "function"
+  name <- identifier <?> "function name"
+  params <- parens (identifier `sepBy` comma) <?> "parameter list"
+  (strictness, stmts) <- withFunctionContext (Just name) (withoutInsideIteration $ braces statementList) <?> "function body"
+  return $ FunDecl loc name params strictness stmts
 
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
@@ -282,7 +292,7 @@ functionExpr = do
   name <- optionMaybe identifier <?> "function name"
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
   (strictness, stmts) <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
-  return $ FunDef name params strictness stmts
+  return $ FunExpr name params strictness stmts
 
 callExpr :: JSParser Expr -> JSParser Expr
 callExpr p = do

@@ -522,9 +522,19 @@ data DBIType = DBIGlobal | DBIFunction | DBIEval deriving Show
 performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
 performDBI _dbiType strict stmts = do
   env <- varEnv <$> getGlobalContext
-  mapM_ (bindVar env) (concatMap searchFunctionNames stmts)
   mapM_ (bindVar env) (concatMap searchVariables stmts)
+  mapM_ (bindFunc env) (concatMap searchFunctionNames stmts)
     where
+      bindFunc :: JSEnv -> Statement -> Runtime ()
+      bindFunc env (FunDecl _ fn paramList strict body) = do -- (5)
+        fo <- createFunction paramList strict body -- (5b)
+        rec <- envRec <$> deref env
+        funcAlreadyDeclared <- hasBinding fn rec -- (5c)
+
+        unless (funcAlreadyDeclared) $ do -- (5d)
+          createMutableBinding fn False env
+          setMutableBinding fn fo (strict == Strict) rec
+
       bindVar :: JSEnv -> Ident -> Runtime ()
       bindVar env dn = do -- (8)
         rec <- envRec <$> deref env
@@ -533,12 +543,13 @@ performDBI _dbiType strict stmts = do
           createMutableBinding dn False env
           setMutableBinding dn VUndef (strict == Strict) rec
 
-searchFunctionNames :: Statement -> [Ident]
-searchFunctionNames = walkStatement (const []) fnFinder
+searchFunctionNames :: Statement -> [Statement]
+searchFunctionNames = walkStatement fnFinder (const [])
 
-fnFinder :: Expr -> [Ident]
-fnFinder (FunDef (Just fn) _ _ _) = [fn]
-fnFinder _ = []
+fnFinder :: Statement -> [Statement]
+fnFinder stmt = case stmt of
+  FunDecl _ fn _ _ _ -> [stmt]
+  _                  -> []
 
 searchVariables :: Statement -> [Ident]
 searchVariables = walkStatement varFinder (const [])
