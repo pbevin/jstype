@@ -27,6 +27,8 @@ import Parse
 import Expr
 import JSNum
 
+import Debug.Trace
+
 initialCxt :: Runtime JSCxt
 initialCxt = do
   env <- initialEnv
@@ -100,7 +102,7 @@ funFunction prototype _this args = do
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor this args = case this of
   VObj objRef -> do
-    let arg = first1 args
+    let arg = lastDef VUndef args
     body <- toString arg
     let Program strictness stmts = simpleParseInFunction body
     newProto <- newObject
@@ -287,6 +289,7 @@ createGlobalThis = do
   newObject
     >>= addOwnProperty "Object" (VObj object)
     >>= addOwnProperty "Function" (VObj function)
+
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
 objEscape _this args = case args of

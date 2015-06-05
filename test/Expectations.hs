@@ -3,6 +3,7 @@
 module Expectations where
 
 import Test.Hspec
+import Data.List (isPrefixOf)
 import Runtime
 import Eval
 
@@ -25,3 +26,14 @@ shouldError :: Show b => IO (Either RuntimeError b) -> String -> Expectation
 shouldError val errorText = val >>= \case
   Left err -> errorMessage err `shouldBe` errorText
   Right v  -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
+
+shouldErrorOfType :: Show b => IO (Either RuntimeError b) -> ErrorType -> Expectation
+shouldErrorOfType val errorType = val >>= \case
+  Left err -> errorMessage err `shouldStartWith` (show errorType ++ ":")
+  Right v  -> expectationFailure $ "was a val (" ++ show v ++ "), not an error"
+
+shouldStartWith :: String -> String -> Expectation
+shouldStartWith haystack needle
+  | needle `isPrefixOf` haystack = return ()
+  | otherwise = expectationFailure $
+      "Expected string starting with " ++ show needle ++ ", got " ++ show haystack
