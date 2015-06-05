@@ -111,10 +111,13 @@ funConstructor this args = case this of
 
 constructFunction :: [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
 constructFunction paramList strict body prototype this = do
-  mkFunction "XXX" prototype this
+  func <- mkFunction "XXX" prototype this
     >>= objDefineOwnProperty "prototype" (DataPD (VObj prototype) True False False) False
-    >>= setCstrMethod (funcCall paramList strict body)
-    >>= setCallMethod (funcCall paramList strict body)
+
+  setCstrMethod (funcCall (VObj func) paramList strict body) func
+  setCallMethod (funcCall (VObj func) paramList strict body) func
+
+  return func
 
 
 createFunction :: [Ident] -> Strictness -> [Statement] -> Runtime JSVal
@@ -128,8 +131,8 @@ createFunction paramList strict body = do
 
 
 -- ref 13.2.1
-funcCall :: [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
-funcCall paramList strict body this args =
+funcCall :: JSVal -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
+funcCall func paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
       newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, varEnv = env, cxtStrictness = strict }
       addToNewEnv :: EnvRec -> Ident -> JSVal -> Runtime ()
@@ -143,8 +146,7 @@ funcCall paramList strict body this args =
     rec <- newEnvRec
     env <- newEnv rec (lexEnv cxt)
     zipWithM_ (addToNewEnv rec) paramList args
-    VObj arguments <- createArgumentsObject this paramList args strict
-    addOwnProperty "callee" (VNum 42) arguments
+    VObj arguments <- createArgumentsObject func paramList args strict
     addToNewEnv rec "arguments" (VObj arguments)
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt env newThis) $ do
@@ -168,6 +170,8 @@ createArgumentsObject func names args strict =
     forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
       objDefineOwnProperty (show indx) (DataPD val True True True) False map
+
+    cs <- objGet "constructor" objectPrototype
 
     obj <- newObject >>= setClass "Arguments"
                      >>= objSetPrototype objectPrototype
@@ -252,6 +256,7 @@ createGlobalObjectPrototype =
             >>= addOwnProperty "toString" (VNative objToString)
             >>= addOwnProperty "hasOwnProperty" (VNative objHasOwnProperty)
             >>= addOwnProperty "valueOf" (VNative objValueOf)
+            >>= addOwnProperty "__objid" (VNative objId)
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -276,7 +281,8 @@ createGlobalThis = do
     >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
-  addOwnProperty "constructor" (VObj object) object
+  addOwnProperty "prototype" (VObj prototype) object
+  addOwnProperty "constructor" (VObj object) prototype
 
   newObject
     >>= addOwnProperty "Object" (VObj object)
@@ -495,6 +501,9 @@ objPreventExtensions _this args =
 -- ref 15.2.4.4, incomplete
 objValueOf :: JSVal -> [JSVal] -> Runtime JSVal
 objValueOf this _args = VObj <$> toObject this
+
+objId :: JSVal -> [JSVal] -> Runtime JSVal
+objId (VObj (Shared _ oid)) _args = return $ VNum $ fromIntegral oid
 
 -- ref 15.2.4.5
 objHasOwnProperty :: JSVal -> [JSVal] -> Runtime JSVal

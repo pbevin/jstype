@@ -468,3 +468,8 @@ spec = do
 
     it "refuses to assign to a prototype property" $ do
       runJStr "function x() {}; Object.defineProperty(x.prototype, 'y', {value:33, writable: false}); xx = new x(); xx.y = 4; console.log(xx.y)" `shouldReturn` Right "33\n"
+
+  it "handles arguments.constructor properly" $ do
+    -- language/arguments-object/S10.6_A2
+    -- runJStr "console.log((function() { return arguments.constructor.__objid(); })())" `shouldReturn` Right ""
+    jsEvalExpr "(function() { return arguments.constructor.prototype; })() === Object.prototype" `shouldReturn` VBool True
