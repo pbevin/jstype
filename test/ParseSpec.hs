@@ -13,10 +13,19 @@ import JSNum
 s :: SrcLoc
 s = SrcLoc "" 0 0 Nothing
 
+testParseStrict :: String -> Program
+testParseStrict input = eraseSrcLoc prog
+  where prog = case parseJS'' input "" Strict False of
+                Right p -> p
+                Left err -> error (show err)
+
+
 testParse :: String -> Program
-testParse input =
-  let Program strictness stmts = simpleParse input
-      srcLoc = SrcLoc "" 0 0
+testParse input = eraseSrcLoc (simpleParse input)
+
+eraseSrcLoc :: Program -> Program
+eraseSrcLoc (Program strictness stmts) =
+  let srcLoc = SrcLoc "" 0 0
       overrideAll = map overrideSrcLoc
       overrideSrcLoc stmt = case stmt of
         Block _ sts            -> Block s $ overrideAll sts
@@ -404,6 +413,11 @@ spec = do
       unparseableInStrictMode "arguments = 42"
       unparseableInStrictMode "x = eval = 42"
       unparseableInStrictMode "x = arguments = 42"
+
+    it "allows passing arguments to another function in strict mode" $ do
+      testParseStrict "f(arguments)" `shouldBe`
+        Program Strict [
+          ExprStmt s (FunCall (ReadVar "f") [ReadVar "arguments"]) ]
 
   describe "with" $ do
     it "parses a with statement" $ do

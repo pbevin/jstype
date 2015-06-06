@@ -6,6 +6,7 @@ import Text.Parsec hiding (many, (<|>), optional)
 import Control.Monad (liftM, when, guard)
 import Control.Applicative
 import Data.Maybe
+import Data.Foldable
 import Data.List (sortBy, nub, union, intersect)
 import Parse.Types
 import Parse.State
@@ -358,18 +359,18 @@ condExpr p = do
             return $ Cond test ifTrue ifFalse
 
 assignExpr :: JSParser Expr -> JSParser Expr
-assignExpr p = chainr1 (notExprOrAssign p) $ try $ do
-                 op <- tok "=" <|> assignOp
-                 return $ \a b -> Assign a op b
+assignExpr p = p >>= rest
+  where rest :: Expr -> JSParser Expr
+        rest e = do op <- do tok "=" <|> assignOp
+                    ifStrict $ do
+                      guard (e /= ReadVar "eval")
+                      guard (e /= ReadVar "arguments")
+                    Assign e op <$> assignExpr p
+             <|> return e
 
-notExprOrAssign :: JSParser Expr -> JSParser Expr
-notExprOrAssign p = do
-  e <- p
-  ifStrict $ do
-    guard (e /= ReadVar "eval")
-    guard (e /= ReadVar "arguments")
-
-  return e
+assignOp :: JSParser String
+assignOp = choice $ map op $ assignOps jsLang
+  where op name = try (tok name) >> return name
 
 simple :: JSParser Expr
 simple = parens expr
@@ -436,7 +437,7 @@ propertyName :: JSParser PropertyName
 propertyName = identifier
            <|> quotedString
            <|> numberText
-    
+
 nameValuePair :: JSParser PropertyAssignment
 nameValuePair = do
   name <- propertyName
@@ -548,7 +549,3 @@ literal = try $ (keyword "true"  >> return (Boolean True))
 
 numericLiteral :: JSParser JSNum
 numericLiteral = liftM JSNum number
-
-assignOp :: JSParser String
-assignOp = choice $ map op $ assignOps jsLang
-  where op name = try (tok name) >> return name
