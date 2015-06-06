@@ -3,13 +3,10 @@
 module Parse.Statements where
 
 import Text.Parsec hiding (many, (<|>), optional)
-import Control.Monad (replicateM, liftM, when, guard)
+import Control.Monad (liftM, when, guard)
 import Control.Applicative
 import Data.Maybe
-import Data.Foldable
-import Data.Char
 import Data.List (sortBy, nub, union, intersect)
-import Numeric
 import Parse.Types
 import Parse.State
 import Parse.Lexical
@@ -532,9 +529,6 @@ singleCharEscape 'v' = '\v'
 singleCharEscape 'f' = '\f'
 singleCharEscape 'r' = '\r'
 singleCharEscape ch  = ch
-
-unicodeEscape :: JSParser Char
-unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit
 
 singleQuotedString :: JSParser String
 singleQuotedString = do

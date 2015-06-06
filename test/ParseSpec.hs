@@ -419,3 +419,8 @@ spec = do
     it "cannot begin with the word 'function'" $
       testParse "function f() { }" `shouldBe`
         Program NotStrict [ FunDecl s "f" [] NotStrict [] ]
+
+  describe "an identifier" $ do
+    it "can have unicode escapes in it" $ do
+      testParse "function \\u005f\\u005f\\u0066\\u0075\\u006e\\u0063(){ }"
+        `shouldBe` testParse "function __func() { }"
