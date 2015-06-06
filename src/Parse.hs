@@ -2,7 +2,7 @@ module Parse ( parseJS
              , parseJS'
              , parseJS''
              , simpleParse
-             , simpleParseInFunction
+             , parseInFunction
              , parseExpr
              , parseNumber
              , ParseError) where
@@ -28,10 +28,8 @@ parseJS' str filename = jsParse (whiteSpace >> prog <* eof) NotStrict False file
 parseJS'' :: String -> String -> Strictness -> Bool -> Either ParseError Program
 parseJS'' str filename strict inFunction = jsParse (whiteSpace >> prog <* eof) strict inFunction filename str
 
-simpleParseInFunction ::String -> Program
-simpleParseInFunction str = case parseJS'' str "" NotStrict True of
-  Right p  -> p
-  Left err -> error (show err)
+parseInFunction ::String -> Either ParseError Program
+parseInFunction str = parseJS'' str "" NotStrict True
 
 simpleParse :: String -> Program
 simpleParse str = case parseJS str of

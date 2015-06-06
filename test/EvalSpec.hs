@@ -479,6 +479,9 @@ spec = do
       runJStr "g(); function g() { console.log(f()); function f() { return 'inner' } }"
         `shouldReturn` Right "inner\n"
 
+    it "raises a syntax error when it cannot parse a new Function(..) body" $ do
+      runJStr "var f = new Function(' ', '\"use strict\"; eval = 4'); f();" `shouldErrorOfType` SyntaxError
+
     it "can invoke a function defined later in eval" $
       runJStr "eval('console.log(h()); function h() { return \"ok\" }')"
         `shouldReturn` Right "ok\n"

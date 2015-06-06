@@ -104,10 +104,12 @@ funConstructor this args = case this of
   VObj objRef -> do
     let arg = lastDef VUndef args
     body <- toString arg
-    let Program strictness stmts = simpleParseInFunction body
-    newProto <- newObject
-    constructFunction Nothing [] strictness stmts newProto objRef
-    return this
+    case parseInFunction body of
+      Left err -> raiseSyntaxError (show err)
+      Right (Program strictness stmts) -> do
+        newProto <- newObject
+        constructFunction Nothing [] strictness stmts newProto objRef
+        return this
   _ -> raiseTypeError "Function constructor"
 
 
@@ -544,7 +546,7 @@ performDBI dbiType strict stmts = do
             then void $ objDefineOwnProperty fn blankDesc True go
             else when (propIsUnwritable existingProp) $
                   raiseTypeError $ "Cannot overwrite function " ++ fn
-             
+
         setMutableBinding fn fo (strict == Strict) rec
 
 
@@ -562,7 +564,7 @@ performDBI dbiType strict stmts = do
 
       configurableBindings :: Bool
       configurableBindings = dbiType == DBIEval
-  
+
       blankDesc :: PropDesc JSVal
       blankDesc = DataPD VUndef True True configurableBindings
 
