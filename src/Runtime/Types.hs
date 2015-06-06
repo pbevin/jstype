@@ -40,6 +40,10 @@ propIsConfigurable :: PropDesc a -> Bool
 propIsConfigurable (DataPD _ _ _ c) = c
 propIsConfigurable (AccessorPD _ _ _ c) = c
 
+propIsUnwritable :: PropDesc a -> Bool
+propIsUnwritable pd = not (propIsWritable pd || propIsConfigurable pd)
+
+
 valueToProp :: a -> PropDesc a
 valueToProp a = DataPD a True True True
 

@@ -521,9 +521,9 @@ objHasOwnProperty this args =
     VBool . isJust <$> objGetOwnProperty p o
 
 -- ref 10.5
-data DBIType = DBIGlobal | DBIFunction | DBIEval deriving Show
+data DBIType = DBIGlobal | DBIFunction | DBIEval deriving (Show, Eq)
 performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
-performDBI _dbiType strict stmts = do
+performDBI dbiType strict stmts = do
   env <- varEnv <$> getGlobalContext
   mapM_ (bindVar env) (concatMap searchVariables stmts)
   mapM_ (bindFunc env) (concatMap searchFunctionNames stmts)
@@ -534,9 +534,19 @@ performDBI _dbiType strict stmts = do
         rec <- envRec <$> deref env
         funcAlreadyDeclared <- hasBinding fn rec -- (5c)
 
-        unless (funcAlreadyDeclared) $ do -- (5d)
-          createMutableBinding fn False env
-          setMutableBinding fn fo (strict == Strict) rec
+        if not funcAlreadyDeclared
+        then createMutableBinding fn False env
+        else do
+          go <- getGlobalObject
+          when (isTopLevelEnvRec rec go) $ do
+            Just existingProp <- objGetProperty fn go
+            if propIsConfigurable existingProp
+            then void $ objDefineOwnProperty fn blankDesc True go
+            else when (propIsUnwritable existingProp) $
+                  raiseTypeError $ "Cannot overwrite function " ++ fn
+             
+        setMutableBinding fn fo (strict == Strict) rec
+
 
       bindVar :: JSEnv -> Ident -> Runtime ()
       bindVar env dn = do -- (8)
@@ -545,6 +555,18 @@ performDBI _dbiType strict stmts = do
         unless varAlreadyDeclared $ do
           createMutableBinding dn False env
           setMutableBinding dn VUndef (strict == Strict) rec
+
+      isTopLevelEnvRec :: EnvRec -> Shared JSObj -> Bool
+      isTopLevelEnvRec (ObjEnvRec o _) go = o == go
+      isTopLevelEnvRec _ _ = False
+
+      configurableBindings :: Bool
+      configurableBindings = dbiType == DBIEval
+  
+      blankDesc :: PropDesc JSVal
+      blankDesc = DataPD VUndef True True configurableBindings
+
+
 
 searchFunctionNames :: Statement -> [Statement]
 searchFunctionNames = walkStatement fnFinder (const [])
