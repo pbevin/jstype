@@ -61,7 +61,7 @@ toRuntimeError _ = error "Runtime did not convert error to string"
 evalCode :: String -> Runtime StmtReturn
 evalCode text = do
   currentStrictness <- return . cxtStrictness =<< getGlobalContext
-  case traceShowId $ parseJS'' text "(eval)" currentStrictness False of
+  case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
     Right prog -> runInEvalContext prog
  

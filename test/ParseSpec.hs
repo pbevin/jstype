@@ -420,6 +420,12 @@ spec = do
     it "disallows function params called eval and arguments" $ do
       unparseableInStrictMode "function f(eval) { }"
       unparseableInStrictMode "function g(arguments) { }"
+      unparseableInStrictMode "var f = function(eval) {}"
+      unparseableInStrictMode "var g = function(arguments) {}"
+
+    it "disallows repeated parameter names" $ do
+      unparseableInStrictMode "function f(a, a) { }"
+      unparseableInStrictMode "var f = function(a, a) { }"
 
     it "allows passing arguments to another function in strict mode" $ do
       testParseStrict "f(arguments)" `shouldBe`

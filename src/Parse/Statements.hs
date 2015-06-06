@@ -94,9 +94,10 @@ funDecl = do
 paramList :: JSParser [Ident]
 paramList = do
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  ifStrict $ guard (all validParam params)
+  ifStrict $ guard (all validParam params && allDistinct params)
   return params
     where validParam p = p /= "eval" && p /= "arguments"
+          allDistinct xs = (xs == nub xs)
 
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
@@ -295,7 +296,7 @@ functionExpr :: JSParser Expr
 functionExpr = do
   try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
-  params <- parens (identifier `sepBy` comma) <?> "parameter list"
+  params <- paramList
   (strictness, stmts) <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
   return $ FunExpr name params strictness stmts
 
