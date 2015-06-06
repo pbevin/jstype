@@ -61,9 +61,12 @@ unparseable str = parseJS str `shouldSatisfy` isLeft
 
 unparseableInStrictMode :: String -> IO ()
 unparseableInStrictMode str = do
-  parseJS'' str "" Strict False `shouldSatisfy` isLeft
-  parseJS'' str "" NotStrict False `shouldSatisfy` isRight
-
+  case parseJS'' str "" Strict False of
+    Left _ -> return ()
+    Right prog -> expectationFailure $ "Parseable in strict mode: " ++ show str ++ "\nParsed as: " ++ show prog
+  case parseJS'' str "" NotStrict False of
+    Left err -> expectationFailure $ "Unparseable in non-strict mode: " ++ show str ++ "\nError: " ++ show err
+    Right _ -> return ()
 
 spec :: Spec
 spec = do
@@ -413,6 +416,10 @@ spec = do
       unparseableInStrictMode "arguments = 42"
       unparseableInStrictMode "x = eval = 42"
       unparseableInStrictMode "x = arguments = 42"
+
+    it "disallows function params called eval and arguments" $ do
+      unparseableInStrictMode "function f(eval) { }"
+      unparseableInStrictMode "function g(arguments) { }"
 
     it "allows passing arguments to another function in strict mode" $ do
       testParseStrict "f(arguments)" `shouldBe`

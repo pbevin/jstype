@@ -87,9 +87,16 @@ funDecl = do
   loc <- srcLoc
   try $ keyword "function"
   name <- identifier <?> "function name"
-  params <- parens (identifier `sepBy` comma) <?> "parameter list"
+  params <- paramList
   (strictness, stmts) <- withFunctionContext (Just name) (withoutInsideIteration $ braces statementList) <?> "function body"
   return $ FunDecl loc name params strictness stmts
+
+paramList :: JSParser [Ident]
+paramList = do
+  params <- parens (identifier `sepBy` comma) <?> "parameter list"
+  ifStrict $ guard (all validParam params)
+  return params
+    where validParam p = p /= "eval" && p /= "arguments"
 
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
