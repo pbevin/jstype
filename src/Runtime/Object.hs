@@ -39,9 +39,16 @@ valGetProperty :: String -> JSVal -> Runtime (Maybe (PropDesc JSVal))
 valGetProperty name (VObj objRef) = objGetProperty name objRef
 valGetProperty _ _ = return Nothing
 
--- ref 8.12.3
 objGet :: String -> Shared JSObj -> Runtime JSVal
-objGet name objRef = do
+objGet p obj = do
+  getMethod <$> deref obj >>= \case
+    Nothing -> objGetObj p obj
+    Just f -> f p obj
+
+
+-- ref 8.12.3
+objGetObj :: String -> Shared JSObj -> Runtime JSVal
+objGetObj name objRef = do
   prop <- objGetProperty name objRef
   case prop of
     Nothing -> return VUndef
@@ -75,11 +82,11 @@ objPut p v throw objRef = do
   else do
     objGetOwnProperty p objRef >>= \case
       Just (DataPD {}) ->
-        void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
+        void $ defineOwnProperty p (DataPD v True True True) throw objRef
       _ -> objGetProperty p objRef >>= \case
              Just (AccessorPD _ (Just s) _ _) -> void $ s v
              Just (AccessorPD _ Nothing _ _) -> raiseProtoError TypeError "Cannot assign to property without a setter"
-             _ -> void $ objDefineOwnProperty p (DataPD v True True True) throw objRef
+             _ -> void $ defineOwnProperty p (DataPD v True True True) throw objRef
 
 -- ref 8.12.6
 objHasProperty :: String -> Shared JSObj -> Runtime Bool
@@ -205,6 +212,18 @@ setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
 
 setCstrMethod :: JSFunction -> ObjectModifier
 setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
+
+setGetMethod :: (String -> Shared JSObj -> Runtime JSVal) -> ObjectModifier
+setGetMethod f = updateObj $ \obj -> obj { getMethod = Just f }
+
+setScope :: Shared LexEnv -> ObjectModifier
+setScope scope = updateObj $ \obj -> obj { objScope = Just scope }
+
+setFormalParameters :: [Ident] -> ObjectModifier
+setFormalParameters params = updateObj $ \obj -> obj { objFormalParameters = Just params }
+
+setCode :: Program -> ObjectModifier
+setCode prog = updateObj $ \obj -> obj { objCode = Just prog }
 
 setPrimitiveValue :: JSVal -> ObjectModifier
 setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc

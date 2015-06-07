@@ -23,11 +23,11 @@ mkFunction name prototype this =
 -- ref 15.3.5.3
 hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
 hasInstance f val = case val of
-  VObj obj -> hasInstance' f obj
+  VObj obj -> hasInstance' obj
   _ -> return False
   where
-    hasInstance' :: Shared JSObj -> Shared JSObj -> Runtime Bool
-    hasInstance' f val = do
+    hasInstance' :: Shared JSObj -> Runtime Bool
+    hasInstance' val = do
       o <- objGet "prototype" f
       if typeof o /= TypeObject
       then raiseTypeError "TypeError"

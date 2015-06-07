@@ -127,10 +127,14 @@ data JSObj = JSObj {
   objPrototype :: Maybe (Shared JSObj),
   callMethod :: Maybe JSFunction,
   cstrMethod :: Maybe JSFunction,
+  getMethod :: Maybe (String -> Shared JSObj -> Runtime JSVal),
   hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
   defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)),
   objPrimitiveValue :: Maybe JSVal,
   objParameterMap :: Maybe JSVal,
+  objScope :: Maybe (Shared LexEnv),
+  objFormalParameters :: Maybe ([Ident]),
+  objCode :: Maybe Program,
   objExtensible :: Bool
 } deriving Show
 
@@ -141,15 +145,19 @@ emptyObject = JSObj {
   objPrototype = Nothing,
   callMethod = Nothing,
   cstrMethod = Nothing,
+  getMethod = Nothing,
   hasInstanceMethod = Nothing,
   defineOwnPropertyMethod = Nothing,
   objPrimitiveValue = Nothing,
   objParameterMap = Nothing,
+  objScope = Nothing,
+  objFormalParameters = Nothing,
+  objCode = Nothing,
   objExtensible = True
 }
 
-objDefineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
-objDefineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
+defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
   Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
   Just m -> m name desc strict objRef
 
@@ -260,6 +268,7 @@ newtype Runtime a = JS {
             MonadWriter String,
             MonadError JSError,
             MonadState JSGlobal,
+            MonadFix,
             Functor,
             Applicative)
 
@@ -273,11 +282,12 @@ data JSGlobal = JSGlobal {
   globalObjectPrototype :: Maybe (Shared JSObj),
   globalEvaluator :: Maybe (String -> Runtime StmtReturn),
   globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
+  globalEnvironment :: Maybe (Shared LexEnv),
   globalContext   :: Maybe JSCxt
 }
 
 emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing
+emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing Nothing
 
 
 raiseError :: String -> Runtime a

@@ -102,7 +102,8 @@ initGlobals = do
                        globalEvaluator = Just evalCode,
                        globalRun = Just runStmts }
   cxt <- initialCxt
-  modify $ \st -> st { globalContext = Just cxt }
+  modify $ \st -> st { globalContext = Just cxt,
+                       globalEnvironment = Just (lexEnv cxt) }
 
   configureBuiltins newGlobalObject
 
@@ -127,7 +128,7 @@ callToString (VStr str) = return (VStr str)
 callToString v = do
   obj <- toObject v
   ref <- memberGet (VObj obj) "toString"
-  funCall ref []
+  callFunction ref []
 
 getStackTrace :: JSVal -> Runtime [SrcLoc]
 getStackTrace (VObj obj) = do
@@ -357,7 +358,7 @@ runExprStmt expr = case expr of
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt f
     argList <- evalArguments args
-    funCall ref argList
+    callFunction ref argList
 
   Assign lhs op e -> do
     lref <- runExprStmt lhs
@@ -418,10 +419,11 @@ runExprStmt expr = case expr of
     assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
     liftM VObj (newObjectFromConstructor fun argList)
 
-  FunExpr name params strictness body ->
-    createFunction name params strictness body
+  FunExpr name params strictness body -> do
+    env <- varEnv <$> getGlobalContext
+    createFunction name params strictness body env
 
-  _              -> error ("Unimplemented expr: " ++ show expr)
+  _ -> error ("Unimplemented expr: " ++ show expr)
 
 evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
 evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
@@ -464,7 +466,7 @@ makeObjectLiteral nameValueList =do
       objGetOwnProperty name obj >>= \case
         Just previous -> checkCompatible previous desc
         Nothing -> return ()
-      objDefineOwnProperty name desc False obj
+      defineOwnProperty name desc False obj
 
     makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
     makeDescriptor (Value e) = do
@@ -472,11 +474,13 @@ makeObjectLiteral nameValueList =do
       return $ DataPD val True True True
     makeDescriptor (Getter body) = do
       strict <- getGlobalStrictness
-      func <- createFunction Nothing [] strict body >>= mkGetter
+      env <- lexEnv <$> getGlobalContext
+      func <- createFunction Nothing [] strict body env >>= mkGetter
       return $ AccessorPD func Nothing True True
     makeDescriptor (Setter param body) = do
       strict <- getGlobalStrictness
-      func <- createFunction Nothing [param] strict body >>= mkSetter
+      env <- lexEnv <$> getGlobalContext
+      func <- createFunction Nothing [param] strict body env >>= mkSetter
       return $ AccessorPD Nothing func True True
 
     checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()

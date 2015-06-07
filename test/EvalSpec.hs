@@ -479,6 +479,10 @@ spec = do
       runJStr "g(); function g() { console.log(f()); function f() { return 'inner' } }"
         `shouldReturn` Right "inner\n"
 
+    it "can call a function object" $ do
+      runJStr "var f = new Function(\"console.log('yes');\"); f()"
+        `shouldReturn` Right "yes\n"
+
     it "raises a syntax error when it cannot parse a new Function(..) body" $ do
       runJStr "var f = new Function(' ', '\"use strict\"; eval = 4'); f();" `shouldErrorOfType` SyntaxError
 
@@ -489,3 +493,7 @@ spec = do
     it "handles arguments.constructor properly" $ do
       -- language/arguments-object/S10.6_A2
       jsEvalExpr "(function() { return arguments.constructor.prototype; })() === Object.prototype" `shouldReturn` VBool True
+
+    it "sets unpassed params to undefined" $ do
+      runJStr "function f(a) { console.log(a); }; f();"
+        `shouldReturn` Right "undefined\n"

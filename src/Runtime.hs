@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
+import Control.Monad.Fix
 import Control.Applicative
 import Control.Arrow
 import Text.Printf
@@ -89,7 +90,7 @@ createArray vals =
 
 setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
 setArrayIndices assigns objRef = do
-  mapM_ (\(n, v) -> objDefineOwnProperty (show n) (DataPD v True True True) False objRef) assigns
+  mapM_ (\(n, v) -> defineOwnProperty (show n) (DataPD v True True True) False objRef) assigns
   return objRef
 
 
@@ -107,30 +108,68 @@ funConstructor this args = case this of
     case parseInFunction body of
       Left err -> raiseSyntaxError (show err)
       Right (Program strictness stmts) -> do
-        newProto <- newObject
-        constructFunction Nothing [] strictness stmts newProto objRef
-        return this
+        globalEnv <- getGlobalEnvironment
+        createFunction Nothing [] strictness stmts globalEnv
   _ -> raiseTypeError "Function constructor"
 
 
-constructFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
-constructFunction name paramList strict body prototype this = do
-  func <- mkFunction "XXX" prototype this
-    >>= objDefineOwnProperty "prototype" (DataPD (VObj prototype) True False False) False
 
-  setCstrMethod (funcCall name (VObj func) paramList strict body) func
-  setCallMethod (funcCall name (VObj func) paramList strict body) func
+-- ref 13.2
+createFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Shared LexEnv -> Runtime JSVal
+createFunction name paramList strict body scope =
+  VObj <$> buildFunction
+    where
+      buildFunction :: Runtime (Shared JSObj)
+      buildFunction = do
+        functionPrototype <- objFindPrototype "Function"
+        prototype <- VObj <$> newObject
+        let prop = DataPD prototype True False False
 
-  return func
+        func <- newObject
+          >>= setClass "Function" -- (3)
+          >>= objSetPrototype functionPrototype -- (4)
+          >>= setGetMethod funGet -- (5)
+          >>= objSetHasInstance (funHasInstance) -- (8)
+          >>= setScope scope
+          >>= setFormalParameters paramList
+          >>= setCode (Program strict body)
+          >>= objSetExtensible True
+          >>= defineOwnProperty "length" lengthProperty False
+          >>= defineOwnProperty "prototype" (prototypeProperty prototype) False
+
+        setCallMethod (callMethod $ VObj func) func -- (6) XXX
+        setCstrMethod (callMethod $ VObj func) func -- (7) XXX
+
+        ifStrictContext $ do
+          let prop = AccessorPD (Just thrower) (Just thrower) False False
+          defineOwnProperty "caller" prop False func
+          defineOwnProperty "arguments" prop False func
+
+        return func
+
+      lengthProperty = DataPD nparams False False False
+      nparams = VNum $ fromIntegral $ length paramList
+      prototypeProperty prototype = DataPD prototype True False False
+      nameProperty = fromMaybe "" name
+      callMethod func = funcCall name func paramList strict body
+      thrower _ = raiseTypeError "Cannot access property"
+
+funGet :: String -> Shared JSObj -> Runtime JSVal
+funGet p f = do
+  val <- objGetObj p f
+  if p /= "caller"
+  then return val
+  else case val of
+    VObj obj -> do
+      prog <- objCode <$> deref obj
+      case prog of
+        Just (Program Strict _) ->
+          raiseTypeError "Cannot access caller property"
+        _ -> return val
 
 
-createFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
-createFunction name paramList strict body = do
-  prototype <- objFindPrototype "Function"
-  myPrototype <- newObject
-  VObj <$> (newObject >>= constructFunction name paramList strict body myPrototype
-                      >>= objSetPrototype prototype
-                      >>= addOwnProperty "length" (VNum $ fromIntegral $ length paramList))
+
+funHasInstance = undefined
 
 
 
@@ -144,16 +183,15 @@ funcCall name func paramList strict body this args =
       findNewThis VNull  = getGlobalObject
       findNewThis VUndef = getGlobalObject
       findNewThis other  = toObject other
-
   in do
     cxt <- getGlobalContext
-    rec <- newEnvRec
-    env <- newEnv rec (lexEnv cxt)
-    zipWithM_ (addToNewEnv rec) paramList args
+    envRec <- newEnvRec
+    env <- newEnv envRec (lexEnv cxt)
+    zipWithM_ (addToNewEnv envRec) paramList (args ++ repeat VUndef)
     VObj arguments <- createArgumentsObject func paramList args strict
-    addToNewEnv rec "arguments" (VObj arguments)
+    addToNewEnv envRec "arguments" (VObj arguments)
     case name of
-      Just n -> addToNewEnv rec n func
+      Just n -> addToNewEnv envRec n func
       _      -> return ()
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt env newThis) $ do
@@ -176,26 +214,26 @@ createArgumentsObject func names args strict =
     map <- newObject
     forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
-      objDefineOwnProperty (show indx) (DataPD val True True True) False map
+      defineOwnProperty (show indx) (DataPD val True True True) False map
 
     cs <- objGet "constructor" objectPrototype
 
     obj <- newObject >>= setClass "Arguments"
                      >>= objSetPrototype objectPrototype
-                     >>= objDefineOwnProperty "length" (DataPD (VNum len) True False True) False
+                     >>= defineOwnProperty "length" (DataPD (VNum len) True False True) False
                      >>= objSetParameterMap (VObj map) -- XXX missing step 12b
 
     -- Hack because I'm not willing to define new [[get]] etc. methods as per step 12b
     -- just now...
     forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
-      objDefineOwnProperty (show indx) (DataPD val True True True) False obj
+      defineOwnProperty (show indx) (DataPD val True True True) False obj
 
     case strict of
-      NotStrict -> objDefineOwnProperty "callee" (DataPD func True False True) False obj
+      NotStrict -> defineOwnProperty "callee" (DataPD func True False True) False obj
       Strict -> do
-        objDefineOwnProperty "caller" (AccessorPD (Just thrower) (Just thrower) False False) False obj
-        objDefineOwnProperty "callee" (AccessorPD (Just thrower) (Just thrower) False False) False obj
+        defineOwnProperty "caller" (AccessorPD (Just thrower) (Just thrower) False False) False obj
+        defineOwnProperty "callee" (AccessorPD (Just thrower) (Just thrower) False False) False obj
 
     return (VObj obj)
 
@@ -375,8 +413,8 @@ memberGet lval prop = do
   return $ VRef (JSRef lval prop strict)
 
 -- ref 11.2.3
-funCall :: JSVal -> [JSVal] -> Runtime JSVal
-funCall ref argList = do
+callFunction :: JSVal -> [JSVal] -> Runtime JSVal
+callFunction ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
   assertFunction name callMethod func
@@ -426,9 +464,10 @@ newObjectFromConstructor fun args = case fun of
         obj <- newObject
         prototype <- objGetProperty "prototype" funref >>= fromObj
         setPrototype prototype obj
-        objDefineOwnProperty "constructor" (DataPD val True False True) False obj
-        objCstr (VObj funref) (VObj obj) args
-        return obj
+        defineOwnProperty "constructor" (DataPD val True False True) False obj
+        objCstr (VObj funref) (VObj obj) args >>= \case
+          VObj o -> return o
+          _ -> return obj
       _ -> raiseError $ "Can't invoke constructor " ++ name
     fromObj :: Maybe (PropDesc JSVal) -> Runtime (Maybe (Shared JSObj))
     fromObj Nothing = return Nothing
@@ -490,7 +529,7 @@ objDefineProperty _this args =
     VObj obj -> do
       name <- toString p
       desc <- toPropertyDescriptor attrs
-      objDefineOwnProperty name desc True obj
+      defineOwnProperty name desc True obj
       return o
     _ -> raiseTypeError "Object.defineProperty called on non-object"
 
@@ -532,31 +571,31 @@ performDBI dbiType strict stmts = do
     where
       bindFunc :: JSEnv -> Statement -> Runtime ()
       bindFunc env (FunDecl _ fn paramList strict body) = do -- (5)
-        fo <- createFunction (Just fn) paramList strict body -- (5b)
-        rec <- envRec <$> deref env
-        funcAlreadyDeclared <- hasBinding fn rec -- (5c)
+        fo <- createFunction (Just fn) paramList strict body env -- (5b)
+        envRec <- envRec <$> deref env
+        funcAlreadyDeclared <- hasBinding fn envRec -- (5c)
 
         if not funcAlreadyDeclared
         then createMutableBinding fn False env
         else do
           go <- getGlobalObject
-          when (isTopLevelEnvRec rec go) $ do
+          when (isTopLevelEnvRec envRec go) $ do
             Just existingProp <- objGetProperty fn go
             if propIsConfigurable existingProp
-            then void $ objDefineOwnProperty fn blankDesc True go
+            then void $ defineOwnProperty fn blankDesc True go
             else when (propIsUnwritable existingProp) $
                   raiseTypeError $ "Cannot overwrite function " ++ fn
 
-        setMutableBinding fn fo (strict == Strict) rec
+        setMutableBinding fn fo (strict == Strict) envRec
 
 
       bindVar :: JSEnv -> Ident -> Runtime ()
       bindVar env dn = do -- (8)
-        rec <- envRec <$> deref env
-        varAlreadyDeclared <- hasBinding dn rec
+        envRec <- envRec <$> deref env
+        varAlreadyDeclared <- hasBinding dn envRec
         unless varAlreadyDeclared $ do
           createMutableBinding dn False env
-          setMutableBinding dn VUndef (strict == Strict) rec
+          setMutableBinding dn VUndef (strict == Strict) envRec
 
       isTopLevelEnvRec :: EnvRec -> Shared JSObj -> Bool
       isTopLevelEnvRec (ObjEnvRec o _) go = o == go

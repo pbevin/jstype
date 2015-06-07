@@ -39,6 +39,9 @@ getGlobalContext = getGlobal "cxt" globalContext
 getGlobalStrictness :: Runtime Strictness
 getGlobalStrictness = cxtStrictness <$> getGlobalContext
 
+getGlobalEnvironment :: Runtime (Shared LexEnv)
+getGlobalEnvironment = getGlobal "environment" globalEnvironment
+
 withGlobalContext :: (JSCxt -> JSCxt) -> Runtime a -> Runtime a
 withGlobalContext f action = do
   oldContext <- globalContext <$> get
@@ -49,6 +52,13 @@ withGlobalContext f action = do
 
 withNewContext :: JSCxt -> Runtime a -> Runtime a
 withNewContext cxt = withGlobalContext (const cxt)
+
+ifStrictContext :: Runtime a -> Runtime ()
+ifStrictContext a = do
+  strictness <- cxtStrictness <$> getGlobalContext
+  if strictness == Strict
+  then void a
+  else return ()
 
 withStrictness :: Strictness -> Runtime a -> Runtime a
 withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = strictness }
