@@ -9,6 +9,7 @@ import Safe
 import JSNum
 import Runtime.Types
 import Runtime.Object
+import Runtime.NumberToString
 import Parse
 
 
@@ -101,13 +102,6 @@ checkObjectCoercible VUndef = raiseProtoError TypeError "Undefined value not coe
 checkObjectCoercible VNull = raiseProtoError TypeError "Null value not coercible"
 checkObjectCoercible _ = return ()
 
-numberToString :: Double -> String
-numberToString n
-  | n == 0/0  = "NaN"
-  | n == 1/0  = "Infinity"
-  | n < 0     = "-" ++ numberToString (negate n)
-  | isInteger n = show (round n :: Integer)
-  | otherwise = show n
 
 isInteger :: RealFloat a => a -> Bool
 isInteger n = n == fromInteger (round n)
