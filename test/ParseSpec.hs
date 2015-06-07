@@ -427,6 +427,12 @@ spec = do
       unparseableInStrictMode "function f(a, a) { }"
       unparseableInStrictMode "var f = function(a, a) { }"
 
+    it "disallows functions named eval or arguments" $ do
+      unparseableInStrictMode "function eval() { }"
+      unparseableInStrictMode "function arguments() { }"
+      unparseableInStrictMode "var f = function eval() { }"
+      unparseableInStrictMode "var g = function arguments() { }"
+
     it "allows passing arguments to another function in strict mode" $ do
       testParseStrict "f(arguments)" `shouldBe`
         Program Strict [

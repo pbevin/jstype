@@ -87,6 +87,7 @@ funDecl = do
   loc <- srcLoc
   try $ keyword "function"
   name <- identifier <?> "function name"
+  ifStrict $ guard (legalIdentifier name)
   params <- paramList
   (strictness, stmts) <- withFunctionContext (Just name) (withoutInsideIteration $ braces statementList) <?> "function body"
   return $ FunDecl loc name params strictness stmts
@@ -94,10 +95,9 @@ funDecl = do
 paramList :: JSParser [Ident]
 paramList = do
   params <- parens (identifier `sepBy` comma) <?> "parameter list"
-  ifStrict $ guard (all validParam params && allDistinct params)
+  ifStrict $ guard (all legalIdentifier params && allDistinct params)
   return params
-    where validParam p = p /= "eval" && p /= "arguments"
-          allDistinct xs = (xs == nub xs)
+    where allDistinct xs = (xs == nub xs)
 
 labelledStmt :: JSParser Statement
 labelledStmt = try $ do
@@ -296,6 +296,8 @@ functionExpr :: JSParser Expr
 functionExpr = do
   try $ keyword "function"
   name <- optionMaybe identifier <?> "function name"
+  ifStrict $ forM_ name $ \n ->
+    guard (legalIdentifier n)
   params <- paramList
   (strictness, stmts) <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
   return $ FunExpr name params strictness stmts
@@ -339,10 +341,8 @@ unaryExpr p = (try unop <|> p) <?> "unary expr"
           return $ UnOp op e
 
 legalModification :: String -> Expr -> Bool
-legalModification "++" (ReadVar "eval") = False
-legalModification "--" (ReadVar "eval") = False
-legalModification "++" (ReadVar "arguments") = False
-legalModification "--" (ReadVar "arguments") = False
+legalModification "++" (ReadVar x) = legalIdentifier x
+legalModification "--" (ReadVar x) = legalIdentifier x
 legalModification _ _ = True
 
 binOps :: [String] -> JSParser Expr -> JSParser Expr
@@ -465,17 +465,18 @@ getter = try $ do
 
 setter :: JSParser PropertyAssignment
 setter = try $ do
-  strict <- getStrictness
   tok "set"
   name <- propertyName
   tok "("
   param <- identifier
-  when (strict == Strict) $
-    guard (param /= "eval" && param /= "arguments")
+  ifStrict $ guard (legalIdentifier param)
   tok ")"
   let cxt = Just ("set " ++ name)
   stmts <- braces (withFunctionContext cxt $ many statement)
   return (name, Setter param stmts)
+
+legalIdentifier :: Ident -> Bool
+legalIdentifier param = (param /= "eval" && param /= "arguments")
 
 regexLiteral :: JSParser Expr
 regexLiteral = do
