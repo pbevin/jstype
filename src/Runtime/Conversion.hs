@@ -118,6 +118,7 @@ toObject val = case val of
   VStr _      -> wrapPrimitive "String" val
   VBool _     -> wrapPrimitive "Boolean" val
   VNum _      -> wrapPrimitive "Number" val
+  VNative f   -> wrapNative f
   _           -> toString val >>= toObject . VStr
 
 wrapPrimitive :: String -> JSVal -> Runtime (Shared JSObj)
@@ -128,3 +129,10 @@ wrapPrimitive typeName val = do
   case cstrMethod obj of
     Nothing -> raiseProtoError TypeError "Can't create string!"
     Just cstr -> toObj <$> cstr (VObj this) [val]
+
+wrapNative :: JSFunction -> Runtime (Shared JSObj)
+wrapNative f = do
+  funPrototype <- objFindPrototype "Function"
+  newObject
+    >>= defineOwnProperty "length" (DataPD (VNum 3) True True True) False
+    >>= addOwnProperty "call" (VNative f)

@@ -15,9 +15,17 @@ getValue :: JSVal -> Runtime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
   | isUnresolvableReference ref = raiseReferenceError $ "No such variable " ++ getReferencedName ref
-  | isPropertyReference ref     = getValuePropertyReference ref
+  | isPropertyReference ref     = case base of
+      VObj objRef -> objGetProperty name objRef >>= toValue
+      _           -> toObject base >>= objGetProperty name >>= toValue
   | otherwise                   = getValueEnvironmentRecord ref
-    where ref = unwrapRef v
+    where ref@(JSRef base name strict) = unwrapRef v
+          toValue desc = case desc of
+              Nothing -> return VUndef
+              Just (DataPD v _ _ _) -> return v
+              Just (AccessorPD Nothing _ _ _) -> return VUndef
+              Just (AccessorPD (Just getter) _ _ _) -> getter base
+
 
 -- ref 8.7.2
 putValue :: JSRef -> JSVal -> Runtime ()
@@ -31,10 +39,11 @@ putValue ref@(JSRef base name strict) w
 hasPrimitiveBase :: JSRef -> Bool
 hasPrimitiveBase ref =
   case getBase ref of
-    VBool _ -> True
-    VStr  _ -> True
-    VNum  _ -> True
-    _       -> False
+    VBool _   -> True
+    VStr  _   -> True
+    VNum  _   -> True
+    VNative _ -> True
+    _         -> False
 
 
 -- ref 8.7
@@ -50,35 +59,6 @@ isUnresolvableReference ref =
   case getBase ref of
     VUndef -> True
     _      -> False
-
-
--- ref 8.7.1
-getValuePropertyReference :: JSRef -> Runtime JSVal
-getValuePropertyReference (JSRef base name _isStrict) =
-  case base of
-    VObj objRef -> getValueObject name objRef
-    _           -> getValuePrimitive name base
-
--- ref 8.7.1
-getValueObject :: String -> Shared JSObj -> Runtime JSVal
-getValueObject name objref = do
-  val <- objGetProperty name objref
-  case val of
-    Nothing -> return VUndef
-    Just v  -> propValue v (VObj objref)
-
--- ref 8.7.1
-getValuePrimitive :: String -> JSVal -> Runtime JSVal
-getValuePrimitive name base = do
-  o <- toObject base
-  desc <- objGetProperty name o
-  case desc of
-    Nothing -> return VUndef
-    Just (DataPD v _ _ _) -> return v
-    Just (AccessorPD Nothing _ _ _) -> return VUndef
-    Just (AccessorPD (Just getter) _ _ _) -> getter base
-
-
 
 
 putUnresolvable :: JSRef -> JSVal -> Runtime ()

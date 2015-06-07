@@ -27,11 +27,11 @@ hasInstance f val = case val of
   _ -> return False
   where
     hasInstance' :: Shared JSObj -> Runtime Bool
-    hasInstance' val = do
+    hasInstance' v = do
       o <- objGet "prototype" f
       if typeof o /= TypeObject
       then raiseTypeError "TypeError"
-      else searchPrototypes o val
+      else searchPrototypes o v
 
     searchPrototypes :: JSVal -> Shared JSObj -> Runtime Bool
     searchPrototypes o v = do

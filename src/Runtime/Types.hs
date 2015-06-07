@@ -161,6 +161,18 @@ defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref o
   Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
   Just m -> m name desc strict objRef
 
+objGet :: String -> Shared JSObj -> Runtime JSVal
+objGet p obj = do
+  getMethod <$> deref obj >>= \case
+    Nothing -> raiseError $ "No get method for " ++ show obj
+    Just f -> f p obj
+
+isCallable :: JSVal -> Runtime (Maybe JSFunction)
+isCallable (VObj obj) = callMethod <$> deref obj
+isCallable _ = return Nothing
+
+
+
 data JSRef = JSRef {
   getBase :: JSVal,
   getReferencedName :: Ident,

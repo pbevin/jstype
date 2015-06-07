@@ -41,6 +41,45 @@ initialEnv = do
   global <- getGlobalObject
   share $ LexEnv (ObjEnvRec global False) Nothing
 
+createGlobalObjectPrototype :: Runtime (Shared JSObj)
+createGlobalObjectPrototype =
+  newObject >>= addOwnProperty "prototype" VUndef
+            >>= addOwnProperty "toString" (VNative objToString)
+            >>= addOwnProperty "hasOwnProperty" (VNative objHasOwnProperty)
+            >>= addOwnProperty "valueOf" (VNative objValueOf)
+            >>= addOwnProperty "__objid" (VNative objId)
+
+createGlobalThis :: Runtime (Shared JSObj)
+createGlobalThis = do
+  prototype <- getGlobalObjectPrototype
+
+  functionPrototype <- newObject
+    >>= setCallMethod (\_this _args -> return VUndef)
+    >>= addOwnProperty "length" (VNum 0)
+    >>= addOwnProperty "call" (VNative funCallMethod)
+
+  function <- newObject
+    >>= mkFunction "Function" functionPrototype
+    >>= setCallMethod (funFunction functionPrototype)
+    >>= setCstrMethod funConstructor
+    >>= objSetPrototype functionPrototype
+    >>= addOwnProperty "prototype" (VObj functionPrototype)
+    >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
+
+  object <- functionObject "Object" prototype
+    >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
+    >>= addOwnProperty "getOwnPropertyNames" (VNative getOwnPropertyNames)
+    >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
+    >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
+    >>= setCallMethod objFunction
+    >>= setCstrMethod objConstructor
+  addOwnProperty "prototype" (VObj prototype) object
+  addOwnProperty "constructor" (VObj object) prototype
+
+  newObject
+    >>= addOwnProperty "Object" (VObj object)
+    >>= addOwnProperty "Function" (VObj function)
+
 objToString :: JSFunction
 objToString _this _args = return $ VStr "[object Object]"
 
@@ -112,7 +151,11 @@ funConstructor this args = case this of
         createFunction Nothing [] strictness stmts globalEnv
   _ -> raiseTypeError "Function constructor"
 
-
+funCallMethod :: JSFunction
+funCallMethod this args = do
+  isCallable this >>= \case
+    Nothing   -> raiseTypeError $ "Not a function: " ++ show this
+    Just call -> call (first1 args) (tail1 args)
 
 -- ref 13.2
 createFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Shared LexEnv -> Runtime JSVal
@@ -123,7 +166,6 @@ createFunction name paramList strict body scope =
       buildFunction = do
         functionPrototype <- objFindPrototype "Function"
         prototype <- VObj <$> newObject
-        let prop = DataPD prototype True False False
 
         func <- newObject
           >>= setClass "Function" -- (3)
@@ -294,44 +336,6 @@ printStackTrace = liftIO . putStrLn . stackTrace
 propsFromList :: Ord k => [(k, a)] -> PropMap k (PropDesc a)
 propsFromList = propMapFromList . map f
   where f (k, a) = (k, valueToProp a)
-
-createGlobalObjectPrototype :: Runtime (Shared JSObj)
-createGlobalObjectPrototype =
-  newObject >>= addOwnProperty "prototype" VUndef
-            >>= addOwnProperty "toString" (VNative objToString)
-            >>= addOwnProperty "hasOwnProperty" (VNative objHasOwnProperty)
-            >>= addOwnProperty "valueOf" (VNative objValueOf)
-            >>= addOwnProperty "__objid" (VNative objId)
-
-createGlobalThis :: Runtime (Shared JSObj)
-createGlobalThis = do
-  prototype <- getGlobalObjectPrototype
-
-  functionPrototype <- newObject
-    >>= setCallMethod (\_this _args -> return VUndef)
-    >>= addOwnProperty "length" (VNum 0)
-
-  function <- newObject
-    >>= mkFunction "Function" functionPrototype
-    >>= setCallMethod (funFunction functionPrototype)
-    >>= setCstrMethod funConstructor
-    >>= objSetPrototype functionPrototype
-    >>= addOwnProperty "prototype" (VObj functionPrototype)
-    >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
-
-  object <- functionObject "Object" prototype
-    >>= addOwnProperty "getOwnPropertyDescriptor" (VNative getOwnPropertyDescriptor)
-    >>= addOwnProperty "getOwnPropertyNames" (VNative getOwnPropertyNames)
-    >>= addOwnProperty "defineProperty" (VNative objDefineProperty)
-    >>= addOwnProperty "preventExtensions" (VNative objPreventExtensions)
-    >>= setCallMethod objFunction
-    >>= setCstrMethod objConstructor
-  addOwnProperty "prototype" (VObj prototype) object
-  addOwnProperty "constructor" (VObj object) prototype
-
-  newObject
-    >>= addOwnProperty "Object" (VObj object)
-    >>= addOwnProperty "Function" (VObj function)
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
@@ -681,6 +685,10 @@ first2 xs = (a,b) where [a,b] = take 2 (xs ++ repeat VUndef)
 
 first3 :: [JSVal] -> (JSVal, JSVal, JSVal)
 first3 xs = (a,b,c) where [a,b,c] = take 3 (xs ++ repeat VUndef)
+
+tail1 :: [JSVal] -> [JSVal]
+tail1 [] = []
+tail1 (x:xs) = xs
 
 addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
 addReadOnlyConstants xs obj = do

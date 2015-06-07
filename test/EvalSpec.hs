@@ -483,12 +483,19 @@ spec = do
       runJStr "var f = new Function(\"console.log('yes');\"); f()"
         `shouldReturn` Right "yes\n"
 
+    it "can call a function object via its .call()" $ do
+      runJStr "var f = new Function(\"console.log('called');\"); f.call()"
+        `shouldReturn` Right "called\n"
+
     it "raises a syntax error when it cannot parse a new Function(..) body" $ do
       runJStr "var f = new Function(' ', '\"use strict\"; eval = 4'); f();" `shouldErrorOfType` SyntaxError
 
     it "can invoke a function defined later in eval" $
       runJStr "eval('console.log(h()); function h() { return \"ok\" }')"
         `shouldReturn` Right "ok\n"
+
+    it "supplies .length for a native function" $ do
+      jsEvalExpr "Object.defineProperty.length" `shouldReturn` (VNum 3)
 
     it "handles arguments.constructor properly" $ do
       -- language/arguments-object/S10.6_A2

@@ -17,7 +17,9 @@ import Debug.Trace
 newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- globalObjectPrototype <$> get
-  share $ emptyObject { objPrototype = prototype, defineOwnPropertyMethod = Just objDefineOwnPropertyObject }
+  share $ emptyObject { objPrototype = prototype,
+                        defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                        getMethod = Just objGetObj }
 
 -- ref 8.12.1
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -38,12 +40,6 @@ objGetProperty name objRef = do
 valGetProperty :: String -> JSVal -> Runtime (Maybe (PropDesc JSVal))
 valGetProperty name (VObj objRef) = objGetProperty name objRef
 valGetProperty _ _ = return Nothing
-
-objGet :: String -> Shared JSObj -> Runtime JSVal
-objGet p obj = do
-  getMethod <$> deref obj >>= \case
-    Nothing -> objGetObj p obj
-    Just f -> f p obj
 
 
 -- ref 8.12.3
