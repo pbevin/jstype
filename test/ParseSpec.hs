@@ -130,6 +130,9 @@ spec = do
           ObjectLiteral [("a", Value $ Num 1),
                          ("2", Value $ Num 3)]
 
+      it "parses an object literal with a trailing comma" $ do
+        parseExpr "{a: 1, }" `shouldBe` parseExpr "{a: 1}"
+
       it "parses an object literal with a getter" $ do
         let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]
         testParse "var a = { get x() { return 1; } }" `shouldBe`

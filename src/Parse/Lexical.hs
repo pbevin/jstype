@@ -57,8 +57,9 @@ reserved word = void $ try $ do
   whiteSpace
 
 comment :: JSParser ()
-comment = void $ (try lineComment <|> try blockComment)
-  where lineComment = string "//" >> manyTill anyChar (try lineBreak)
+comment = void parseComment
+  where parseComment = (try lineComment <|> try blockComment) <?> "comment"
+        lineComment = string "//" >> manyTill anyChar (try lineBreak)
         blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
 
 whiteSpace :: JSParser ()
@@ -68,7 +69,7 @@ isLineBreak :: Char -> Bool
 isLineBreak ch = ch == '\n' || ch == '\r' || ch == '\x2028' || ch == '\x2029'
 
 lineBreak :: JSParser ()
-lineBreak = let crlf = try (string "\r\n")
+lineBreak = let crlf = try (string "\r\n") <?> "newline"
                 breakChar = satisfy isLineBreak >>= \ch ->
                   when (ch /= '\n') $ do
                     pos <- getPosition

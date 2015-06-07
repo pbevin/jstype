@@ -244,7 +244,7 @@ exprNoIn = withoutInKeyword expr
 
 expr :: JSParser Expr
 expr = assignmentExpr `chainl1` commaExpr
-  where commaExpr = tok "," >> return (BinOp ",")
+  where commaExpr = comma >> return (BinOp ",")
 
 assignmentExpr :: JSParser Expr
 assignmentExpr = foldr ($) simple [
@@ -403,17 +403,19 @@ arrayLiteral = ArrayLiteral <$> brackets arrayContents
 arrayContents :: JSParser [Maybe Expr]
 arrayContents = do
   (++) <$> elision <*> (content <|> return [])
-  where elision = many (tok "," >> return Nothing)
+  where elision = many (comma >> return Nothing)
         content = do val <- assignmentExpr
-                     (tok "," >> more val) <|> return [Just val]
+                     (comma >> more val) <|> return [Just val]
                            where more v = (Just v :) <$> arrayContents
 
 
 objectLiteral :: JSParser Expr
 objectLiteral =
-  let propertyAssignment = getter <|> setter <|> nameValuePair
+  let assignment = optional (getter <|> setter <|> nameValuePair)
+                                      <?> "property assignment"
+      propertyAssignments = assignment `sepBy` comma
   in do
-    assignments <- braces (propertyAssignment `sepBy` comma)
+    assignments <- catMaybes <$> braces propertyAssignments
     guard (noDuplicateAccessorKeys assignments)
     ifStrict $ guard (noDuplicateKeys assignments)
     return $ ObjectLiteral assignments
