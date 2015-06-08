@@ -70,7 +70,7 @@ evalCode text = do
   case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
     Right prog -> runInEvalContext prog
- 
+
 -- ref 10.4.2
 runInEvalContext :: Program -> Runtime StmtReturn
 runInEvalContext (Program strictness stmts) = do
@@ -466,26 +466,26 @@ makeObjectLiteral nameValueList =do
     makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
     makeDescriptor (Value e) = do
       val <- runExprStmt e >>= getValue
-      return $ DataPD val True True True
+      return $ dataPD val True True True
     makeDescriptor (Getter body) = do
       strict <- getGlobalStrictness
       env <- lexEnv <$> getGlobalContext
       func <- createFunction Nothing [] strict body env >>= mkGetter
-      return $ AccessorPD func Nothing True True
+      return $ accessorPD func Nothing True True
     makeDescriptor (Setter param body) = do
       strict <- getGlobalStrictness
       env <- lexEnv <$> getGlobalContext
       func <- createFunction Nothing [param] strict body env >>= mkSetter
-      return $ AccessorPD Nothing func True True
+      return $ accessorPD Nothing func True True
 
     checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
     checkCompatible a b = do
       let fail = raiseSyntaxError "Cannot reassign property"
       strict <- (== Strict) <$> getGlobalStrictness
-      when (strict && isDataDescriptor a && isDataDescriptor b) fail
-      when (isDataDescriptor a && isAccessorDescriptor b) fail
-      when (isAccessorDescriptor a && isDataDescriptor b) fail
-      when (isAccessorDescriptor a && isAccessorDescriptor b) $ do
+      when (strict && isDataDescriptor (Just a) && isDataDescriptor (Just b)) fail
+      when (isDataDescriptor (Just a) && isAccessorDescriptor (Just b)) fail
+      when (isAccessorDescriptor (Just a) && isDataDescriptor (Just b)) fail
+      when (isAccessorDescriptor (Just a) && isAccessorDescriptor (Just b)) $ do
         when (hasGetter a && hasGetter b) fail
         when (hasSetter a && hasSetter b) fail
       return ()

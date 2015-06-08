@@ -10,6 +10,7 @@ import JSNum
 import Runtime.Types
 import Runtime.Object
 import Runtime.NumberToString
+import Runtime.PropertyDescriptor
 import Parse
 
 
@@ -128,5 +129,5 @@ wrapNative :: JSFunction -> Runtime (Shared JSObj)
 wrapNative f = do
   funPrototype <- objFindPrototype "Function"
   newObject
-    >>= defineOwnProperty "length" (DataPD (VNum 3) True True True) False
+    >>= defineOwnProperty "length" (dataPD (VNum 3) True True True) False
     >>= addOwnProperty "call" (VNative f)

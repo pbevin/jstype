@@ -5,74 +5,24 @@ module Runtime.Types where
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
+import Control.Applicative
 import Text.Show.Functions
+import qualified Data.Map as M
 import Data.Maybe
 import Data.IORef
 import Runtime.PropMap
-import Control.Applicative
 import Expr
 import JSNum
 
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
-data PropDesc a = DataPD a Bool Bool Bool
-                | AccessorPD (Maybe (JSVal -> Runtime a)) (Maybe (a -> Runtime ())) Bool Bool
+data Property a = PropValue a
+                | PropFlag Bool
+                | PropGetter (JSVal -> Runtime a)
+                | PropSetter (a -> Runtime ())
+                deriving Show
 
-instance Show a => Show (PropDesc a) where
-  show (DataPD a w e c) = unwords [ "DataPD", show a, show w, show e, show c ]
-  show (AccessorPD g s e c) = unwords [ "AccessorPD", show $ isJust g, show $ isJust s, show e, show c ]
-
-propValue :: PropDesc a -> JSVal -> Runtime a
-propValue (DataPD a _ _ _) _ = return a
-propValue (AccessorPD (Just getter) _ _ _) this = getter this
-propValue (AccessorPD Nothing _ _ _) _ = raiseProtoError ReferenceError "No value"
-
-propIsWritable :: PropDesc a -> Bool
-propIsWritable (DataPD _ w _ _) = w
-propIsWritable (AccessorPD _ (Just _) _ _) = True
-propIsWritable (AccessorPD _ Nothing _ _) = False
-
-propIsEnumerable :: PropDesc a -> Bool
-propIsEnumerable (DataPD _ _ e _) = e
-propIsEnumerable (AccessorPD _ _ e _) = e
-
-propIsConfigurable :: PropDesc a -> Bool
-propIsConfigurable (DataPD _ _ _ c) = c
-propIsConfigurable (AccessorPD _ _ _ c) = c
-
-propIsUnwritable :: PropDesc a -> Bool
-propIsUnwritable pd = not (propIsWritable pd || propIsConfigurable pd)
-
-
-valueToProp :: a -> PropDesc a
-valueToProp a = DataPD a True True True
-
-propCopyValue :: PropDesc a -> PropDesc a -> PropDesc a
-propCopyValue (DataPD a _ _ _) (DataPD _ w e c) = DataPD a w e c
-
-propSetValue :: a -> PropDesc a -> PropDesc a
-propSetValue a (DataPD _ w e c) = DataPD a w e c
-
-readOnlyProperty :: a -> PropDesc a
-readOnlyProperty a = DataPD a False True True
-
-isDataDescriptor :: PropDesc a -> Bool
-isDataDescriptor DataPD {} = True
-isDataDescriptor AccessorPD {} = False
-
-isAccessorDescriptor :: PropDesc a -> Bool
-isAccessorDescriptor DataPD {} = False
-isAccessorDescriptor AccessorPD {} = True
-
-hasGetter :: PropDesc a -> Bool
-hasGetter DataPD {} = False
-hasGetter (AccessorPD Nothing _ _ _) = False
-hasGetter _ = True
-
-hasSetter :: PropDesc a -> Bool
-hasSetter DataPD {} = False
-hasSetter (AccessorPD _ Nothing _ _) = False
-hasSetter _ = True
+newtype PropDesc a = PropDesc (M.Map String (Property a)) deriving Show
 
 
 data JSVal = VNum JSNum

@@ -23,6 +23,7 @@ import Runtime.PropMap as X
 import Runtime.PropDesc as X
 import Runtime.Function as X
 import Runtime.Prototype as X
+import Runtime.PropertyDescriptor as X
 import JSNum as X
 import Parse
 import Expr
@@ -123,13 +124,13 @@ createArray vals =
         obj <- newObject >>= setClass "Array"
                          >>= objSetPrototype (toObj arrayPrototype)
                          >>= addOwnProperty "constructor" cstr
-                         >>= addOwnPropertyDescriptor "length" (DataPD len True False False)
+                         >>= addOwnPropertyDescriptor "length" (dataPD len True False False)
                          >>= setArrayIndices assigns
         return $ VObj obj
 
 setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
 setArrayIndices assigns objRef = do
-  mapM_ (\(n, v) -> defineOwnProperty (show n) (DataPD v True True True) False objRef) assigns
+  mapM_ (\(n, v) -> defineOwnProperty (show n) (dataPD v True True True) False objRef) assigns
   return objRef
 
 
@@ -183,15 +184,15 @@ createFunction name paramList strict body scope =
         setCstrMethod (callMethod $ VObj func) func -- (7) XXX
 
         ifStrictContext $ do
-          let prop = AccessorPD (Just thrower) (Just thrower) False False
+          let prop = accessorPD (Just thrower) (Just thrower) False False
           defineOwnProperty "caller" prop False func
           defineOwnProperty "arguments" prop False func
 
         return func
 
-      lengthProperty = DataPD nparams False False False
+      lengthProperty = dataPD nparams False False False
       nparams = VNum $ fromIntegral $ length paramList
-      prototypeProperty prototype = DataPD prototype True False False
+      prototypeProperty prototype = dataPD prototype True False False
       nameProperty = fromMaybe "" name
       callMethod func = funcCall name func paramList strict body
       thrower _ = raiseTypeError "Cannot access property"
@@ -265,26 +266,26 @@ createArgumentsObject func names args strict =
     map <- newObject
     forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
-      defineOwnProperty (show indx) (DataPD val True True True) False map
+      defineOwnProperty (show indx) (dataPD val True True True) False map
 
     cs <- objGet "constructor" objectPrototype
 
     obj <- newObject >>= setClass "Arguments"
                      >>= objSetPrototype objectPrototype
-                     >>= defineOwnProperty "length" (DataPD (VNum len) True False True) False
+                     >>= defineOwnProperty "length" (dataPD (VNum len) True False True) False
                      >>= objSetParameterMap (VObj map) -- XXX missing step 12b
 
     -- Hack because I'm not willing to define new [[get]] etc. methods as per step 12b
     -- just now...
     forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
       -- XXX incomplete step 11
-      defineOwnProperty (show indx) (DataPD val True True True) False obj
+      defineOwnProperty (show indx) (dataPD val True True True) False obj
 
     case strict of
-      NotStrict -> defineOwnProperty "callee" (DataPD func True False True) False obj
+      NotStrict -> defineOwnProperty "callee" (dataPD func True False True) False obj
       Strict -> do
-        defineOwnProperty "caller" (AccessorPD (Just thrower) (Just thrower) False False) False obj
-        defineOwnProperty "callee" (AccessorPD (Just thrower) (Just thrower) False False) False obj
+        defineOwnProperty "caller" (accessorPD (Just thrower) (Just thrower) False False) False obj
+        defineOwnProperty "callee" (accessorPD (Just thrower) (Just thrower) False False) False obj
 
     return (VObj obj)
 
@@ -344,7 +345,7 @@ printStackTrace = liftIO . putStrLn . stackTrace
 
 propsFromList :: Ord k => [(k, a)] -> PropMap k (PropDesc a)
 propsFromList = propMapFromList . map f
-  where f (k, a) = (k, valueToProp a)
+  where f (k, a) = (k, dataPD a True True True)
 
 -- ref B.2.1, incomplete
 objEscape :: JSFunction
@@ -477,7 +478,7 @@ newObjectFromConstructor fun args = case fun of
         obj <- newObject
         prototype <- objGetProperty "prototype" funref >>= fromObj
         setPrototype prototype obj
-        defineOwnProperty "constructor" (DataPD val True False True) False obj
+        defineOwnProperty "constructor" (dataPD val True False True) False obj
         objCstr (VObj funref) (VObj obj) args >>= \case
           VObj o -> return o
           _ -> return obj
@@ -485,7 +486,7 @@ newObjectFromConstructor fun args = case fun of
     fromObj :: Maybe (PropDesc JSVal) -> Runtime (Maybe (Shared JSObj))
     fromObj Nothing = return Nothing
     fromObj (Just desc) = do
-      val <- propValue desc fun -- XXX fun?
+      val <- return $ fromMaybe VUndef $ propValue desc
       case val of
         VObj obj -> return $ Just obj
         _        -> return Nothing
@@ -618,7 +619,7 @@ performDBI dbiType strict stmts = do
       configurableBindings = dbiType == DBIEval
 
       blankDesc :: PropDesc JSVal
-      blankDesc = DataPD VUndef True True configurableBindings
+      blankDesc = dataPD VUndef True True configurableBindings
 
 
 

@@ -2,12 +2,14 @@ module Runtime.Reference where
 
 import Control.Monad.Except
 import Data.Maybe
+import qualified Data.Map as M
 import Runtime.Object
 import Runtime.Types
 import Runtime.Global (getGlobalObject)
 import Runtime.Error
 import Runtime.Conversion
 import Runtime.PropMap
+import Runtime.PropertyDescriptor
 import Expr
 
 -- ref 8.7.1
@@ -18,14 +20,11 @@ getValue v
   | isPropertyReference ref     = case base of
       VObj objRef -> objGetProperty name objRef >>= toValue
       _           -> toObject base >>= objGetProperty name >>= toValue
-  | otherwise                   = getValueEnvironmentRecord ref
+  | otherwise                   = getValueEnvironmentRecord base name
     where ref@(JSRef base name strict) = unwrapRef v
           toValue desc = case desc of
               Nothing -> return VUndef
-              Just (DataPD v _ _ _) -> return v
-              Just (AccessorPD Nothing _ _ _) -> return VUndef
-              Just (AccessorPD (Just getter) _ _ _) -> getter base
-
+              Just pd -> getValueFrom base pd
 
 -- ref 8.7.2
 putValue :: JSRef -> JSVal -> Runtime ()
@@ -99,39 +98,32 @@ createMutableBinding n d envRef = do
 
 -- ref 10.2.1.1.3
 setMutableBinding :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
-setMutableBinding n v s envRec = do
-  envInsert n v s envRec
+setMutableBinding = envInsert
+
 
 -- ref 10.2.1.1.4
-getValueEnvironmentRecord :: JSRef -> Runtime JSVal
-getValueEnvironmentRecord (JSRef (VEnv env) name _isStrict) = do
-  val <- envLookup name env
-  return $ fromMaybe VUndef $ val
-getValueEnvironmentRecord x = raiseError $ "Internal error in getValueEnvironmentRecord: " ++ show x
+getValueEnvironmentRecord :: JSVal -> Ident -> Runtime JSVal
+getValueEnvironmentRecord (VEnv env) name = case env of
+  DeclEnvRec m -> lk VUndef name =<< deref m -- XXX VUndef for this
+  ObjEnvRec obj _ -> lk (VObj obj) name . ownProperties =<< deref obj
+  where
+    lk this k m = case propMapLookup k m of
+      Nothing   -> return VUndef
+      Just desc -> getValueFrom this desc
 
 deleteBinding :: String -> EnvRec -> Runtime JSVal
 -- ref 10.2.1.1.5 (DeclEnvRec)
-deleteBinding n (DeclEnvRec m) = return (VBool False)
+deleteBinding _ (DeclEnvRec _) = return (VBool False)
 -- ref 10.2.1.2.5 (ObjEnvRec)
 deleteBinding n (ObjEnvRec obj _) = objDelete n False obj
 
 
-
-envLookup :: Ident -> EnvRec -> Runtime (Maybe JSVal)
-envLookup name (DeclEnvRec m) = lk VUndef name =<< deref m -- XXX VUndef for this
-envLookup name (ObjEnvRec obj _) = lk (VObj obj) name . ownProperties =<< deref obj
-
-lk :: Ord k => JSVal -> k -> PropMap k (PropDesc a) -> Runtime (Maybe a)
-lk this k m = case propMapLookup k m of
-  Nothing -> return Nothing
-  Just desc -> Just <$> propValue desc this
-
 envInsert :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
 envInsert name val d (DeclEnvRec m) = do
-  modifyRef m (propMapInsert' name (valueToProp val) d)
+  modifyRef m (propMapInsert' name (dataPD val True True True) d)
 envInsert name val d (ObjEnvRec obj _) = void $ do
   addOwnPropertyDescriptor name desc obj
-    where desc = DataPD val True True d
+    where desc = dataPD val True True d
 
 envDelete :: Ident -> EnvRec -> Runtime JSVal
 envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)
@@ -148,8 +140,8 @@ toPropertyDescriptor (VObj objRef) = do
   set <- objGet "set" objRef >>= mkSetter
 
   if isJust get || isJust set
-  then return $ AccessorPD get set enum conf
-  else return $ DataPD value writable enum conf
+  then return $ accessorPD get set enum conf
+  else return $ dataPD value writable enum conf
 
 toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
 
@@ -169,3 +161,12 @@ mkSetter (VObj obj) = do
     Just setter -> return $ Just (\a -> void $ setter VUndef [a])
     Nothing -> raiseProtoError TypeError $ "Setter not defined"
 mkSetter _ = return Nothing
+
+getValueFrom :: JSVal -> PropDesc JSVal -> Runtime JSVal
+getValueFrom base d
+  | isDataDescriptor (Just d) = return $ fromMaybe VUndef (propValue d)
+  | isAccessorDescriptor (Just d) =
+    case propGetter d of
+      Nothing -> return VUndef
+      Just g -> g base
+  | otherwise = return VUndef

@@ -10,6 +10,7 @@ import Data.Maybe
 import Runtime.Types
 import Runtime.Global
 import Runtime.PropMap
+import Runtime.PropertyDescriptor
 import Expr
 
 import Debug.Trace
@@ -48,24 +49,34 @@ objGetObj name objRef = do
   prop <- objGetProperty name objRef
   case prop of
     Nothing -> return VUndef
-    Just desc -> propValue desc (VObj objRef)
+    Just desc -> if isDataDescriptor prop
+                 then return $ fromMaybe VUndef (propValue desc)
+                 else case propGetter desc of
+                   Nothing -> return VUndef
+                   Just f  -> f (VObj objRef)
 
--- ref 8.12.4, incomplete
+
+-- ref 8.12.4
 objCanPut :: String -> Shared JSObj -> Runtime Bool
 objCanPut p o = do
-  objGetOwnProperty p o >>= \case
-    Just (AccessorPD _ s _ _) -> return (isJust s)
-    Just (DataPD _ w _ _)     -> return w
+  desc <- objGetOwnProperty p o
+  case desc of
+    Just d ->
+      if isAccessorDescriptor desc
+      then return $ isJust (propSetter d)
+      else return $ propIsWritable d
     Nothing ->
       objPrototype <$> deref o >>= \case
         Nothing -> objExtensible <$> deref o
         Just _ -> do
-          objGetProperty p o >>= \case
-            Nothing -> objExtensible <$> deref o
-            Just (AccessorPD _ s _ _) -> return (isJust s)
-            Just (DataPD _ _ False _) -> return False
-            Just (DataPD _ w _ _) -> return w
-
+          isExtensible <- objExtensible <$> deref o
+          inherited <- objGetProperty p o
+          case inherited of
+            Nothing -> return isExtensible
+            Just d' ->
+              if isAccessorDescriptor inherited
+              then return $ isJust (propSetter d')
+              else return $ isExtensible && propIsWritable d'
 
 -- ref 8.12.5
 objPut :: String -> JSVal -> Bool -> Shared JSObj -> Runtime ()
@@ -76,13 +87,16 @@ objPut p v throw objRef = do
        then raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
        else return ()
   else do
-    objGetOwnProperty p objRef >>= \case
-      Just (DataPD {}) ->
-        void $ defineOwnProperty p (DataPD v True True True) throw objRef
-      _ -> objGetProperty p objRef >>= \case
-             Just (AccessorPD _ (Just s) _ _) -> void $ s v
-             Just (AccessorPD _ Nothing _ _) -> raiseProtoError TypeError "Cannot assign to property without a setter"
-             _ -> void $ defineOwnProperty p (DataPD v True True True) throw objRef
+    ownDesc <- objGetOwnProperty p objRef
+    if isDataDescriptor ownDesc
+    then void $ defineOwnProperty p (dataPD v True True True) throw objRef
+    else do
+      desc <- objGetProperty p objRef
+      if isAccessorDescriptor desc
+      then case propSetter (fromJust desc) of
+        Nothing -> return ()
+        Just s -> s v
+      else void $ defineOwnProperty p (dataPD v True True True) throw objRef
 
 -- ref 8.12.6
 objHasProperty :: String -> Shared JSObj -> Runtime Bool
@@ -159,26 +173,31 @@ objDefineOwnPropertyObject p desc throw objRef = do
       then _objCreateOwnProperty p desc objRef
       else raiseProtoError TypeError $ "Can't add to non-extensible object"
     Just current -> _objUpdateOwnProperty p desc current throw objRef
-      -- if propIsWritable current
-      -- then _objUpdateOwnProperty p desc current objRef
-      -- else raiseProtoError TypeError $ "Can't write read-only attribute " ++ p
-
 
 _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
 _objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
 
 _objUpdateOwnProperty :: String -> PropDesc JSVal -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
-_objUpdateOwnProperty p (DataPD v w e c) (DataPD _ w' _ _) throw =
-  if w' == False
-  then if throw
-       then const $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
-       else return . id
-  else updateObj $ objSetPropertyDescriptor p (DataPD v w e c)
-_objUpdateOwnProperty p (AccessorPD v w e c) (AccessorPD v' w' _ _) _ =
-  let newv = v' <|> v
-      neww = w' <|> w
-  in updateObj $ objSetPropertyDescriptor p (AccessorPD newv neww e c)
-_objUpdateOwnProperty _ _ _ _ = return
+_objUpdateOwnProperty p newDesc oldDesc throw o
+  | isDataDescriptor (Just newDesc) /= isDataDescriptor (Just oldDesc) = -- (9)
+      raiseProtoError TypeError "Unimplemented case in defineOwnProperty"
+  | isDataDescriptor (Just newDesc) && isDataDescriptor (Just oldDesc) = do -- (10)
+      when (propIsConfigurable oldDesc == False) $
+        when (propIsWritable oldDesc == False) $ do
+          rejectIf (propIsWritable newDesc == True)
+          rejectIf (True) -- XXX and value is changing
+      updateObj (objSetPropertyDescriptor p newDesc) o
+  | otherwise = let g = propGetter newDesc <|> propGetter oldDesc
+                    s = propSetter newDesc <|> propSetter oldDesc
+                    e = propIsConfigurable oldDesc
+                    c = propIsEnumerable oldDesc
+                in updateObj (objSetPropertyDescriptor p (accessorPD g s e c)) o
+
+  where rejectIf :: Bool -> Runtime ()
+        rejectIf condition = when (condition && throw) $ raiseProtoError TypeError "Cannot overwrite property"
+
+
+
 
 
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
@@ -188,9 +207,7 @@ updateObj f objRef = modifyRef' objRef f
 
 getGlobalProperty :: String -> Runtime JSVal
 getGlobalProperty name = do
-  obj <- getGlobalObject
-  prop <- objGetOwnProperty name obj
-  maybe (return VUndef) (flip propValue $ VObj obj) prop
+  getGlobalObject >>= objGet name
 
 objClassName :: Shared JSObj -> Runtime String
 objClassName objRef = liftM objClass (deref objRef)
@@ -241,10 +258,10 @@ addOwnPropertyDescriptor :: String -> PropDesc JSVal -> ObjectModifier
 addOwnPropertyDescriptor name val = updateObj $ objSetPropertyDescriptor name val
 
 addOwnConstant :: String -> JSVal -> ObjectModifier
-addOwnConstant name val = addOwnPropertyDescriptor name (DataPD val False False False)
+addOwnConstant name val = addOwnPropertyDescriptor name (dataPD val False False False)
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
-objSetProperty name value obj = objSetPropertyDescriptor name (valueToProp value) obj
+objSetProperty name value obj = objSetPropertyDescriptor name (dataPD value True True True) obj
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
 objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
@@ -280,3 +297,13 @@ objFindPrototype name =
       valGetPrototype (VObj objRef) = fromObj <$> objGet "prototype" objRef
       valGetPrototype _ = return Nothing
       oops = raiseError $ "No prototype for " ++ name
+
+-- propValue :: PropDesc a -> JSVal -> Runtime a
+-- propValue pd this
+--   | isDataDescriptor pd     = case getValue pd of
+--                                 Nothing -> return VUndef
+--                                 Just v  -> return v
+--   | isAccessorDescriptor pd = case propGetter pd of
+--                                 Nothing -> return VUndef
+--                                 Just f -> f this
+--   | otherwise               = return VUndef
