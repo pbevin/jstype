@@ -23,7 +23,13 @@ data RuntimeError = RuntimeError {
   errorMessage :: String,
   errorObject :: JSVal,
   errorStack :: [String]
-} deriving (Show, Eq)
+} deriving Eq
+
+instance Show RuntimeError where
+  show (RuntimeError msg _ stack) =
+    msg ++ "\n" ++ unlines (map ("    " ++) stack)
+
+
 
 evalJS :: String -> String -> IO (Either RuntimeError (Maybe JSVal))
 evalJS sourceName input = do
@@ -146,21 +152,11 @@ returnThrow s (JSProtoError (t, msg)) = do
   err <- createError t (VStr msg)
   returnThrow s (JSError (err, []))
 
-
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
 setStacktrace v stack =
   case v of
     VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
     _           -> return ()
-
-addToStacktrace :: SrcLoc -> JSVal -> Runtime ()
-addToStacktrace loc (VObj objRef) = do
-  val <- objGet "stack" objRef
-  case val of
-    VStacktrace st -> objPut "stack" (VStacktrace $ loc : st) False objRef
-    _ -> return ()
-addToStacktrace loc val = return ()
-
 
 -- ref 12.1
 runStmts :: [Statement] -> Runtime StmtReturn
@@ -169,7 +165,6 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
   runStmts' _ (s:stmts) = do
     result <- runStmt s `catchError` returnThrow s
     case result of
-      (CTThrow, Just v, _) -> addToStacktrace (sourceLocation s) v >> return result
       (CTNormal, _, _) -> runStmts' result stmts
       _ -> return result
 

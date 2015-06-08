@@ -241,8 +241,17 @@ funcCall name func paramList strict body this args =
       result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v
-        (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
+        (CTThrow, Just v, _)  -> rethrowWithStack v
         _ -> return VUndef
+
+rethrowWithStack :: JSVal -> Runtime a
+rethrowWithStack v = do
+  stack <- case v of
+    VObj obj -> objGet "stack" obj >>= \case
+                VStacktrace st -> return st
+                _              -> return []
+    _ -> return []
+  throwError $ JSError (v, stack)
 
 -- ref 10.6
 createArgumentsObject :: JSVal -> [String] -> [JSVal] -> Strictness -> Runtime JSVal
