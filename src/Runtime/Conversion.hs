@@ -130,4 +130,8 @@ wrapNative f = do
   funPrototype <- objFindPrototype "Function"
   newObject
     >>= defineOwnProperty "length" (dataPD (VNum 3) True True True) False
-    >>= addOwnProperty "call" (VNative f)
+    >>= addOwnProperty "call" (VNative $ nativeCall f)
+
+nativeCall :: JSFunction -> JSFunction
+nativeCall f this [] = nativeCall f this [VUndef]
+nativeCall f _this (this:args) = f this args
