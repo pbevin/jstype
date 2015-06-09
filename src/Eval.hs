@@ -189,29 +189,26 @@ runStmt s = case s of
   DoWhileStatement _loc e stmt -> -- ref 12.6.1
     runStmt $ transformDoWhileToWhile _loc e stmt
 
-  WhileStatement _loc e stmt -> keepGoing Nothing where -- ref 12.6.2
-    keepGoing :: Maybe JSVal -> Runtime StmtReturn
-    keepGoing v = do
-      willEval <- toBoolean <$> (runExprStmt e >>= getValue)
-
-      if not willEval
-      then return (CTNormal, v, Nothing)
-      else do
-        sval@(stype, v', _) <- runStmt stmt
-        let nextVal = case v' of
-                        Nothing -> v
-                        Just newVal -> Just newVal
-        case stype of
-          CTBreak -> return (CTNormal, v, Nothing)
-          CTContinue -> keepGoing nextVal
-          CTNormal -> keepGoing nextVal
-          _ -> return sval
-
+  WhileStatement _loc e stmt -> -- ref 12.6.2
+    let cond      = toBoolean <$> (runExprStmt e >>= getValue)
+        increment = return ()
+    in loopConstruct cond increment stmt
+    
   For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3ToWhile loc e1 e2 e3 stmt
+    let init =      case e1 of
+                       Just e -> runExprStmt e >>= getValue >> return ()
+                       Nothing -> return ()
+        cond =      case e2 of
+                       Just e  -> toBoolean <$> (runExprStmt e >>= getValue)
+                       Nothing -> return True
+        increment = case e3 of
+                       Just e -> runExprStmt e >>= getValue >> return ()
+                       Nothing -> return ()
+    in init >> loopConstruct cond increment stmt
+
 
   For loc (For3Var assigns e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3VarToWhile loc assigns e2 e3 stmt
+    runStmt $ transformFor3VarToFor3 loc assigns e2 e3 stmt
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -252,8 +249,6 @@ runStmt s = case s of
         then return c
         else return f
 
-
-
   ThrowStatement _loc e -> do
     exc <- runExprStmt e >>= getValue
     return (CTThrow, Just exc, Nothing)
@@ -270,31 +265,34 @@ runStmt s = case s of
   _ -> error ("Unimplemented stmt: " ++ show s)
 
 
--- |
--- Turn "for (e1; e2; e3) { s }" into
--- "e1; while (e2) { s; e3 }"
--- with sensible defaults for missing statements
-transformFor3ToWhile :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3ToWhile loc e1 e2 e3 stmt =
-  let e = fromMaybe (Boolean True) e2
-      s1 = maybe (EmptyStatement loc) (ExprStmt loc) e1
-      s2 = case e3 of
-             Just ex -> TryStatement loc stmt Nothing (Just $ Finally loc $ ExprStmt loc ex)
-             Nothing -> stmt
-  in Block loc [ s1, WhileStatement loc e s2 ]
+loopConstruct :: Runtime Bool -> Runtime () -> Statement -> Runtime StmtReturn
+loopConstruct condition increment stmt = keepGoing Nothing where
+  keepGoing :: Maybe JSVal -> Runtime StmtReturn
+  keepGoing v = do
+    willEval <- condition
+    if not willEval
+    then return (CTNormal, v, Nothing)
+    else do
+      sval@(stype, v', _) <- runStmt stmt
+      let nextVal = case v' of
+                      Nothing -> v
+                      Just newVal -> Just newVal
+      case stype of
+        CTBreak -> return (CTNormal, v, Nothing)
+        CTContinue -> increment >> keepGoing nextVal
+        CTNormal -> increment >> keepGoing nextVal
+        _ -> return sval
+
 
 -- |
 -- Turn "for (var x = e1; e2; e3) { s }" into
 -- "var x = e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
-transformFor3VarToWhile :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3VarToWhile loc decls e2 e3 stmt =
-  let e = fromMaybe (Boolean True) e2
-      s1 = VarDecl loc decls
-      s2 = case e3 of
-             Just ex -> TryStatement loc stmt Nothing (Just $ Finally loc $ ExprStmt loc ex)
-             Nothing -> stmt
-  in Block loc [ s1, WhileStatement loc e s2 ]
+transformFor3VarToFor3 :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> Statement
+transformFor3VarToFor3 loc decls e2 e3 stmt =
+  let s1 = VarDecl loc decls
+      s2 = For loc (For3 Nothing e2 e3) stmt
+  in Block loc [ s1, s2 ]
 
 -- |
 -- Turn "do { s } while (e)" into
