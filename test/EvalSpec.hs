@@ -237,6 +237,10 @@ spec = do
   it "can set an object property" $ do
     runJStr "var a = function() { }; a.prop = 2; console.log(a.prop);" `shouldReturn` Right "2\n"
 
+  it "has a nice error message when accessing a property on null or undefined" $ do
+    runJStr "undefined.x" `shouldError` "TypeError: Cannot read property x of undefined"
+    runJStr "null.x" `shouldError` "TypeError: Cannot read property x of null"
+
   it "can do if-then-else" $ do
     runJStr "if (1) { console.log(\"hi\") }" `shouldReturn` Right "hi\n"
     runJStr "if (0) { console.log(\"wrong\") } else { console.log(\"yes\") } " `shouldReturn` Right "yes\n"

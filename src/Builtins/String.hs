@@ -55,7 +55,7 @@ charAt :: JSFunction
 charAt this args =
   let pos = first1 args
   in do
-    checkObjectCoercible this
+    checkObjectCoercible "String.prototype.charAt called on" this
     str <- toString this
     position <- toInt pos
     return $ maybe VUndef charToStr $ atMay str position

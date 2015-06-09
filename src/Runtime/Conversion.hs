@@ -98,10 +98,10 @@ toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other
 
 -- ref 9.10
-checkObjectCoercible :: JSVal -> Runtime ()
-checkObjectCoercible VUndef = raiseProtoError TypeError "Undefined value not coercible"
-checkObjectCoercible VNull = raiseProtoError TypeError "Null value not coercible"
-checkObjectCoercible _ = return ()
+checkObjectCoercible :: String -> JSVal -> Runtime ()
+checkObjectCoercible msg VUndef = raiseProtoError TypeError $ msg ++ " of undefined"
+checkObjectCoercible msg VNull = raiseProtoError TypeError $ msg ++ " of null"
+checkObjectCoercible _ _ = return ()
 
 
 isInteger :: RealFloat a => a -> Bool

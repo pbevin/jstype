@@ -190,7 +190,7 @@ createFunction name paramList strict body scope =
 
         return func
 
-      lengthProperty = dataPD nparams False False False
+      lengthProperty = dataPD nparams False False True
       nparams = VNum $ fromIntegral $ length paramList
       prototypeProperty prototype = dataPD prototype True False False
       nameProperty = fromMaybe "" name
