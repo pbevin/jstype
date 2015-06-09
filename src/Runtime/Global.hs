@@ -46,8 +46,7 @@ withGlobalContext :: (JSCxt -> JSCxt) -> Runtime a -> Runtime a
 withGlobalContext f action = do
   oldContext <- globalContext <$> get
   modify $ \g -> g { globalContext = f <$> oldContext }
-  result <- action
-  modify $ \g -> g { globalContext = oldContext }
+  result <- action `finally` (modify $ \g -> g { globalContext = oldContext })
   return result
 
 withNewContext :: JSCxt -> Runtime a -> Runtime a

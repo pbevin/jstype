@@ -149,7 +149,7 @@ funConstructor this args = case this of
       Left err -> raiseSyntaxError (show err)
       Right (Program strictness stmts) -> do
         globalEnv <- getGlobalEnvironment
-        createFunction Nothing [] strictness stmts globalEnv
+        createFunction Nothing [] strictness stmts globalEnv -- XXX []
   _ -> raiseTypeError "Function constructor"
 
 funCallMethod :: JSFunction
@@ -373,8 +373,7 @@ getIdentifierReference (Just lexRef) name strict = do
   exists <- hasBinding name (envRec env)
   if exists
   then return (JSRef (VEnv $ envRec env) name strict)
-  else do
-    getIdentifierReference (outer env) name strict
+  else getIdentifierReference (outer env) name strict
 
 -- ref 10.2.2.2
 newDeclarativeEnvironment :: Maybe JSEnv -> Runtime JSEnv

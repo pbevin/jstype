@@ -288,6 +288,37 @@ spec = do
 
     runJStr prog `shouldReturn` Right "7\n"
 
+  it "..." $ do
+    let prog = unlines [
+                  "  function f(a, x) { ",
+                  "    try { ",
+                  "      throw new Error(); ",
+                  "    } catch (e) { ",
+                  "      console.log(x + 3); ",
+                  "    } ",
+                  "  } ",
+                  "  new f('a', 5); "
+                ]
+
+    runJStr prog `shouldReturn` Right "8\n"
+
+  it "...." $ do
+    let prog = unlines [
+              "  function err() { throw 'aa'; } ",
+              "  function f(x) { ",
+              "    try{ ",
+              "      err(); ",
+              "    } ",
+              "    catch (e) { ",
+              "      console.log(x); ",
+              "    } ",
+              "  } ",
+              "  f(13); " ]
+
+    runJStr prog `shouldReturn` Right "13\n"
+    
+
+
   it "can create a new object" $ do
     runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
 

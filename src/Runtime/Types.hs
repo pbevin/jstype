@@ -265,3 +265,7 @@ data PrimitiveHint = HintNone | HintNumber | HintString deriving (Show, Eq)
 debug :: Show a => a -> Runtime ()
 debug a = do
   liftIO $ print a
+
+finally :: Runtime a -> Runtime () -> Runtime a
+finally a f = do
+  (a <* f) `catchError` (\e -> f >> throwError e)
