@@ -30,9 +30,12 @@ configureBuiltins obj = do
     >>= setCstrMethod errConstructor
 
 
+  evalError      <- errorSubtype "EvalError" (VObj errorPrototype)
+  rangeError     <- errorSubtype "RangeError" (VObj errorPrototype)
   referenceError <- errorSubtype "ReferenceError" (VObj errorPrototype)
   syntaxError    <- errorSubtype "SyntaxError" (VObj errorPrototype)
   typeError      <- errorSubtype "TypeError" (VObj errorPrototype)
+  uriError       <- errorSubtype "URIError" (VObj errorPrototype)
 
   date <- makeDateClass
 
@@ -60,12 +63,15 @@ configureBuiltins obj = do
     >>= addOwnProperty "Number" (VObj number)
     >>= addOwnProperty "Boolean" (VObj boolean)
     >>= addOwnProperty "Array" (VObj array)
-    >>= addOwnProperty "Error" (VObj errorObj)
     >>= addOwnProperty "Date" (VObj date)
     >>= addOwnProperty "RegExp" (VObj regexp)
+    >>= addOwnProperty "Error" (VObj errorObj)
+    >>= addOwnProperty "EvalError" (VObj evalError)
+    >>= addOwnProperty "RangeError" (VObj rangeError)
     >>= addOwnProperty "ReferenceError" (VObj referenceError)
     >>= addOwnProperty "SyntaxError" (VObj syntaxError)
     >>= addOwnProperty "TypeError" (VObj typeError)
+    >>= addOwnProperty "URIError" (VObj uriError)
     >>= addOwnProperty "Math" (VObj math)
     >>= addOwnProperty "JSON" (VObj json)
     >>= addOwnProperty "eval" (VNative objEval)

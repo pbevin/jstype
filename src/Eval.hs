@@ -228,11 +228,31 @@ runStmt s = case s of
   WithStatement _loc e s -> runWithStatement e s
   Block _loc stmts -> runStmts stmts
 
-  TryStatement _loc block catch _finally -> do -- ref 12.14  XXX ignoring finally block
+  TryStatement _loc block catch finally -> do -- ref 12.14
     b@(btype, bval, _) <- runStmt block
-    if btype /= CTThrow
-    then return b
-    else runCatch catch (fromJust bval)
+
+    case (catch, finally) of
+      (Just c, Nothing) -> do
+        if btype /= CTThrow
+        then return b
+        else runCatch c (fromJust bval)
+
+      (Nothing, Just f) -> do
+        f@(ftype, _, _) <- runFinally f
+        if ftype == CTNormal
+        then return b
+        else return f
+
+      (Just c, Just f) -> do
+        c <- if btype == CTThrow
+             then runCatch c (fromJust bval)
+             else return b
+        f@(ftype, _, _) <- runFinally f
+        if ftype == CTNormal
+        then return c
+        else return f
+
+
 
   ThrowStatement _loc e -> do
     exc <- runExprStmt e >>= getValue
@@ -309,15 +329,17 @@ runWithStatement e s = do
 
 
 -- ref 12.14
-runCatch :: Maybe Statement -> JSVal -> Runtime StmtReturn
-runCatch Nothing _ = return (CTNormal, Nothing, Nothing)
-runCatch (Just (Catch _loc var stmt)) c = do
+runCatch :: Statement -> JSVal -> Runtime StmtReturn
+runCatch (Catch _loc var stmt) c = do
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True catchEnv
   setMutableBinding var c False rec
   withLexEnv catchEnv $ runStmt stmt
+
+runFinally :: Statement -> Runtime StmtReturn
+runFinally (Finally _loc stmt) = runStmt stmt
 
 maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
 maybeValList = mapM evalOne
