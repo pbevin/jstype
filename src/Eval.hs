@@ -61,7 +61,7 @@ rethrowAsString (JSProtoError (etype, msg)) =
   throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
 
 toRuntimeError :: JSError -> RuntimeError
-toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (map show stack)
+toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
 toRuntimeError _ = error "Runtime did not convert error to string"
 
 evalCode :: String -> Runtime StmtReturn
