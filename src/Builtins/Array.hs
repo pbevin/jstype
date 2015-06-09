@@ -38,8 +38,8 @@ arrayConstructor this args =
     VObj obj -> do
       cstr <- getGlobalProperty "Array"
       o <- setClass "Array" obj
-        >>= addOwnProperty "length" len
-        >>= addOwnProperty "constructor" cstr
+        >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
+        >>= addOwnPropertyDescriptor "length" (dataPD len True False False)
 
       forM_ (zip args [0..]) $ \(item, idx) -> do
         addOwnProperty (show idx) item o

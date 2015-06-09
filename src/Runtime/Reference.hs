@@ -34,6 +34,10 @@ putValue ref@(JSRef base name strict) w
   | otherwise                   = setMutableBinding name w (strict == Strict) env
     where (VEnv env) = base
 
+putValue' :: JSVal -> JSVal -> Runtime ()
+putValue' (VRef ref) = putValue ref
+putValue' _ = const $ raiseTypeError "Not assignable"
+
 -- ref 8.7
 hasPrimitiveBase :: JSRef -> Bool
 hasPrimitiveBase ref =

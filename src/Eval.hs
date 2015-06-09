@@ -217,9 +217,27 @@ runStmt s = case s of
     then return (CTNormal, Nothing, Nothing)
     else do
       obj <- toObject exprValue
-      return (CTNormal, Just (VObj obj), Nothing)
+      keys <- propMapKeys . ownProperties <$> deref obj
+      keepGoing obj keys Nothing where
+        keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
+        keepGoing _ [] v = return (CTNormal, v, Nothing)
+        keepGoing obj (p:ps) v = do
+          desc <- objGetOwnProperty p obj
+          let want = maybe False propIsEnumerable desc
+          if want
+          then do
+            lhsRef <- runExprStmt lhs
+            putValue' lhsRef (VStr p)
+            s@(stype, sval, _) <- runStmt stmt
+            case stype of
+              CTBreak -> return (CTNormal, sval <|> v, Nothing)
+              CTContinue -> keepGoing obj ps $ sval <|> v
+              CTNormal -> keepGoing obj ps $ sval <|> v
+              _ -> return s
+          else keepGoing obj ps v
 
-  For loc (ForInVar (x, e1) e2) stmt -> do
+
+  For loc (ForInVar (x, e1) e2) stmt ->
     runStmt $ transformFor3VarIn loc x e1 e2 stmt
 
   WithStatement _loc e s -> runWithStatement e s

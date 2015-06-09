@@ -231,6 +231,9 @@ spec = do
   it "runs a for..var loop" $ do
     runJStr "for (var i = 0, t = 0; i < 10; i++, t+=i); console.log(t);" `shouldReturn` Right "55\n"
 
+  it "runs a for..in loop" $ do
+    runJStr "var a = ['apple', 'box', 'car']; for (var n in a) { console.log(a[n]); }" `shouldReturn` Right "apple\nbox\ncar\n"
+
   it "can call a function" $ do
     runJStr "function print(msg) { console.log(msg); }; print(\"hi\")" `shouldReturn` Right "hi\n"
 
