@@ -279,14 +279,14 @@ spec = do
 
   it "can define a simple object" $ do
     let prog = unlines [
-          "function Counter() { this.val = 0; };",
+          "function Counter(v) { this.val = v; };",
           "Counter.prototype.inc = function() { this.val++ };",
-          "var counter = new Counter();",
+          "var counter = new Counter(5);",
           "counter.inc();",
           "counter.inc();",
           "console.log(counter.val);" ]
 
-    runJStr prog `shouldReturn` Right "2\n"
+    runJStr prog `shouldReturn` Right "7\n"
 
   it "can create a new object" $ do
     runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
