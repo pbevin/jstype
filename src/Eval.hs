@@ -275,22 +275,26 @@ runStmt s = case s of
 -- "e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
 transformFor3ToWhile :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3ToWhile _loc e1 e2 e3 stmt =
+transformFor3ToWhile loc e1 e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
-      s1 = maybe (EmptyStatement _loc) (ExprStmt _loc) e1
-      s2 = [ stmt, maybe (EmptyStatement _loc) (ExprStmt _loc) e3 ]
-  in Block _loc [ s1, WhileStatement _loc e (Block _loc s2) ]
+      s1 = maybe (EmptyStatement loc) (ExprStmt loc) e1
+      s2 = case e3 of
+             Just ex -> TryStatement loc stmt Nothing (Just $ Finally loc $ ExprStmt loc ex)
+             Nothing -> stmt
+  in Block loc [ s1, WhileStatement loc e s2 ]
 
 -- |
 -- Turn "for (var x = e1; e2; e3) { s }" into
 -- "var x = e1; while (e2) { s; e3 }"
 -- with sensible defaults for missing statements
 transformFor3VarToWhile :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3VarToWhile _loc decls e2 e3 stmt =
+transformFor3VarToWhile loc decls e2 e3 stmt =
   let e = fromMaybe (Boolean True) e2
-      s1 = VarDecl _loc decls
-      s2 = [ stmt, maybe (EmptyStatement _loc) (ExprStmt _loc) e3 ]
-  in Block _loc [ s1, WhileStatement _loc e (Block _loc s2) ]
+      s1 = VarDecl loc decls
+      s2 = case e3 of
+             Just ex -> TryStatement loc stmt Nothing (Just $ Finally loc $ ExprStmt loc ex)
+             Nothing -> stmt
+  in Block loc [ s1, WhileStatement loc e s2 ]
 
 -- |
 -- Turn "do { s } while (e)" into
@@ -300,7 +304,7 @@ transformDoWhileToWhile loc e s =
   let esc = IfStatement loc (UnOp "!" e)
               (BreakStatement loc Nothing)
               Nothing
-  in WhileStatement loc (Boolean True) $ Block loc [ s, esc ]
+  in WhileStatement loc (Boolean True) $ TryStatement loc s Nothing (Just $ Finally loc esc)
 
 transformFor3VarIn :: SrcLoc -> Ident -> Maybe Expr -> Expr -> Statement -> Statement
 transformFor3VarIn loc x e1 e2 s =
