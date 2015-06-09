@@ -86,22 +86,25 @@ isReference _ = False
 
 
 -- ref 10.2.1.1.1
+-- ref 10.2.1.2.1
 hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
 hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . ownProperties) $ deref obj
 
 -- ref 10.2.1.1.2
-createMutableBinding :: Ident -> Bool -> JSEnv -> Runtime ()
-createMutableBinding n d envRef = do
-  lx <- deref envRef
-  envInsert n VUndef d (envRec lx)
+-- ref 10.2.1.2.2
+createMutableBinding :: Ident -> Bool -> EnvRec -> Runtime ()
+createMutableBinding n d (DeclEnvRec m ) = modifyRef m (propMapInsert' n (dataPD VUndef True True True) d)
+createMutableBinding n d (ObjEnvRec obj _) = void $ addOwnPropertyDescriptor n (dataPD VUndef True True d) obj
 
 -- ref 10.2.1.1.3
+-- ref 10.2.1.2.3
 setMutableBinding :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
-setMutableBinding = envInsert
-
+setMutableBinding name val d (DeclEnvRec m) = modifyRef m (propMapInsert' name (dataPD val True True True) d)
+setMutableBinding name val d (ObjEnvRec obj _) = void $ addOwnPropertyDescriptor name (dataPD val True True d) obj
 
 -- ref 10.2.1.1.4
+-- ref 10.2.1.2.4
 getValueEnvironmentRecord :: JSVal -> Ident -> Runtime JSVal
 getValueEnvironmentRecord (VEnv env) name = case env of
   DeclEnvRec m -> lk VUndef name =<< deref m -- XXX VUndef for this
@@ -111,23 +114,11 @@ getValueEnvironmentRecord (VEnv env) name = case env of
       Nothing   -> return VUndef
       Just desc -> getValueFrom this desc
 
+-- ref 10.2.1.1.5
+-- ref 10.2.1.2.5
 deleteBinding :: String -> EnvRec -> Runtime JSVal
--- ref 10.2.1.1.5 (DeclEnvRec)
 deleteBinding _ (DeclEnvRec _) = return (VBool False)
--- ref 10.2.1.2.5 (ObjEnvRec)
 deleteBinding n (ObjEnvRec obj _) = objDelete n False obj
-
-
-envInsert :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
-envInsert name val d (DeclEnvRec m) = do
-  modifyRef m (propMapInsert' name (dataPD val True True True) d)
-envInsert name val d (ObjEnvRec obj _) = void $ do
-  addOwnPropertyDescriptor name desc obj
-    where desc = dataPD val True True d
-
-envDelete :: Ident -> EnvRec -> Runtime JSVal
-envDelete name (DeclEnvRec m) = modifyRef m (propMapDelete name) >> return (VBool True)
-envDelete name (ObjEnvRec obj _) = objDelete name False obj
 
 -- ref 8.10.5, incomplete
 toPropertyDescriptor :: JSVal -> Runtime (PropDesc JSVal)

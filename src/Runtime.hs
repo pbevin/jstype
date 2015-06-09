@@ -590,7 +590,7 @@ performDBI dbiType strict stmts = do
         funcAlreadyDeclared <- hasBinding fn envRec -- (5c)
 
         if not funcAlreadyDeclared
-        then createMutableBinding fn False env
+        then createMutableBinding fn False envRec
         else do
           go <- getGlobalObject
           when (isTopLevelEnvRec envRec go) $ do
@@ -608,7 +608,7 @@ performDBI dbiType strict stmts = do
         envRec <- envRec <$> deref env
         varAlreadyDeclared <- hasBinding dn envRec
         unless varAlreadyDeclared $ do
-          createMutableBinding dn False env
+          createMutableBinding dn False envRec
           setMutableBinding dn VUndef (strict == Strict) envRec
 
       isTopLevelEnvRec :: EnvRec -> Shared JSObj -> Bool

@@ -330,13 +330,13 @@ runWithStatement e s = do
 
 -- ref 12.14
 runCatch :: Statement -> JSVal -> Runtime StmtReturn
-runCatch (Catch _loc var stmt) c = do
+runCatch (Catch _loc var block) c = do
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
   rec <- envRec <$> deref catchEnv
-  createMutableBinding var True catchEnv
+  createMutableBinding var True rec
   setMutableBinding var c False rec
-  withLexEnv catchEnv $ runStmt stmt
+  withLexEnv catchEnv $ runStmt block
 
 runFinally :: Statement -> Runtime StmtReturn
 runFinally (Finally _loc stmt) = runStmt stmt
