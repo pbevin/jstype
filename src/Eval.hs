@@ -233,9 +233,9 @@ runStmt s = case s of
 
     case (catch, finally) of
       (Just c, Nothing) -> do
-        if btype /= CTThrow
-        then return b
-        else runCatch c (fromJust bval)
+        if btype == CTThrow
+        then runCatch c (fromJust bval)
+        else return b
 
       (Nothing, Just f) -> do
         f@(ftype, _, _) <- runFinally f
@@ -259,7 +259,7 @@ runStmt s = case s of
     return (CTThrow, Just exc, Nothing)
 
   BreakStatement _loc label -> return (CTBreak, Nothing, label)
-  ContinueStatement _loc label -> return (CTBreak, Nothing, label)
+  ContinueStatement _loc label -> return (CTContinue, Nothing, label)
   Return _loc Nothing -> return (CTReturn, Just VUndef, Nothing)
   Return _loc (Just e) -> do
     val <- runExprStmt e >>= getValue
