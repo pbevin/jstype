@@ -311,7 +311,7 @@ transformFor3VarIn loc x e1 e2 s =
 runVarDecl :: [VarDeclaration] -> Runtime StmtReturn
 runVarDecl assignments = do
   forM_ assignments $ \(x, e) -> case e of
-    Nothing  -> putVar x VUndef
+    Nothing  -> return ()
     Just e' -> do
       when (x == "eval" || x == "arguments") $ do
         cannotAssignTo x

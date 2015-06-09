@@ -292,6 +292,22 @@ spec = do
     runJStr "try { throw new Error('hi') } catch (e) { console.log(e.message); }"
     `shouldReturn` Right "hi\n";
 
+  it "encapsulates the catch block arg in its own lexical environment" $ do
+    let prog = unlines [
+                  "  function captured() {return e}; ",
+                  "  e = \"prior to throw\"; ",
+                  "  try { ",
+                  "    throw new Error(); ",
+                  "  } ",
+                  "  catch (e) { ",
+                  "    var e = \"initializer in catch\"; ",
+                  "    console.log(captured()); ",
+                  "  } "
+                ]
+
+    runJStr prog `shouldReturn` Right "prior to throw\n"
+
+
   it "raises an error to the top level" $ do
     runJStr "throw 'hi'" `shouldError` "hi"
 

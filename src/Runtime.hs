@@ -228,16 +228,18 @@ funcCall name func paramList strict body this args =
       findNewThis other  = toObject other
   in do
     cxt <- getGlobalContext
-    envRec <- newEnvRec
-    env <- newEnv envRec (lexEnv cxt)
-    zipWithM_ (addToNewEnv envRec) paramList (args ++ repeat VUndef)
+
+    scope <- objScope <$> deref (toObj func)
+    localEnv <- newDeclarativeEnvironment scope
+    env <- envRec <$> deref localEnv
+    zipWithM_ (addToNewEnv env) paramList (args ++ repeat VUndef)
     VObj arguments <- createArgumentsObject func paramList args strict
-    addToNewEnv envRec "arguments" (VObj arguments)
+    addToNewEnv env "arguments" (VObj arguments)
     case name of
-      Just n -> addToNewEnv envRec n func
+      Just n -> addToNewEnv env n func
       _      -> return ()
     newThis <- VObj <$> findNewThis this
-    withNewContext (newCxt cxt env newThis) $ do
+    withNewContext (newCxt cxt localEnv newThis) $ do
       performDBI DBIFunction strict body
       result <- jsRunStmts body
       case result of
@@ -360,7 +362,7 @@ putVar :: Ident -> JSVal -> Runtime ()
 putVar x v = do
   cxt <- getGlobalContext
   ref <- getIdentifierReference (Just $ lexEnv cxt) x (cxtStrictness cxt)
-  putValue ref v
+  void $ assignRef (VRef ref) v
 
 
 -- ref 10.2.2.1
@@ -370,7 +372,7 @@ getIdentifierReference (Just lexRef) name strict = do
   env <- deref lexRef
   exists <- hasBinding name (envRec env)
   if exists
-  then return $ JSRef (VEnv $ envRec env) name strict
+  then return (JSRef (VEnv $ envRec env) name strict)
   else do
     getIdentifierReference (outer env) name strict
 
