@@ -215,8 +215,11 @@ throwStmt = do
 tryStmt :: JSParser Statement
 tryStmt = try (keyword "try") >> TryStatement <$> srcLoc <*> realblock
              <*> optionMaybe catch <*> optionMaybe finally
-    where catch = try (keyword "catch") >>
-                     Catch <$> srcLoc <*> parens identifier <*> realblock
+    where catch = try (keyword "catch") >> do
+                     loc <- srcLoc
+                     var <- parens identifier
+                     ifStrict $ guard (legalIdentifier var)
+                     Catch loc var <$> realblock
           finally = try (keyword "finally") >>
                      Finally <$> srcLoc <*> realblock
 

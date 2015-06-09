@@ -436,6 +436,10 @@ spec = do
       unparseableInStrictMode "var f = function eval() { }"
       unparseableInStrictMode "var g = function arguments() { }"
 
+    it "disallows eval+argument as catch block param names" $ do
+      unparseableInStrictMode "try {} catch(eval) {}"
+      unparseableInStrictMode "try {} catch(arguments) {}"
+
     it "allows passing arguments to another function in strict mode" $ do
       testParseStrict "f(arguments)" `shouldBe`
         Program Strict [
