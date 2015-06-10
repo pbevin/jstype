@@ -40,6 +40,7 @@ eraseSrcLoc (Program strictness stmts) =
         BreakStatement _ l     -> BreakStatement s l
         Return _ a             -> Return s a
         WithStatement _ a b    -> WithStatement s a $ overrideSrcLoc b
+        SwitchStatement _ a b  -> SwitchStatement s a $ map fixCase b
         ThrowStatement _ a     -> ThrowStatement s a
         TryStatement _ a b c   -> TryStatement s a b c
         EmptyStatement _       -> EmptyStatement s
@@ -54,6 +55,8 @@ eraseSrcLoc (Program strictness stmts) =
         _ -> e
       fixVars (x, Just e) = (x, Just (fixExpr e))
       fixVars other = other
+      fixCase (Case a b) = Case a (overrideAll b)
+      fixCase (Default b) = Default (overrideAll b)
   in Program strictness $ overrideAll stmts
 
 unparseable :: String -> IO ()
@@ -451,7 +454,7 @@ spec = do
         Program NotStrict [
           WithStatement s (ReadVar "obj") (Block s []) ]
 
-  describe "An ExpressionStatement" $ do
+  describe "An ExprStmt" $ do
     it "cannot begin with a curly bracket" $
       testParse "{}" `shouldBe`
         Program NotStrict [ Block s [ ] ]
@@ -464,3 +467,10 @@ spec = do
     it "can have unicode escapes in it" $ do
       testParse "function \\u005f\\u005f\\u0066\\u0075\\u006e\\u0063(){ }"
         `shouldBe` testParse "function __func() { }"
+
+  describe "the switch statement" $ do
+    it "can have cases" $ do
+      testParse "switch (e) { case 1: a = 2; break; }" `shouldBe`
+        Program NotStrict [
+          SwitchStatement s (ReadVar "e") $
+            [ Case (Num 1) [ ExprStmt s (Assign (ReadVar "a") "=" (Num 2)), BreakStatement s Nothing ] ] ]

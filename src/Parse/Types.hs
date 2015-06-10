@@ -7,6 +7,7 @@ data ParseState = ParseState {
   inKeywordAllowed :: Bool,
   insideIteration :: Bool,
   insideFunction :: Bool,
+  insideSwitch :: Bool,
   strictnessState :: Strictness,
   labelSet :: [String],
   contextDescription :: Maybe String } deriving Show

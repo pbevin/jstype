@@ -62,6 +62,7 @@ statement = choice [ block <?> "block",
                      forStmt <?> "for",
                      whileStmt <?> "while",
                      withStmt <?> "with",
+                     switchStmt <?> "switch",
                      terminated doWhileStmt <?> "do...while",
                      terminated returnStmt <?> "return",
                      terminated breakStmt <?> "break",
@@ -89,7 +90,7 @@ funDecl = do
   name <- identifier <?> "function name"
   ifStrict $ guard (legalIdentifier name)
   params <- paramList
-  (strictness, stmts) <- withFunctionContext (Just name) (withoutInsideIteration $ braces statementList) <?> "function body"
+  (strictness, stmts) <- withFunctionContext (Just name) (enterFunction $ braces statementList) <?> "function body"
   return $ FunDecl loc name params strictness stmts
 
 paramList :: JSParser [Ident]
@@ -134,6 +135,19 @@ withStmt :: JSParser Statement
 withStmt = keyword "with" >>
              WithStatement <$> srcLoc <*> parens expr <*> statement
 
+switchStmt :: JSParser Statement
+switchStmt = keyword "switch" >>
+  SwitchStatement <$> srcLoc <*> parens expr <*> braces caseClauses
+
+caseClauses :: JSParser [CaseClause]
+caseClauses = enterSwitch $ many (caseClause <|> defaultClause)
+  where
+    caseClause = keyword "case" >>
+      Case <$> expr <*> (tok ":" >> many statement)
+
+    defaultClause = keyword "default" >> tok ":" >>
+      Default <$> many statement
+
 ifStmt :: JSParser Statement
 ifStmt = do
   try $ keyword "if"
@@ -150,12 +164,12 @@ whileStmt :: JSParser Statement
 whileStmt = try $ keyword "while" >>
   WhileStatement <$> srcLoc
                  <*> parens expr
-                 <*> withInsideIteration statement
+                 <*> enterIteration statement
 
 doWhileStmt :: JSParser Statement
 doWhileStmt = try $ keyword "do" >> do
   loc <- srcLoc
-  stmt <- withInsideIteration statement
+  stmt <- enterIteration statement
   keyword "while"
   e <- parens expr
   return $ DoWhileStatement loc e stmt
@@ -165,7 +179,7 @@ forStmt :: JSParser Statement
 forStmt = try (keyword "for") >>
   For <$> srcLoc
       <*> forHeader
-      <*> withInsideIteration statement
+      <*> enterIteration statement
 
 forHeader :: JSParser ForHeader
 forHeader = parens (forinvar <|> try forin <|> for3 <|> for3var)
@@ -189,7 +203,7 @@ emptyStmt :: JSParser Statement
 emptyStmt = semicolon >> EmptyStatement <$> srcLoc
 
 breakStmt :: JSParser Statement
-breakStmt = ifInsideIteration $ keyword "break" >>
+breakStmt = ifInsideIterationOrSwitch $ keyword "break" >>
   BreakStatement <$> srcLoc <*> optional (fromLabelSet identifier)
 
 continueStmt :: JSParser Statement
@@ -302,7 +316,7 @@ functionExpr = do
   ifStrict $ forM_ name $ \n ->
     guard (legalIdentifier n)
   params <- paramList
-  (strictness, stmts) <- withFunctionContext name (withoutInsideIteration $ braces statementList) <?> "function body"
+  (strictness, stmts) <- withFunctionContext name (enterFunction $ braces statementList) <?> "function body"
   return $ FunExpr name params strictness stmts
 
 callExpr :: JSParser Expr -> JSParser Expr

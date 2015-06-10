@@ -17,6 +17,7 @@ initialParseState strict inFunction =
   ParseState { inKeywordAllowed = True,
                insideIteration = False,
                insideFunction = inFunction,
+               insideSwitch = False,
                strictnessState = strict,
                labelSet = [],
                contextDescription = Nothing }
@@ -38,11 +39,14 @@ withStrictness isStrict = recurseState $ \st -> st { strictnessState = isStrict 
 withoutInKeyword :: JSParser a -> JSParser a
 withoutInKeyword = recurseState $ \st -> st { inKeywordAllowed = False }
 
-withInsideIteration :: JSParser a -> JSParser a
-withInsideIteration = recurseState $ \st -> st { insideIteration = True }
+enterIteration :: JSParser a -> JSParser a
+enterIteration = recurseState $ \st -> st { insideIteration = True }
 
-withoutInsideIteration :: JSParser a -> JSParser a
-withoutInsideIteration = recurseState $ \st -> st { insideIteration = False }
+enterSwitch :: JSParser a -> JSParser a
+enterSwitch = recurseState $ \st -> st { insideSwitch = True }
+
+enterFunction :: JSParser a -> JSParser a
+enterFunction = recurseState $ \st -> st { insideIteration = False, insideSwitch = False }
 
 withFunctionContext :: Maybe String -> JSParser a -> JSParser a
 withFunctionContext fname =
@@ -50,19 +54,27 @@ withFunctionContext fname =
   in recurseState $ \st -> st { contextDescription = Just here,
                                 insideFunction = True }
 
-ifInsideFunction :: JSParser a -> JSParser a
-ifInsideFunction p = do
+ifContext :: (ParseState -> Bool) -> String -> JSParser a -> JSParser a
+ifContext pred msg p = do
   st <- getState
-  if insideFunction st
+  if pred st
   then p
-  else fail "Return statement found outside a function"
+  else fail msg
+
+
+ifInsideFunction :: JSParser a -> JSParser a
+ifInsideFunction = ifContext insideFunction $
+  "Return statement found outside a function"
+
+ifInsideIterationOrSwitch :: JSParser a -> JSParser a
+ifInsideIterationOrSwitch = ifContext insideFunctionOrSwitch $
+  "break statement found outside loop or switch statement"
+    where
+      insideFunctionOrSwitch st = insideFunction st || insideSwitch st
 
 ifInsideIteration :: JSParser a -> JSParser a
-ifInsideIteration p = do
-  st <- getState
-  if insideIteration st
-  then p
-  else fail "break and continue belong in loops"
+ifInsideIteration = ifContext insideIteration $
+  "break and continue belong in loops"
 
 fromLabelSet :: JSParser String -> JSParser String
 fromLabelSet p = do
