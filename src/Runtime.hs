@@ -476,7 +476,11 @@ newObjectFromConstructor fun args = case fun of
       VObj funref -> do
         obj <- newObject
         prototype <- objGetProperty "prototype" funref >>= fromObj
-        setPrototype prototype obj
+        case prototype of
+          Just p -> setPrototype prototype obj
+          Nothing -> do
+            objPrototype <- Just <$> getGlobalObjectPrototype
+            setPrototype objPrototype obj
         defineOwnProperty "constructor" (dataPD val True False True) False obj
         objCstr (VObj funref) (VObj obj) args >>= \case
           VObj o -> return o
