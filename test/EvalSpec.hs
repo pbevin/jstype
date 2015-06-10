@@ -10,9 +10,6 @@ import Runtime
 import Expectations
 
 
-runJStr :: String -> IO (Either RuntimeError String)
-runJStr = runJS ""
-
 
 spec :: Spec
 spec = do

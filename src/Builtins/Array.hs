@@ -5,6 +5,7 @@ import Data.List (intercalate)
 import Safe
 import Data.Int
 import Runtime
+import Builtins.Array.Sort
 
 
 makeArrayClass :: Runtime (Shared JSObj)
@@ -82,9 +83,6 @@ arrayReduce _this _args = return VNull
 
 arrayReverse :: JSFunction
 arrayReverse _this _args = return VUndef
-
-arraySort :: JSFunction
-arraySort _this _args = return VUndef
 
 isArray :: JSFunction
 isArray _this _args = return (VBool True)

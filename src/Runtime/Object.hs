@@ -45,15 +45,18 @@ valGetProperty _ _ = return Nothing
 
 -- ref 8.12.3
 objGetObj :: String -> Shared JSObj -> Runtime JSVal
-objGetObj name objRef = do
+objGetObj name objRef = fromMaybe VUndef <$> objGetMaybe name objRef
+
+objGetMaybe :: String -> Shared JSObj -> Runtime (Maybe JSVal)
+objGetMaybe name objRef = do
   prop <- objGetProperty name objRef
   case prop of
-    Nothing -> return VUndef
+    Nothing -> return Nothing
     Just desc -> if isDataDescriptor prop
-                 then return $ fromMaybe VUndef (propValue desc)
+                 then return $ propValue desc
                  else case propGetter desc of
-                   Nothing -> return VUndef
-                   Just f  -> f (VObj objRef)
+                   Nothing -> return Nothing
+                   Just f  -> Just <$> f (VObj objRef)
 
 
 -- ref 8.12.4

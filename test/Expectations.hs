@@ -37,3 +37,6 @@ shouldStartWith haystack needle
   | needle `isPrefixOf` haystack = return ()
   | otherwise = expectationFailure $
       "Expected string starting with " ++ show needle ++ ", got " ++ show haystack
+
+runJStr :: String -> IO (Either RuntimeError String)
+runJStr = runJS ""
