@@ -45,6 +45,19 @@ spec = do
       jsEvalExpr "Math.max()" `shouldReturn` VNum (-1/0)
       jsEvalExpr "Math.min()" `shouldReturn` VNum ( 1/0)
 
+  describe "hypot" $ do
+    it "is the hypotenuse of a right triangle" $ do
+      jsEvalExpr "Math.hypot(3, 4)" `shouldReturn` VNum 5
+
+    it "returns infinity if either arg is infinite" $ do
+      jsEvalExpr "Math.hypot( Infinity, 3)" `shouldReturn` VNum (JSNum inf)
+      jsEvalExpr "Math.hypot(-Infinity, 3)" `shouldReturn` VNum (JSNum inf)
+      jsEvalExpr "Math.hypot(3,  Infinity)" `shouldReturn` VNum (JSNum inf)
+      jsEvalExpr "Math.hypot(3, -Infinity)" `shouldReturn` VNum (JSNum inf)
+
+    it "is 0 if no arg is given" $ do
+      jsEvalExpr "Math.hypot()" `shouldReturn` VNum 0
+
   describe "Math.pow" $ do
     let inf = 1/0
     let nan = 0/0

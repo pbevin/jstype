@@ -74,8 +74,12 @@ mathFunc f _this args = liftM (VNum . JSNum . f . fromJSNum) $ toNumber (head ar
 
 mathFunc2 :: (Double -> Double -> Double) -> JSFunction
 mathFunc2 f _this args = do
-  [a, b] <- mapM toNumber (take 2 args)
-  return $ VNum $ JSNum $ f (fromJSNum a) (fromJSNum b)
+  [x, y] <- mapM toNumber [a, b]
+  return $ VNum $ JSNum $ f (fromJSNum x) (fromJSNum y)
+    where (a, b) = case args of
+                      []      -> (VNum 0, VNum 0)
+                      [x]     -> (x, VNum 0)
+                      (x:y:_) -> (x, y)
 
 mathMaxFunc :: (JSNum -> JSNum -> JSNum) -> Double -> JSFunction
 mathMaxFunc f ifEmpty _this args = do
@@ -85,8 +89,8 @@ mathMaxFunc f ifEmpty _this args = do
         handleNaN g a b = if isJsNaN a || isJsNaN b then JSNum nan else g a b
         isJsNaN (JSNum x) = x /= x
 
-hypot :: Floating a => a -> a -> a
-hypot a b = sqrt (a*a + b*b)
+hypot :: Double -> Double -> Double
+hypot a b = if isInfinite a || isInfinite b then inf else sqrt (a*a + b*b)
 
 pow :: RealFloat a => a -> a -> a
 pow x y
