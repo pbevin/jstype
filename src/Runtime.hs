@@ -48,7 +48,7 @@ createGlobalObjectPrototype =
             >>= addOwnProperty "toString" (VNative objToString)
             >>= addOwnProperty "hasOwnProperty" (VNative objHasOwnProperty)
             >>= addOwnProperty "valueOf" (VNative objValueOf)
-            >>= addOwnProperty "__objid" (VNative objId)
+            >>= addOwnProperty "isPrototypeOf" (VNative objIsPrototypeOf)
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -561,6 +561,25 @@ objPreventExtensions _this args =
 -- ref 15.2.4.4, incomplete
 objValueOf :: JSVal -> [JSVal] -> Runtime JSVal
 objValueOf this _args = VObj <$> toObject this
+
+-- ref 15.2.4.6, incomplete
+objIsPrototypeOf :: JSFunction
+objIsPrototypeOf this args =
+  let arg = first1 args
+      findPrototype o Nothing = return False
+      findPrototype o (Just v) =
+        if o == v
+        then return True
+        else do
+          v' <- objPrototype <$> deref v
+          findPrototype o v'
+  in do
+    case arg of
+      VObj v -> do
+        o <- toObject this
+        v' <- objPrototype <$> deref v
+        result <- findPrototype o v'
+        return $ VBool result
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
 objId (VObj (Shared _ oid)) _args = return $ VNum $ fromIntegral oid
