@@ -143,16 +143,21 @@ funFunction prototype _this args = do
                    >>= objSetPrototype prototype
   funConstructor (VObj obj) args
 
+-- ref 15.3.2.1
 funConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 funConstructor this args = case this of
   VObj objRef -> do
     let arg = lastDef VUndef args
+        paramList = initDef [] args
+
     body <- toString arg
+    params <- mapM toString paramList
+
     case parseInFunction body of
       Left err -> raiseSyntaxError (show err)
       Right (Program strictness stmts) -> do
         globalEnv <- getGlobalEnvironment
-        createFunction Nothing [] strictness stmts globalEnv -- XXX []
+        createFunction Nothing params strictness stmts globalEnv
   _ -> raiseTypeError "Function constructor"
 
 funCallMethod :: JSFunction
