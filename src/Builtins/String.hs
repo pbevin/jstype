@@ -8,21 +8,21 @@ makeStringClass :: Runtime (Shared JSObj)
 makeStringClass = do
   stringPrototype <- newObject
     >>= setClass "String"
-    >>= addOwnProperty "constructor" (VNative strConstructor)
-    >>= addOwnProperty "toString" (VNative stringToString)
-    >>= addOwnProperty "charAt" (VNative charAt)
-    >>= addOwnProperty "charCodeAt" (VNative charCodeAt)
-    >>= addOwnProperty "indexOf" (VNative indexOf)
-    >>= addOwnProperty "lastIndexOf" (VNative lastIndexOf)
-    >>= addOwnProperty "split" (VNative split)
-    >>= addOwnProperty "substring" (VNative substring)
-    >>= addOwnProperty "toLowerCase" (VNative toLowerCase)
-    >>= addOwnProperty "toUpperCase" (VNative toUpperCase)
+    >>= addOwnProperty "constructor" (VNative 1 strConstructor)
+    >>= addOwnProperty "toString" (VNative 0 stringToString)
+    >>= addOwnProperty "charAt" (VNative 1 charAt)
+    >>= addOwnProperty "charCodeAt" (VNative 1 charCodeAt)
+    >>= addOwnProperty "indexOf" (VNative 1 indexOf)
+    >>= addOwnProperty "lastIndexOf" (VNative 1 lastIndexOf)
+    >>= addOwnProperty "split" (VNative 2 split)
+    >>= addOwnProperty "substring" (VNative 2 substring)
+    >>= addOwnProperty "toLowerCase" (VNative 0 toLowerCase)
+    >>= addOwnProperty "toUpperCase" (VNative 0 toUpperCase)
 
   functionObject "String" stringPrototype
     >>= setCallMethod strFunction
     >>= setCstrMethod (strConstructor)
-    >>= addOwnProperty "fromCharCode" (VNative fromCharCode)
+    >>= addOwnProperty "fromCharCode" (VNative 1 fromCharCode)
 
 -- ref 15.5.1.1
 strFunction :: JSFunction

@@ -23,7 +23,7 @@ configureBuiltins obj = do
 
   errorPrototype <- newObject
     >>= setClass "Error"
-    >>= addOwnProperty "toString" (VNative errorToString)
+    >>= addOwnProperty "toString" (VNative 0 errorToString)
     >>= addOwnProperty "prototype" (VObj prototype)
 
   errorObj <- functionObject "Error" errorPrototype
@@ -42,12 +42,12 @@ configureBuiltins obj = do
 
   math <- mathObject
   json <- newObject
-    >>= addOwnProperty "stringify" (VNative jsonStringify)
+    >>= addOwnProperty "stringify" (VNative 1 jsonStringify)
 
   regexpPrototype <- newObject
     >>= setClass "RegExp"
     >>= objSetPrototype prototype
-    >>= addOwnProperty "exec" (VNative regexpExec)
+    >>= addOwnProperty "exec" (VNative 1 regexpExec)
 
   regexp <- newObject
     >>= setClass "Function"
@@ -56,9 +56,9 @@ configureBuiltins obj = do
     >>= addOwnProperty "prototype" (VObj regexpPrototype)
 
   console <- newObject
-    >>= addOwnProperty "log" (VNative jsConsoleLog)
+    >>= addOwnProperty "log" (VNative 1 jsConsoleLog)
 
-  addOwnProperty "escape" (VNative objEscape) obj
+  addOwnProperty "escape" (VNative 1 objEscape) obj
     >>= addOwnProperty "console" (VObj console)
     >>= addOwnProperty "String" (VObj string)
     >>= addOwnProperty "Number" (VObj number)
@@ -75,11 +75,11 @@ configureBuiltins obj = do
     >>= addOwnProperty "URIError" (VObj uriError)
     >>= addOwnProperty "Math" (VObj math)
     >>= addOwnProperty "JSON" (VObj json)
-    >>= addOwnProperty "eval" (VNative objEval)
-    >>= addOwnProperty "isNaN" (VNative objIsNaN)
-    >>= addOwnProperty "isFinite" (VNative objIsFinite)
-    >>= addOwnProperty "parseInt" (VNative parseInt)
-    >>= addOwnProperty "parseFloat" (VNative parseFloat)
+    >>= addOwnProperty "eval" (VNative 1 objEval)
+    >>= addOwnProperty "isNaN" (VNative 1 objIsNaN)
+    >>= addOwnProperty "isFinite" (VNative 1 objIsFinite)
+    >>= addOwnProperty "parseInt" (VNative 1 parseInt)
+    >>= addOwnProperty "parseFloat" (VNative 1 parseFloat)
     >>= addOwnConstant "Infinity" (VNum $ 1 / 0)
     >>= addOwnConstant "NaN" (VNum $ jsNaN)
     >>= addOwnConstant "undefined" (VUndef)

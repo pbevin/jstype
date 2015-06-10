@@ -44,7 +44,7 @@ errConstructor this args =
     VObj obj -> do
       liftM VObj $ setClass "Error" obj
                >>= addOwnProperty "message" text
-               >>= addOwnProperty "toString" (VNative errorToString)
+               >>= addOwnProperty "toString" (VNative 0 errorToString)
     _ -> raiseError "Bad this for Error constructor"
 
 dflt :: JSVal -> JSVal -> JSVal

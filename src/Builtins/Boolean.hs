@@ -7,12 +7,12 @@ import Runtime
 makeBooleanClass :: Runtime (Shared JSObj)
 makeBooleanClass = do
   booleanPrototype <- makePrototype "Boolean"
-    >>= addOwnProperty "constructor" (VNative booleanConstructor)
+    >>= addOwnProperty "constructor" (VNative 1 booleanConstructor)
 
   functionObject "Boolean" booleanPrototype
     >>= setCallMethod booleanFunction
     >>= setCstrMethod booleanConstructor
-    >>= addOwnProperty "constructor" (VNative booleanConstructor)
+    >>= addOwnProperty "constructor" (VNative 1 booleanConstructor)
 
 
 booleanFunction :: JSFunction
