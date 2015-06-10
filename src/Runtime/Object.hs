@@ -187,7 +187,6 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
       let g = propGetter newDesc
           s = propSetter newDesc
           e = propIsEnumerable oldDesc
-      debug ("convert to accessor", p)
       updateObj (objSetPropertyDescriptor p $ accessorPD g s e False) o
 
     (False, True) -> do
@@ -195,14 +194,13 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
       let v = propValue newDesc
           w = propIsWritable newDesc
           e = propIsEnumerable oldDesc
-      debug ("convert to data", p)
       updateObj (objSetPropertyDescriptor p $ dataPD' v w e False) o
 
     (True, True) -> do
       when (propIsConfigurable oldDesc == False) $
         when (propIsWritable oldDesc == False) $ do
           rejectIf (propIsWritable newDesc == True)
-          rejectIf (True)
+          rejectIf (sameValue (fromMaybe VUndef $ propValue oldDesc) (fromMaybe VUndef $ propValue newDesc))
       updateObj (objSetPropertyDescriptor p newDesc) o
 
     (False, False) -> do
@@ -214,7 +212,6 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
 
   where rejectIf :: Bool -> Runtime ()
         rejectIf condition = when (condition && throw) $ raiseProtoError TypeError "Cannot overwrite property"
-
 
 
 

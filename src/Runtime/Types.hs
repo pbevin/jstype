@@ -181,6 +181,14 @@ instance Eq JSVal where
   _a == _b = False
 
 
+-- 9.12
+sameValue :: JSVal -> JSVal -> Bool
+sameValue (VNum (JSNum x)) (VNum (JSNum y))
+  | isNaN x && isNaN y = True
+  | otherwise          =  x == y
+sameValue (VObj x) (VObj y) = x == y
+sameValue x y = x == y
+
 
 newEnv :: EnvRec -> JSEnv -> Runtime JSEnv
 newEnv rec parent = do
