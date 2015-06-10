@@ -236,14 +236,15 @@ funcCall name func paramList strict body this args =
     localEnv <- newDeclarativeEnvironment scope
     env <- envRec <$> deref localEnv
     zipWithM_ (addToNewEnv env) paramList (args ++ repeat VUndef)
-    VObj arguments <- createArgumentsObject func paramList args strict
-    addToNewEnv env "arguments" (VObj arguments)
     case name of
       Just n -> addToNewEnv env n func
       _      -> return ()
     newThis <- VObj <$> findNewThis this
     withNewContext (newCxt cxt localEnv newThis) $ do
       performDBI DBIFunction strict body
+      when ("arguments" `notElem` paramList) $ do
+        VObj argsObj <- createArgumentsObject func paramList args strict
+        addToNewEnv env "arguments" (VObj argsObj)
       result <- jsRunStmts body
       case result of
         (CTReturn, Just v, _) -> return v

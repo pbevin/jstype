@@ -331,8 +331,6 @@ runVarDecl assignments = do
   forM_ assignments $ \(x, e) -> case e of
     Nothing  -> return ()
     Just e' -> do
-      when (x == "eval" || x == "arguments") $ do
-        cannotAssignTo x
       runExprStmt e' >>= getValue >>= putVar x
   return (CTNormal, Nothing, Nothing)
 
