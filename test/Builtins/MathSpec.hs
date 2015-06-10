@@ -36,3 +36,38 @@ spec = do
       jsEvalExpr "Math.round(0.5)" `shouldReturn` VNum 1.0
       jsEvalExpr "Math.round(-1.5)" `shouldReturn` VNum (-1.0)
 
+  describe "min, max" $ do
+    it "can get the min/max of a nonempty list" $ do
+      jsEvalExpr "Math.max(1,3,2)" `shouldReturn` VNum 3
+      jsEvalExpr "Math.min(1,3,2)" `shouldReturn` VNum 1
+
+    it "defaults the empty list" $ do
+      jsEvalExpr "Math.max()" `shouldReturn` VNum (-1/0)
+      jsEvalExpr "Math.min()" `shouldReturn` VNum ( 1/0)
+
+  describe "Math.pow" $ do
+    let inf = 1/0
+    let nan = 0/0
+
+    it "raises one number to the power of another" $ do
+      pow 3 2 `shouldBe` 9
+
+    it "is NaN for +/-1 and +/-Infinity" $ do
+      pow 1 (-inf) `shouldSatisfy` isNaN
+      pow (-1) (-inf) `shouldSatisfy` isNaN
+      pow 1 inf `shouldSatisfy` isNaN
+      pow (-1) inf `shouldSatisfy` isNaN
+
+    it "is +Infinity when x is +0 and y < 0" $ do
+      pow 0 (-1) `shouldBe` inf
+      pow 0 (-2) `shouldBe` inf
+
+    it "is -Infinity when x is -0, y < 0, and y is an odd integer" $ do
+      -- yes indeed
+      pow (-0) (-11111) `shouldBe` -inf
+
+    it "is +Infinity when x is -0, y < 0, and y not an odd integer" $ do
+      pow (-0) (-2) `shouldBe` inf
+      pow (-0) (-inf) `shouldBe` inf
+      pow (-0) (-1.79e308) `shouldBe` inf
+

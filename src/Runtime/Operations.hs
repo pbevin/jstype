@@ -253,28 +253,5 @@ unaryNot = unaryOp VBool (return . toBoolean) not
 commaOperator :: JSVal -> JSVal -> Runtime JSVal
 commaOperator _ = return
 
-
-mathFunc :: (Double -> Double) -> JSFunction
-mathFunc f _this args = liftM (VNum . JSNum . f . fromJSNum) $ toNumber (head args)
-
-mathFunc2 :: (Double -> Double -> Double) -> JSFunction
-mathFunc2 f _this args = do
-  [a, b] <- mapM toNumber (take 2 args)
-  return $ VNum $ JSNum $ f (fromJSNum a) (fromJSNum b)
-
-mathMaxFunc :: ([JSNum] -> JSNum) -> JSFunction
-mathMaxFunc f _this args = liftM (VNum . f) $ mapM toNumber args
-
-hypot :: Floating a => a -> a -> a
-hypot a b = sqrt (a*a + b*b)
-
-pow :: RealFloat a => a -> a -> a
-pow x y
-  | abs x == 1 && isInfinite y = 0/0
-  | isNegativeZero x && y < 0 && isOddInteger y = -1/0
-  | isNegativeZero x && y < 0 && not (isOddInteger y) = 1/0
-  | x == 0 && y < 0 = 1/0
-  | otherwise = x ** y
-
 isOddInteger :: RealFloat a => a -> Bool
 isOddInteger y = not (isInfinite y) && isInteger ((y+1)/2) && abs y < 1e20
