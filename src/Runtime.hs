@@ -60,7 +60,10 @@ createGlobalThis = do
     >>= addOwnProperty "call" (VNative funCallMethod)
 
   function <- newObject
-    >>= mkFunction "Function" functionPrototype
+    >>= setClass "Function"
+    >>= addOwnProperty "prototype" (VObj functionPrototype)
+    >>= addOwnProperty "name" (VStr "Function")
+    >>= objSetHasInstance funHasInstance
     >>= setCallMethod (funFunction functionPrototype)
     >>= setCstrMethod funConstructor
     >>= objSetPrototype functionPrototype
@@ -210,12 +213,6 @@ funGet p f = do
         Just (Program Strict _) ->
           raiseTypeError "Cannot access caller property"
         _ -> return val
-
-
-
-funHasInstance = undefined
-
-
 
 -- ref 13.2.1
 funcCall :: Maybe Ident -> JSVal -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal

@@ -1,4 +1,4 @@
-module Runtime.Function (functionObject, mkFunction) where
+module Runtime.Function where
 
 import Safe
 
@@ -10,19 +10,17 @@ import Runtime.Conversion
 
 
 functionObject :: String -> Shared JSObj -> Runtime (Shared JSObj)
-functionObject name prototype = newObject >>= mkFunction name prototype
-
-mkFunction :: String -> Shared JSObj -> Shared JSObj -> Runtime (Shared JSObj)
-mkFunction name prototype this =
-  setClass "Function" this
+functionObject name prototype =
+  newObject
+    >>= setClass "Function"
     >>= addOwnProperty "prototype" (VObj prototype)
     >>= addOwnProperty "name" (VStr name)
-    >>= objSetHasInstance hasInstance
+    >>= objSetHasInstance funHasInstance
 
 
 -- ref 15.3.5.3
-hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
-hasInstance f val = case val of
+funHasInstance :: Shared JSObj -> JSVal -> Runtime Bool
+funHasInstance f val = case val of
   VObj obj -> hasInstance' obj
   _ -> return False
   where
