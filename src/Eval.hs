@@ -17,8 +17,6 @@ import JSNum
 import Runtime
 import Builtins
 
-import Debug.Trace
-
 data RuntimeError = RuntimeError {
   errorMessage :: String,
   errorObject :: JSVal,
@@ -457,7 +455,7 @@ runExprStmt expr = case expr of
     liftM VObj (newObjectFromConstructor fun argList)
 
   FunExpr name params strictness body -> do
-    env <- varEnv <$> getGlobalContext
+    env <- lexEnv <$> getGlobalContext
     createFunction name params strictness body env
 
   _ -> error ("Unimplemented expr: " ++ show expr)

@@ -436,6 +436,16 @@ spec = do
                   "  console.log(x, scope.x)" ]
       runJStr prog `shouldReturn` Right "0 1\n"
 
+    it "gives functions access to its scope" $ do
+      let prog = unlines [
+                  "  var a = 1; ",
+                  "  var obj = {a:2}; ",
+                  "  with (obj) { ",
+                  "      (function(){console.log(a);})(); ",
+                  "  } " ]
+      runJStr prog `shouldReturn` Right "2\n"
+
+
   describe "delete" $ do
     it "deletes an undeclared variable" $ do
       runJStr "x = 1; delete x; console.log(x);"
