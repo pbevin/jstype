@@ -167,9 +167,9 @@ runStmts = runStmts' (CTNormal, Nothing, Nothing) where
       _ -> return result
 
 runStmt :: Statement -> Runtime StmtReturn
-runStmt s = case s of
+runStmt s = {-# SCC stmt #-} case s of
   FunDecl {} -> return (CTNormal, Nothing, Nothing)
-  ExprStmt _loc e -> do
+  ExprStmt _loc e -> {-# SCC "exprStmt" #-} do
     val <- runExprStmt e >>= getValue
     return (CTNormal, Just val, Nothing)
 
@@ -202,7 +202,7 @@ runStmt s = case s of
         increment = case e3 of
                        Just e -> runExprStmt e >>= getValue >> return ()
                        Nothing -> return ()
-    in init >> loopConstruct cond increment stmt
+    in init >> {-# SCC for3 #-} loopConstruct cond increment stmt
 
 
   For loc (For3Var assigns e2 e3) stmt -> -- ref 12.6.3
@@ -289,7 +289,7 @@ loopConstruct condition increment stmt = keepGoing Nothing where
     if not willEval
     then return (CTNormal, v, Nothing)
     else do
-      sval@(stype, v', _) <- runStmt stmt
+      sval@(stype, v', _) <- {-# SCC loop_body #-} runStmt stmt
       let nextVal = case v' of
                       Nothing -> v
                       Just newVal -> Just newVal
