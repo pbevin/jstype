@@ -89,7 +89,7 @@ objPut p v throw objRef = do
   else do
     ownDesc <- objGetOwnProperty p objRef
     if isDataDescriptor ownDesc
-    then void $ defineOwnProperty p (dataPD v True True True) throw objRef
+    then void $ defineOwnProperty p (valuePD v) throw objRef
     else do
       desc <- objGetProperty p objRef
       if isAccessorDescriptor desc
@@ -203,7 +203,9 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
         when (propIsWritable oldDesc == False) $ do
           rejectIf (propIsWritable newDesc == True)
           rejectIf (sameValue (fromMaybe VUndef $ propValue oldDesc) (fromMaybe VUndef $ propValue newDesc))
-      updateObj (objSetPropertyDescriptor p newDesc) o
+      case propValue newDesc of
+        Nothing -> return o
+        Just v  -> updateObj (objSetPropertyDescriptor p $ oldDesc `mappend` valuePD v) o
 
     (False, False) -> do
       let g = propGetter newDesc <|> propGetter oldDesc

@@ -6,6 +6,7 @@ module Runtime.PropertyDescriptor ( propIsWritable
                                   , propSetter
                                   , dataPD
                                   , dataPD'
+                                  , valuePD
                                   , accessorPD
                                   , isDataDescriptor
                                   , isAccessorDescriptor
@@ -75,6 +76,9 @@ hasPropertyType name (PropDesc m) = M.member name m
 
 getPropertyOfType :: String -> PropDesc a -> Maybe (Property a)
 getPropertyOfType name (PropDesc m) = M.lookup name m
+
+valuePD :: a -> PropDesc a
+valuePD v = PropDesc $ M.fromList [ ("value", PropValue v) ]
 
 dataPD :: a -> Bool -> Bool -> Bool -> PropDesc a
 dataPD v w e c = PropDesc $ M.fromList [ ("value", PropValue v),

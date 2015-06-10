@@ -14,17 +14,6 @@ import Runtime.PropMap
 import Expr
 import JSNum
 
-type PropertyMap = PropMap Ident (PropDesc JSVal)
-
-data Property a = PropValue a
-                | PropFlag Bool
-                | PropGetter (JSVal -> Runtime a)
-                | PropSetter (a -> Runtime ())
-                deriving Show
-
-newtype PropDesc a = PropDesc (M.Map String (Property a)) deriving Show
-
-
 data JSVal = VNum JSNum
            | VStr String
            | VBool Bool
@@ -277,3 +266,17 @@ debug a = do
 finally :: Runtime a -> Runtime () -> Runtime a
 finally a f = do
   (a <* f) `catchError` (\e -> f >> throwError e)
+
+type PropertyMap = PropMap Ident (PropDesc JSVal)
+
+data Property a = PropValue a
+                | PropFlag Bool
+                | PropGetter (JSVal -> Runtime a)
+                | PropSetter (a -> Runtime ())
+                deriving Show
+
+newtype PropDesc a = PropDesc (M.Map String (Property a)) deriving Show
+
+instance Monoid (PropDesc a) where
+  mempty = PropDesc (M.empty)
+  mappend (PropDesc m1) (PropDesc m2) = PropDesc (M.union m2 m1)
