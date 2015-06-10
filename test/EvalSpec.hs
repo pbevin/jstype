@@ -288,37 +288,6 @@ spec = do
 
     runJStr prog `shouldReturn` Right "7\n"
 
-  it "..." $ do
-    let prog = unlines [
-                  "  function f(a, x) { ",
-                  "    try { ",
-                  "      throw new Error(); ",
-                  "    } catch (e) { ",
-                  "      console.log(x + 3); ",
-                  "    } ",
-                  "  } ",
-                  "  new f('a', 5); "
-                ]
-
-    runJStr prog `shouldReturn` Right "8\n"
-
-  it "...." $ do
-    let prog = unlines [
-              "  function err() { throw 'aa'; } ",
-              "  function f(x) { ",
-              "    try{ ",
-              "      err(); ",
-              "    } ",
-              "    catch (e) { ",
-              "      console.log(x); ",
-              "    } ",
-              "  } ",
-              "  f(13); " ]
-
-    runJStr prog `shouldReturn` Right "13\n"
-    
-
-
   it "can create a new object" $ do
     runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
 
@@ -455,7 +424,7 @@ spec = do
                   "  console.log(x, obj.x); " ]
       runJStr prog `shouldReturn` Right "4 3\n"
 
-    it "..." $ do
+    it "can delete a property from its own getter" $ do
       let prog = unlines [
                   "  var x = 0; ",
                   "  var scope = { ",
@@ -558,3 +527,33 @@ spec = do
     it "sets unpassed params to undefined" $ do
       runJStr "function f(a) { console.log(a); }; f();"
         `shouldReturn` Right "undefined\n"
+
+  describe "scope" $ do
+    it "allows access to the outer scope in a catch block" $ do
+      let prog = unlines [
+                    "  function f(a, x) { ",
+                    "    try { ",
+                    "      throw new Error(); ",
+                    "    } catch (e) { ",
+                    "      console.log(x + 3); ",
+                    "    } ",
+                    "  } ",
+                    "  new f('a', 5); "
+                  ]
+
+      runJStr prog `shouldReturn` Right "8\n"
+
+    it "brings back scope after an exception in a function" $ do
+      let prog = unlines [
+                "  function err() { throw 'aa'; } ",
+                "  function f(x) { ",
+                "    try{ ",
+                "      err(); ",
+                "    } ",
+                "    catch (e) { ",
+                "      console.log(x); ",
+                "    } ",
+                "  } ",
+                "  f(13); " ]
+
+      runJStr prog `shouldReturn` Right "13\n"
