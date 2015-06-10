@@ -166,7 +166,7 @@ createFunction name paramList strict body scope =
       buildFunction :: Runtime (Shared JSObj)
       buildFunction = do
         functionPrototype <- objFindPrototype "Function"
-        prototype <- VObj <$> newObject
+        prototype <- newObject
 
         func <- newObject
           >>= setClass "Function" -- (3)
@@ -178,8 +178,9 @@ createFunction name paramList strict body scope =
           >>= setCode (Program strict body)
           >>= objSetExtensible True
           >>= defineOwnProperty "length" lengthProperty False
-          >>= defineOwnProperty "prototype" (prototypeProperty prototype) False
+          >>= defineOwnProperty "prototype" (prototypeProperty $ VObj prototype) False
 
+        defineOwnProperty "constructor" (dataPD (VObj func) True False True) False prototype
         setCallMethod (callMethod $ VObj func) func -- (6) XXX
         setCstrMethod (callMethod $ VObj func) func -- (7) XXX
 

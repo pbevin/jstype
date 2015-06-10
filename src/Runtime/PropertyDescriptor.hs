@@ -5,6 +5,7 @@ module Runtime.PropertyDescriptor ( propIsWritable
                                   , propGetter
                                   , propSetter
                                   , dataPD
+                                  , dataPD'
                                   , accessorPD
                                   , isDataDescriptor
                                   , isAccessorDescriptor
@@ -80,6 +81,12 @@ dataPD v w e c = PropDesc $ M.fromList [ ("value", PropValue v),
                                          ("writable", PropFlag w),
                                          ("enumerable", PropFlag e),
                                          ("configurable", PropFlag c) ]
+
+dataPD' :: Maybe a -> Bool -> Bool -> Bool -> PropDesc a
+dataPD' (Just v) w e c = dataPD v w e c
+dataPD' Nothing w e c = PropDesc $ M.fromList  [ ("writable", PropFlag w),
+                                                 ("enumerable", PropFlag e),
+                                                 ("configurable", PropFlag c) ]
 
 accessorPD :: Maybe (JSVal -> Runtime a) -> Maybe (a -> Runtime ()) -> Bool -> Bool -> PropDesc a
 accessorPD g s e c = PropDesc $ M.fromList $ maybeAttr "get" PropGetter g

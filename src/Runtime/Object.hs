@@ -178,20 +178,39 @@ _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Sh
 _objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
 
 _objUpdateOwnProperty :: String -> PropDesc JSVal -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
-_objUpdateOwnProperty p newDesc oldDesc throw o
-  | isDataDescriptor (Just newDesc) /= isDataDescriptor (Just oldDesc) = -- (9)
-      raiseProtoError TypeError "Unimplemented case in defineOwnProperty"
-  | isDataDescriptor (Just newDesc) && isDataDescriptor (Just oldDesc) = do -- (10)
+_objUpdateOwnProperty p newDesc oldDesc throw o =
+  let dOld = isDataDescriptor (Just oldDesc)
+      dNew = isDataDescriptor (Just newDesc)
+  in case (dOld, dNew) of
+    (True, False) -> do
+      rejectIf (not $ propIsConfigurable oldDesc)
+      let g = propGetter newDesc
+          s = propSetter newDesc
+          e = propIsEnumerable oldDesc
+      debug ("convert to accessor", p)
+      updateObj (objSetPropertyDescriptor p $ accessorPD g s e False) o
+
+    (False, True) -> do
+      rejectIf (not $ propIsConfigurable oldDesc)
+      let v = propValue newDesc
+          w = propIsWritable newDesc
+          e = propIsEnumerable oldDesc
+      debug ("convert to data", p)
+      updateObj (objSetPropertyDescriptor p $ dataPD' v w e False) o
+
+    (True, True) -> do
       when (propIsConfigurable oldDesc == False) $
         when (propIsWritable oldDesc == False) $ do
           rejectIf (propIsWritable newDesc == True)
-          rejectIf (True) -- XXX and value is changing
+          rejectIf (True)
       updateObj (objSetPropertyDescriptor p newDesc) o
-  | otherwise = let g = propGetter newDesc <|> propGetter oldDesc
-                    s = propSetter newDesc <|> propSetter oldDesc
-                    e = propIsConfigurable oldDesc
-                    c = propIsEnumerable oldDesc
-                in updateObj (objSetPropertyDescriptor p (accessorPD g s e c)) o
+
+    (False, False) -> do
+      let g = propGetter newDesc <|> propGetter oldDesc
+          s = propSetter newDesc <|> propSetter oldDesc
+          e = propIsConfigurable oldDesc
+          c = propIsEnumerable oldDesc
+      updateObj (objSetPropertyDescriptor p (accessorPD g s e c)) o
 
   where rejectIf :: Bool -> Runtime ()
         rejectIf condition = when (condition && throw) $ raiseProtoError TypeError "Cannot overwrite property"
