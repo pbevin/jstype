@@ -187,14 +187,16 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
       let g = propGetter newDesc
           s = propSetter newDesc
           e = propIsEnumerable oldDesc
-      updateObj (objSetPropertyDescriptor p $ accessorPD g s e False) o
+          c = propIsConfigurable oldDesc
+      updateObj (objSetPropertyDescriptor p $ accessorPD g s e c) o
 
     (False, True) -> do
       rejectIf (not $ propIsConfigurable oldDesc)
       let v = propValue newDesc
           w = propIsWritable newDesc
           e = propIsEnumerable oldDesc
-      updateObj (objSetPropertyDescriptor p $ dataPD' v w e False) o
+          c = propIsConfigurable oldDesc
+      updateObj (objSetPropertyDescriptor p $ dataPD' v w e c) o
 
     (True, True) -> do
       when (propIsConfigurable oldDesc == False) $
