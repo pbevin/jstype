@@ -1,7 +1,7 @@
 module Parse.Lexical where
 
 import Text.Parsec hiding (many, optional, (<|>), crlf)
-import Control.Monad (replicateM, liftM, void, when)
+import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
 import Data.Char (isSpace, chr)
@@ -23,6 +23,11 @@ identLetter = identStart ++ ['0'..'9']
 unicodeEscape :: JSParser Char
 unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit
 
+unicodeIdentifierEscape = do
+  ch <- unicodeEscape
+  guard $ ch `elem` identLetter
+  return ch
+
 surround :: String -> String -> JSParser a -> JSParser a
 surround lhs rhs p = tok lhs *> p <* tok rhs
 
@@ -40,8 +45,8 @@ identifier = try $ do
   then unexpected $ "reserved word " ++ name
   else whiteSpace >> return name
   where ident = (:) <$> identifierStart <*> many (identifierPart)
-        identifierStart = oneOf identStart <|> (char '\\' >> char 'u' >> unicodeEscape)
-        identifierPart = oneOf identLetter <|> (char '\\' >> char 'u' >> unicodeEscape)
+        identifierStart = oneOf identStart <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
+        identifierPart = oneOf identLetter <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
 
 currentReservedWords :: JSParser [String]
 currentReservedWords = do

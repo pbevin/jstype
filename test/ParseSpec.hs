@@ -484,6 +484,10 @@ spec = do
       testParse "function \\u005f\\u005f\\u0066\\u0075\\u006e\\u0063(){ }"
         `shouldBe` testParse "function __func() { }"
 
+  describe "Punctuation" $ do
+    it "cannot be made of unicode" $ do
+      unparseable "\\u007B\\u007D"
+
   describe "the switch statement" $ do
     it "can have cases" $ do
       testParse "switch (e) { case 1: a = 2; break; }" `shouldBe`
