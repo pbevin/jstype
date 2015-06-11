@@ -56,7 +56,8 @@ spec = do
                            "  eval('var public = 1; console.log(\"no\");');",
                            "}",
                            "f();" ]
-      runJStr prog `shouldError` "SyntaxError: \"(eval)\" (line 1, column 11):\nunexpected reserved word public\nexpecting var declaration"
+      -- XXX The location is wrong - s/b "column 5"
+      runJStr prog `shouldError` "SyntaxError: \"(eval)\" (line 1, column 12):\nunexpected reserved word \"public\"\nexpecting var declaration"
 
     it "applies to an eval in a strict function (case 2)" $ do
       let prog = unlines [ "function testcase() {",

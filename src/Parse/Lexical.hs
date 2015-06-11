@@ -36,17 +36,19 @@ parens = surround "(" ")"
 braces = surround "{" "}"
 brackets = surround "[" "]"
 
+identifierName :: JSParser Ident
+identifierName = lexeme $ (:) <$> identifierStart <*> many (identifierPart)
+  where
+    identifierStart = oneOf identStart <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
+    identifierPart = oneOf identLetter <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
 
-identifier :: JSParser String
+identifier :: JSParser Ident
 identifier = try $ do
-  name <- ident
+  name <- identifierName
   illegal <- currentReservedWords
   if name `elem` illegal
-  then unexpected $ "reserved word " ++ name
-  else whiteSpace >> return name
-  where ident = (:) <$> identifierStart <*> many (identifierPart)
-        identifierStart = oneOf identStart <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
-        identifierPart = oneOf identLetter <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
+  then unexpected $ "reserved word \"" ++ name ++ "\""
+  else return name
 
 currentReservedWords :: JSParser [String]
 currentReservedWords = do

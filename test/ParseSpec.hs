@@ -154,6 +154,9 @@ spec = do
           ObjectLiteral [ ("foo", Getter [] ),
                           ("foo", Setter "arg" []) ]
 
+      it "allows reserved words as names" $ do
+        parseExpr "{ var: 3 }" `shouldBe`
+          ObjectLiteral [ ("var", Value $ Num 3) ]
 
     describe "Array literals" $ do
       it "parses an empty array literal" $ do
@@ -220,6 +223,10 @@ spec = do
     it "parses a ." $ do
       parseExpr "a.b" `shouldBe` MemberDot (ReadVar "a") "b"
       parseExpr "-a.b" `shouldBe` UnOp "-" (MemberDot (ReadVar "a") "b")
+
+    it "allows keywords after a dot" $ do
+      parseExpr "a.in" `shouldBe` MemberDot (ReadVar "a") "in"
+
 
     it "parses a []" $ do
       parseExpr "a[\"b\"]" `shouldBe` MemberGet (ReadVar "a") (Str "b")

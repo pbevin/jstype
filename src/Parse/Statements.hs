@@ -306,7 +306,7 @@ baseMemberExpr p = do
 dotExt :: JSParser (Expr -> Expr)
 dotExt = try $ do
   lexeme (char '.')
-  name <- identifier
+  name <- identifierName
   return (`MemberDot` name)
 
 arrayExt :: JSParser (Expr -> Expr)
@@ -434,8 +434,7 @@ arrayContents = do
 
 objectLiteral :: JSParser Expr
 objectLiteral =
-  let assignment = optional (getter <|> setter <|> nameValuePair)
-                                      <?> "property assignment"
+  let assignment = optional (getter <|> setter <|> nameValuePair) <?> "property assignment"
       propertyAssignments = assignment `sepBy` comma
   in do
     assignments <- catMaybes <$> braces propertyAssignments
@@ -467,7 +466,7 @@ noDuplicateKeys assignments =
   in keys == nub keys
 
 propertyName :: JSParser PropertyName
-propertyName = identifier
+propertyName = identifierName
            <|> quotedString
            <|> numberText
 
