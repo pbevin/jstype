@@ -396,6 +396,19 @@ spec = do
       it "treats \\r\\n as a single line break" $
         testParse "1\r\n2" `shouldBe` expectedParse
 
+    describe "Line number counting" $ do
+      it "treats \\n as a newline" $ do
+        simpleParse "\n\n1" `shouldBe`
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+
+      it "treats \\n\\r as a newline" $ do
+        simpleParse "\r\n\r\n1" `shouldBe`
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+
+      it "treats \\r as a newline" $ do
+        simpleParse "\r\r1" `shouldBe`
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+
     it "understands other kinds of whitespace" $ do
       testParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` testParse "1 + 1"
       testParse "Number\t.\tPI" `shouldBe` testParse "Number.PI"

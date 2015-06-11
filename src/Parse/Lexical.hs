@@ -69,16 +69,12 @@ isLineBreak :: Char -> Bool
 isLineBreak ch = ch == '\n' || ch == '\r' || ch == '\x2028' || ch == '\x2029'
 
 lineBreak :: JSParser ()
-lineBreak = void $ satisfy isLineBreak >> do
-  pos <- getPosition
-  setPosition $ nextLine pos
-
--- lineBreak = let crlf = try (string "\r\n") <?> "newline"
---                 breakChar = satisfy isLineBreak >>= \ch ->
---                   when (ch /= '\n') $ do
---                     pos <- getPosition
---                     setPosition $ nextLine pos
---             in (void crlf <|> void breakChar)
+lineBreak = let crlf = try (string "\r\n") <?> "newline"
+                breakChar = satisfy isLineBreak >>= \ch ->
+                  when (ch /= '\n') $ do
+                    pos <- getPosition
+                    setPosition $ nextLine pos
+            in (void crlf <|> void breakChar)
 
 nextLine :: SourcePos -> SourcePos
 nextLine pos = incSourceLine (setSourceColumn pos 1) 1
