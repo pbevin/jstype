@@ -70,7 +70,7 @@ ifInsideIterationOrSwitch :: JSParser a -> JSParser a
 ifInsideIterationOrSwitch = ifContext insideFunctionOrSwitch $
   "break statement found outside loop or switch statement"
     where
-      insideFunctionOrSwitch st = insideFunction st || insideSwitch st
+      insideFunctionOrSwitch st = insideIteration st || insideSwitch st
 
 ifInsideIteration :: JSParser a -> JSParser a
 ifInsideIteration = ifContext insideIteration $
