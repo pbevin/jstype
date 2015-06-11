@@ -466,6 +466,10 @@ spec = do
       unparseableInStrictMode "try {} catch(eval) {}"
       unparseableInStrictMode "try {} catch(arguments) {}"
 
+    it "disallows var eval and var arguments" $ do
+      unparseableInStrictMode "var eval = 42;"
+      unparseableInStrictMode "var arguments = 42;"
+
     it "allows passing arguments to another function in strict mode" $ do
       testParseStrict "f(arguments)" `shouldBe`
         Program Strict [

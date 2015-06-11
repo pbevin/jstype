@@ -3,7 +3,7 @@
 module Parse.Statements where
 
 import Text.Parsec hiding (many, (<|>), optional)
-import Control.Monad (liftM, when, guard)
+import Control.Monad (liftM, when, guard, unless)
 import Control.Applicative
 import Data.Maybe
 import Data.Foldable
@@ -115,6 +115,8 @@ varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma)
 varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
 varAssign = do
   name <- identifier
+  ifStrict $ unless (legalIdentifier name) $ do
+    fail "Assignment of eval in strict mode"
   assign name <|> return (name, Nothing)
     where assign x = do
             tok "="
