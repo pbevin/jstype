@@ -290,7 +290,7 @@ spec = do
     runJStr prog `shouldReturn` Right "7\n"
 
   it "can create a new object" $ do
-    runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[Object object]\n"
+    runJStr "var x = new Object(); console.log(x)" `shouldReturn` Right "[object Object]\n"
 
   it "runs a try..catch block" $ do
     runJStr "try { throw new Error('hi') } catch (e) { console.log(e.message); }"

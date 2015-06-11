@@ -1,4 +1,4 @@
-module Runtime.Prototype (makePrototype) where
+module Runtime.Prototype where
 
 import Runtime.Types
 import Runtime.Object

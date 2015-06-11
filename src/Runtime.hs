@@ -85,7 +85,9 @@ createGlobalThis = do
     >>= addOwnProperty "Function" (VObj function)
 
 objToString :: JSFunction
-objToString _this _args = return $ VStr "[object Object]"
+objToString this _args = do
+  cls <- objClass <$> deref (toObj this)
+  return $ VStr ("[object " ++ cls ++ "]")
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
