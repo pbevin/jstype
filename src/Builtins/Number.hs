@@ -35,7 +35,7 @@ toFixed this args = do
 numberFunction :: JSFunction
 numberFunction this args =
   let val = headDef (VNum 0) args
-  in return val
+  in VNum <$> toNumber val
 
 
 numberConstructor :: JSFunction

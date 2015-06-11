@@ -40,7 +40,10 @@ toNumber v@(VObj _) = toPrimitive HintNumber v >>= toNumber
 toNumber _ = return 7
 
 strToNumber :: String -> JSNum
-strToNumber = parseNumber
+strToNumber str = case str of
+  "Infinity"  -> JSNum (1/0)
+  "-Infinity" -> JSNum (-1/0)
+  _           -> parseNumber str
 
 isString :: JSVal -> Bool
 isString (VStr _) = True
