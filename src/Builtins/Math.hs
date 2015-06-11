@@ -8,28 +8,28 @@ import Runtime
 mathObject :: Runtime (Shared JSObj)
 mathObject = do
   newObject >>= addReadOnlyConstants mathConstants
-            >>= addOwnProperty "abs"    (VNative 1 $ mathFunc abs)
-            >>= addOwnProperty "log"    (VNative 1 $ mathFunc log)
-            >>= addOwnProperty "exp"    (VNative 1 $ mathFunc exp)
-            >>= addOwnProperty "sin"    (VNative 1 $ mathFunc sin)
-            >>= addOwnProperty "cos"    (VNative 1 $ mathFunc cos)
-            >>= addOwnProperty "tan"    (VNative 1 $ mathFunc tan)
-            >>= addOwnProperty "asin"   (VNative 1 $ mathFunc asin)
-            >>= addOwnProperty "acos"   (VNative 1 $ mathFunc acos)
-            >>= addOwnProperty "atan"   (VNative 1 $ mathFunc atan)
-            >>= addOwnProperty "sqrt"   (VNative 1 $ mathFunc sqrt)
-            >>= addOwnProperty "ceil"   (VNative 1 $ roundish ceiling)
-            >>= addOwnProperty "round"  (VNative 1 $ roundish jsRound)
-            >>= addOwnProperty "floor"  (VNative 1 $ roundish floor)
-            >>= addOwnProperty "trunc"  (VNative 1 $ roundish truncate)
-            >>= addOwnProperty "random" (VNative 0 $ mathFunc $ const 4) -- xkcd #221
+            >>= addMethod "abs"    1 (mathFunc abs)
+            >>= addMethod "log"    1 (mathFunc log)
+            >>= addMethod "exp"    1 (mathFunc exp)
+            >>= addMethod "sin"    1 (mathFunc sin)
+            >>= addMethod "cos"    1 (mathFunc cos)
+            >>= addMethod "tan"    1 (mathFunc tan)
+            >>= addMethod "asin"   1 (mathFunc asin)
+            >>= addMethod "acos"   1 (mathFunc acos)
+            >>= addMethod "atan"   1 (mathFunc atan)
+            >>= addMethod "sqrt"   1 (mathFunc sqrt)
+            >>= addMethod "ceil"   1 (roundish ceiling)
+            >>= addMethod "round"  1 (roundish jsRound)
+            >>= addMethod "floor"  1 (roundish floor)
+            >>= addMethod "trunc"  1 (roundish truncate)
+            >>= addMethod "random" 0 (mathFunc $ const 4) -- xkcd #221
 
-            >>= addOwnProperty "max"    (VNative 2 $ mathMaxFunc max $ -inf)
-            >>= addOwnProperty "min"    (VNative 2 $ mathMaxFunc min    inf)
+            >>= addMethod "max"    2 (mathMaxFunc max $ -inf)
+            >>= addMethod "min"    2 (mathMaxFunc min    inf)
 
-            >>= addOwnProperty "pow"    (VNative 2 $ mathFunc2 pow)
-            >>= addOwnProperty "atan2"  (VNative 2 $ mathFunc2 atan2')
-            >>= addOwnProperty "hypot"  (VNative 2 $ mathFunc2 hypot)
+            >>= addMethod "pow"    2 (mathFunc2 pow)
+            >>= addMethod "atan2"  2 (mathFunc2 atan2')
+            >>= addMethod "hypot"  2 (mathFunc2 hypot)
 
 mathConstants :: [(String, JSNum)]
 mathConstants = allToJSNum [ ("PI", pi),

@@ -21,7 +21,7 @@ data JSVal = VNum JSNum
            | VUndef
            | VNull
            | VObj (Shared JSObj)
-           | VNative Int (JSVal -> [JSVal] -> Runtime JSVal)
+           | VNative String Int (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv EnvRec
 
@@ -33,7 +33,7 @@ instance Show JSVal where
   show VUndef           = "VUndef"
   show VNull            = "VNull"
   show (VObj ref)       = "VObj " ++ show ref
-  show (VNative _ _)    = "VNative _"
+  show (VNative n _ _)  = "VNative " ++ n
   show (VStacktrace st) = "VStacktrace " ++ show st
   show (VEnv env)       = "VEnv " ++ show env
 
@@ -156,7 +156,7 @@ typeof v = case v of
   VRef  _       -> TypeReference
   VUndef        -> TypeUndefined
   VNull         -> TypeNull
-  VNative _ _   -> TypeFunction
+  VNative _ _ _ -> TypeFunction
   VObj _        -> TypeObject
   VStacktrace _ -> TypeOther "Stacktrace"
   _             -> error $ "No idea what type " ++ show v ++ " is..."
@@ -166,7 +166,7 @@ instance Eq JSVal where
   VStr a == VStr b               = a == b
   VObj a == VObj b               = a == b
   VBool a == VBool b             = a == b
-  VNative l1 _ == VNative l2 _   = l1 == l2 -- XXX
+  VNative a _ _ == VNative b _ _ = a == b -- XXX
   _a == _b = False
 
 

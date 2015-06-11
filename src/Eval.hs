@@ -73,8 +73,8 @@ evalCode text = do
 -- ref 10.4.2
 runInEvalContext :: Program -> Runtime StmtReturn
 runInEvalContext (Program strictness stmts) = do
-      newCxt <- maybeNewContext strictness =<< getGlobalContext
-      withNewContext newCxt $ do
+      newCxt <- maybeNewContext strictness =<< getGlobalContext -- 3
+      withNewContext newCxt $ do                                -- 4
         performDBI DBIEval strictness stmts
         withStrictness strictness (runStmts stmts)
 

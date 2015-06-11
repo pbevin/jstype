@@ -7,13 +7,13 @@ import Runtime
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do
   numberPrototype <- makePrototype "Number"
-    >>= addOwnProperty "toFixed" (VNative 1 toFixed)
-    >>= addOwnProperty "constructor" (VNative 1 numberConstructor)
+    >>= addMethod "toFixed" 1 toFixed
+    >>= addMethod "constructor" 1 numberConstructor
 
   functionObject "Number" numberPrototype
     >>= setCallMethod numberFunction
     >>= setCstrMethod numberConstructor
-    >>= addOwnProperty "isNaN" (VNative 1 objIsNaN)
+    >>= addMethod "isNaN" 1 objIsNaN
     >>= addReadOnlyConstants numberConstants
 
 numberConstants :: [(String, JSNum)]

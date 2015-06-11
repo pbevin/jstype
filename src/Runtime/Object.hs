@@ -148,7 +148,7 @@ objDefaultValue hint objRef = case hint of
     call method = do
       m <- objGet method objRef
       returnIfPrimitive <$> case m of
-        VNative _ f -> do
+        VNative _ _ f -> do
           Just <$> f (VObj objRef) []
         VObj mRef -> do
           mm <- callMethod <$> deref mRef
@@ -264,10 +264,10 @@ setCode prog = updateObj $ \obj -> obj { objCode = Just prog }
 setPrimitiveValue :: JSVal -> ObjectModifier
 setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc
   where wrapValInNativeFunc :: JSVal -> JSVal
-        wrapValInNativeFunc v = VNative 0 $ \_this _args -> return v
+        wrapValInNativeFunc v = VNative "generated/valueOf" 0 $ \_this _args -> return v
 
 setPrimitiveToString :: JSVal -> ObjectModifier
-setPrimitiveToString val = updateObj $ \obj -> objSetProperty "toString" (VNative 0 f) obj
+setPrimitiveToString val = updateObj $ \obj -> objSetProperty "toString" (VNative "generated/toString" 0 f) obj
   where f _this _args = return val
 
 objSetPrototype :: Shared JSObj -> ObjectModifier
@@ -276,6 +276,9 @@ objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just protot
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
 addOwnProperty name val = updateObj $ objSetProperty name val
+
+addMethod :: String -> Int -> JSFunction -> ObjectModifier
+addMethod name len f = addOwnProperty name (VNative name len f)
 
 addOwnPropertyDescriptor :: String -> PropDesc JSVal -> ObjectModifier
 addOwnPropertyDescriptor name val = updateObj $ objSetPropertyDescriptor name val

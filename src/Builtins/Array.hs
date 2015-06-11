@@ -11,19 +11,18 @@ import Builtins.Array.Sort
 makeArrayClass :: Runtime (Shared JSObj)
 makeArrayClass = do
   arrayPrototype <- makePrototype "Array"
-    >>= addOwnProperty "constructor" (VNative 1 arrayConstructor)
     >>= addOwnProperty "length" (VNum 0)
-    >>= addOwnProperty "toString" (VNative 0 arrayToString)
-    >>= addOwnProperty "reduce" (VNative 1 arrayReduce)
-    >>= addOwnProperty "join" (VNative 1 arrayJoin)
-    >>= addOwnProperty "reverse" (VNative 0 arrayReverse)
-    >>= addOwnProperty "sort" (VNative 1 arraySort)
+    >>= addMethod "toString" 0 arrayToString
+    >>= addMethod "reduce" 1 arrayReduce
+    >>= addMethod "join" 1 arrayJoin
+    >>= addMethod "reverse" 0 arrayReverse
+    >>= addMethod "sort" 1 arraySort
 
   functionObject "Array" arrayPrototype
     >>= setCallMethod (arrayFunction arrayPrototype)
     >>= setCstrMethod arrayConstructor
     >>= addOwnProperty "length" (VNum 0)
-    >>= addOwnProperty "isArray" (VNative 1 isArray)
+    >>= addMethod "isArray" 1 isArray
 
 
 arrayFunction :: Shared JSObj -> JSFunction

@@ -31,7 +31,7 @@ createError errorType message = do
   where name = show errorType
 
 errFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
-errFunction prototype this args = do
+errFunction prototype _this args = do
   obj <- newObject >>= setClass "Error"
                    >>= objSetPrototype prototype
                    >>= objSetExtensible True
@@ -44,7 +44,7 @@ errConstructor this args =
     VObj obj -> do
       liftM VObj $ setClass "Error" obj
                >>= addOwnProperty "message" text
-               >>= addOwnProperty "toString" (VNative 0 errorToString)
+               >>= addOwnProperty "toString" (VNative "error/toString" 0 errorToString)
     _ -> raiseError "Bad this for Error constructor"
 
 dflt :: JSVal -> JSVal -> JSVal

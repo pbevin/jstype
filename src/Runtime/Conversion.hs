@@ -57,7 +57,7 @@ showVal (VRef ref) = "(reference " ++ show ref ++ ")"
 showVal VUndef = "undefined"
 showVal VNull  = "null"
 showVal (VObj _) = "[Object object]"
-showVal (VNative _ _) = "function"
+showVal (VNative n _ _) = "function/" ++ n
 showVal (VStacktrace st) = "Stacktrace " ++ show st
 showVal other = show other
 
@@ -112,12 +112,12 @@ isInteger n = n == fromInteger (round n)
 
 toObject :: JSVal -> Runtime (Shared JSObj)
 toObject val = case val of
-  VObj objRef -> return objRef
-  VStr _      -> wrapPrimitive "String" val
-  VBool _     -> wrapPrimitive "Boolean" val
-  VNum _      -> wrapPrimitive "Number" val
-  VNative l f -> wrapNative l f
-  _           -> toString val >>= toObject . VStr
+  VObj objRef   -> return objRef
+  VStr _        -> wrapPrimitive "String" val
+  VBool _       -> wrapPrimitive "Boolean" val
+  VNum _        -> wrapPrimitive "Number" val
+  VNative n l f -> wrapNative n l f
+  _             -> toString val >>= toObject . VStr
 
 wrapPrimitive :: String -> JSVal -> Runtime (Shared JSObj)
 wrapPrimitive typeName val = do
@@ -128,12 +128,12 @@ wrapPrimitive typeName val = do
     Nothing -> raiseProtoError TypeError "Can't create string!"
     Just cstr -> toObj <$> cstr (VObj this) [val]
 
-wrapNative :: Int -> JSFunction -> Runtime (Shared JSObj)
-wrapNative len f = do
+wrapNative :: String -> Int -> JSFunction -> Runtime (Shared JSObj)
+wrapNative name len f = do
   funPrototype <- objFindPrototype "Function"
   newObject
     >>= defineOwnProperty "length" (dataPD (VNum $ fromIntegral len) True True True) False
-    >>= addOwnProperty "call" (VNative len $ nativeCall f)
+    >>= addOwnProperty "call" (VNative name len $ nativeCall f)
 
 nativeCall :: JSFunction -> JSFunction
 nativeCall f this [] = nativeCall f this [VUndef]

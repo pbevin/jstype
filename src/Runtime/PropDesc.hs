@@ -38,8 +38,8 @@ fromPropertyDescriptor desc
 
 getter :: Maybe (JSVal -> Runtime JSVal) -> JSVal
 getter Nothing = VUndef
-getter (Just f) = VNative 0 $ \this _args -> f this
+getter (Just f) = VNative "getter" 0 $ \this _args -> f this
 
 setter :: Maybe (JSVal -> Runtime ()) -> JSVal
 setter Nothing = VUndef
-setter (Just f) = VNative 1 $ \this args -> f (headDef VUndef args) >> return VUndef
+setter (Just f) = VNative "setter" 1 $ \this args -> f (headDef VUndef args) >> return VUndef

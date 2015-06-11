@@ -45,10 +45,10 @@ initialEnv = do
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
   newObject >>= addOwnProperty "prototype" VUndef
-            >>= addOwnProperty "toString" (VNative 0 objToString)
-            >>= addOwnProperty "hasOwnProperty" (VNative 1 objHasOwnProperty)
-            >>= addOwnProperty "valueOf" (VNative 0 objValueOf)
-            >>= addOwnProperty "isPrototypeOf" (VNative 1 objIsPrototypeOf)
+            >>= addMethod "toString" 0 objToString
+            >>= addMethod "hasOwnProperty" 1 objHasOwnProperty
+            >>= addMethod "valueOf" 0 objValueOf
+            >>= addMethod "isPrototypeOf" 1 objIsPrototypeOf
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -57,7 +57,7 @@ createGlobalThis = do
   functionPrototype <- newObject
     >>= setCallMethod (\_this _args -> return VUndef)
     >>= addOwnProperty "length" (VNum 0)
-    >>= addOwnProperty "call" (VNative 1 funCallMethod)
+    >>= addMethod "call" 1 funCallMethod
 
   function <- newObject
     >>= setClass "Function"
@@ -68,13 +68,13 @@ createGlobalThis = do
     >>= setCstrMethod funConstructor
     >>= objSetPrototype functionPrototype
     >>= addOwnProperty "prototype" (VObj functionPrototype)
-    >>= addOwnConstant "length" (VNum 1) -- ref 15.3.3.2
+    >>= addOwnProperty "length" (VNum 1) -- ref 15.3.3.2
 
   object <- functionObject "Object" prototype
-    >>= addOwnProperty "getOwnPropertyDescriptor" (VNative 2 getOwnPropertyDescriptor)
-    >>= addOwnProperty "getOwnPropertyNames" (VNative 1 getOwnPropertyNames)
-    >>= addOwnProperty "defineProperty" (VNative 3 objDefineProperty)
-    >>= addOwnProperty "preventExtensions" (VNative 1 objPreventExtensions)
+    >>= addMethod "getOwnPropertyDescriptor" 2 getOwnPropertyDescriptor
+    >>= addMethod "getOwnPropertyNames" 1 getOwnPropertyNames
+    >>= addMethod "defineProperty" 3 objDefineProperty
+    >>= addMethod "preventExtensions" 1 objPreventExtensions
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
   addOwnProperty "prototype" (VObj prototype) object
@@ -464,7 +464,7 @@ callFunction ref argList = do
 assertFunction :: String -> (JSObj -> Maybe a) -> JSVal -> Runtime ()
 assertFunction name m val =
   case val of
-    VNative _ _ -> return ()
+    VNative _ _ _ -> return ()
     VObj o -> do
       m <$> deref o >>= \case
         Just _ -> return ()
@@ -507,7 +507,7 @@ newObjectFromConstructor fun args = case fun of
 
 objCall :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCall func this args = case func of
-  VNative _ f -> f this args
+  VNative _ _ f -> f this args
   VObj objref -> deref objref >>= \obj -> case callMethod obj of
     Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
@@ -516,7 +516,7 @@ objCall func this args = case func of
 
 objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCstr func this args = case func of
-  VNative _ f -> f this args
+  VNative _ _ f -> f this args
   VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
     Nothing -> raiseError "Can't create object: function has no cstrMethod"
     Just method -> method this args

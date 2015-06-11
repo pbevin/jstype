@@ -8,21 +8,21 @@ makeStringClass :: Runtime (Shared JSObj)
 makeStringClass = do
   stringPrototype <- newObject
     >>= setClass "String"
-    >>= addOwnProperty "constructor" (VNative 1 strConstructor)
-    >>= addOwnProperty "toString" (VNative 0 stringToString)
-    >>= addOwnProperty "charAt" (VNative 1 charAt)
-    >>= addOwnProperty "charCodeAt" (VNative 1 charCodeAt)
-    >>= addOwnProperty "indexOf" (VNative 1 indexOf)
-    >>= addOwnProperty "lastIndexOf" (VNative 1 lastIndexOf)
-    >>= addOwnProperty "split" (VNative 2 split)
-    >>= addOwnProperty "substring" (VNative 2 substring)
-    >>= addOwnProperty "toLowerCase" (VNative 0 toLowerCase)
-    >>= addOwnProperty "toUpperCase" (VNative 0 toUpperCase)
+    >>= addMethod "constructor"  1 strConstructor
+    >>= addMethod "toString"     0 stringToString
+    >>= addMethod "charAt"       1 charAt
+    >>= addMethod "charCodeAt"   1 charCodeAt
+    >>= addMethod "indexOf"      1 indexOf
+    >>= addMethod "lastIndexOf"  1 lastIndexOf
+    >>= addMethod "split"        2 split
+    >>= addMethod "substring"    2 substring
+    >>= addMethod "toLowerCase"  0 toLowerCase
+    >>= addMethod "toUpperCase"  0 toUpperCase
 
   functionObject "String" stringPrototype
     >>= setCallMethod strFunction
     >>= setCstrMethod (strConstructor)
-    >>= addOwnProperty "fromCharCode" (VNative 1 fromCharCode)
+    >>= addMethod "fromCharCode" 1 fromCharCode
 
 -- ref 15.5.1.1
 strFunction :: JSFunction
