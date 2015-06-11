@@ -26,9 +26,9 @@ data ForHeader = For3 (Maybe Expr) (Maybe Expr) (Maybe Expr)
                | ForInVar VarDeclaration Expr
   deriving (Show, Eq)
 
-data CaseClause = Case Expr [Statement]
-                | Default [Statement]
-                deriving (Show, Eq)
+type CaseBlock = ([CaseClause], Maybe DefaultClause, [CaseClause])
+data CaseClause = CaseClause Expr [Statement] deriving (Show, Eq)
+data DefaultClause = DefaultClause [Statement] deriving (Show, Eq)
 
 data Statement = Block SrcLoc [Statement]
                | LabelledStatement SrcLoc Label Statement
@@ -42,7 +42,7 @@ data Statement = Block SrcLoc [Statement]
                | BreakStatement SrcLoc (Maybe Label)
                | Return SrcLoc (Maybe Expr)
                | WithStatement SrcLoc Expr Statement
-               | SwitchStatement SrcLoc Expr [CaseClause]
+               | SwitchStatement SrcLoc Expr CaseBlock
                | ThrowStatement SrcLoc Expr
                | TryStatement SrcLoc Statement (Maybe Statement) (Maybe Statement)
                | Catch SrcLoc Ident Statement

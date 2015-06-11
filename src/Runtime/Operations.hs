@@ -134,18 +134,19 @@ liftStr op a b = do
 
 -- ref 11.9.6, incomplete
 tripleEquals :: JSVal -> JSVal -> Runtime JSVal
-tripleEquals v1 v2 = do
-  return $ VBool $ eq v1 v2
-  where eq x y
-          | typeof x /= typeof y        = False
-          | typeof x == TypeUndefined   = True
-          | typeof x == TypeNull        = True
-          | typeof x == TypeNumber      = x == y
-          | typeof x == TypeString      = x == y
-          | typeof x == TypeBoolean     = x == y
-          | typeof x == TypeObject      = x == y
-          | typeof x == TypeFunction    = x == y
-          | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
+tripleEquals v1 v2 = return $ VBool $ v1 `eqv` v2
+
+eqv :: JSVal -> JSVal -> Bool
+eqv x y
+  | typeof x /= typeof y        = False
+  | typeof x == TypeUndefined   = True
+  | typeof x == TypeNull        = True
+  | typeof x == TypeNumber      = x == y
+  | typeof x == TypeString      = x == y
+  | typeof x == TypeBoolean     = x == y
+  | typeof x == TypeObject      = x == y
+  | typeof x == TypeFunction    = x == y
+  | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
 
 -- ref 11.9.3
 doubleEquals :: JSVal -> JSVal -> Runtime JSVal

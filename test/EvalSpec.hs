@@ -564,3 +564,31 @@ spec = do
                 "  f(13); " ]
 
       runJStr prog `shouldReturn` Right "13\n"
+
+  describe "the switch statement" $ do
+    -- 12.11_A1_T1
+    let prog = unlines [
+                "  function test(value){ ",
+                "    var result = 0; ",
+                "    switch(value) { ",
+                "      case 0:  result += 2; ",
+                "      case 1:  result += 4; break; ",
+                "      case 2:  result += 8; ",
+                "      case 3:  result += 16; ",
+                "      default: result += 32; break; ",
+                "      case 4:  result += 64; ",
+                "    } ",
+                "    console.log(result); ",
+                "  }; " ]
+    let test val = runJStr (prog ++ "test(" ++ val ++ ");")
+
+    specify "case 0" $ test "0" `shouldReturn` Right "6\n"
+    specify "case 1" $ test "1" `shouldReturn` Right "4\n"
+    specify "case 2" $ test "2" `shouldReturn` Right "56\n"
+    specify "case 3" $ test "3" `shouldReturn` Right "48\n"
+    specify "case 4" $ test "4" `shouldReturn` Right "64\n"
+    specify "non-match 1" $ test "true"   `shouldReturn` Right "32\n"
+    specify "non-match 2" $ test "false"  `shouldReturn` Right "32\n"
+    specify "non-match 3" $ test "null"   `shouldReturn` Right "32\n"
+    specify "non-match 4" $ test "void 0" `shouldReturn` Right "32\n"
+    specify "non-match 5" $ test "\"0\""  `shouldReturn` Right "32\n"

@@ -40,7 +40,7 @@ eraseSrcLoc (Program strictness stmts) =
         BreakStatement _ l     -> BreakStatement s l
         Return _ a             -> Return s a
         WithStatement _ a b    -> WithStatement s a $ overrideSrcLoc b
-        SwitchStatement _ a b  -> SwitchStatement s a $ map fixCase b
+        SwitchStatement _ a b  -> SwitchStatement s a $ fixCase b
         ThrowStatement _ a     -> ThrowStatement s a
         TryStatement _ a b c   -> TryStatement s a b c
         EmptyStatement _       -> EmptyStatement s
@@ -55,8 +55,11 @@ eraseSrcLoc (Program strictness stmts) =
         _ -> e
       fixVars (x, Just e) = (x, Just (fixExpr e))
       fixVars other = other
-      fixCase (Case a b) = Case a (overrideAll b)
-      fixCase (Default b) = Default (overrideAll b)
+      fixCase (a,b,c) = (fmap fixCaseClause a,
+                         fmap fixDefaultClause b,
+                         fmap fixCaseClause c)
+      fixCaseClause (CaseClause a b) = CaseClause a (overrideAll b)
+      fixDefaultClause (DefaultClause b) = DefaultClause (overrideAll b)
   in Program strictness $ overrideAll stmts
 
 unparseable :: String -> IO ()
@@ -473,4 +476,4 @@ spec = do
       testParse "switch (e) { case 1: a = 2; break; }" `shouldBe`
         Program NotStrict [
           SwitchStatement s (ReadVar "e") $
-            [ Case (Num 1) [ ExprStmt s (Assign (ReadVar "a") "=" (Num 2)), BreakStatement s Nothing ] ] ]
+            ([ CaseClause (Num 1) [ ExprStmt s (Assign (ReadVar "a") "=" (Num 2)), BreakStatement s Nothing ] ], Nothing, [] ) ]

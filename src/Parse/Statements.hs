@@ -137,16 +137,20 @@ withStmt = keyword "with" >>
 
 switchStmt :: JSParser Statement
 switchStmt = keyword "switch" >>
-  SwitchStatement <$> srcLoc <*> parens expr <*> braces caseClauses
+  SwitchStatement <$> srcLoc <*> parens expr <*> braces caseBlock
 
-caseClauses :: JSParser [CaseClause]
-caseClauses = enterSwitch $ many (caseClause <|> defaultClause)
+
+caseBlock :: JSParser CaseBlock
+caseBlock = enterSwitch $
+  (,,) <$> many caseClause
+       <*> optional defaultClause
+       <*> many caseClause
   where
     caseClause = keyword "case" >>
-      Case <$> expr <*> (tok ":" >> many statement)
+      CaseClause <$> expr <*> (tok ":" >> many statement)
 
     defaultClause = keyword "default" >> tok ":" >>
-      Default <$> many statement
+      DefaultClause <$> many statement
 
 ifStmt :: JSParser Statement
 ifStmt = do

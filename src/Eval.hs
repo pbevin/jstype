@@ -191,7 +191,7 @@ runStmt s = {-# SCC stmt #-} case s of
     let cond      = toBoolean <$> (runExprStmt e >>= getValue)
         increment = return ()
     in loopConstruct cond increment stmt
-    
+
   For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
     let init =      case e1 of
                        Just e -> runExprStmt e >>= getValue >> return ()
@@ -239,6 +239,7 @@ runStmt s = {-# SCC stmt #-} case s of
     runStmt $ transformFor3VarIn loc x e1 e2 stmt
 
   WithStatement _loc e s -> runWithStatement e s
+  SwitchStatement _loc e caseBlock -> runSwitchStatement e caseBlock
   Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
@@ -342,6 +343,34 @@ runWithStatement e s = do
   oldEnv <- lexEnv <$> getGlobalContext
   newEnv <- newObjectEnvironment obj (Just oldEnv) True
   withLexEnv newEnv $ runStmt s
+
+-- ref 12.11
+runSwitchStatement :: Expr -> CaseBlock -> Runtime StmtReturn
+runSwitchStatement e caseBlock = do
+  val <- runExprStmt e >>= getValue
+  r@(rtype, rval, _rlabel) <- runCaseBlock val caseBlock
+  return $ if rtype == CTBreak
+  then (CTNormal, rval, Nothing)
+  else r
+
+runCaseBlock :: JSVal -> CaseBlock -> Runtime StmtReturn
+runCaseBlock val (c1, d, c2) = runCases c1 Nothing False
+  where
+    runCases [] v found = return (CTNormal, v, Nothing)
+    runCases (c@(CaseClause e stmts) : cs) v found = do
+      if not found
+      then do clauseSelector <- runExprStmt e >>= getValue
+              debug (clauseSelector, val, clauseSelector `eqv` val)
+              if clauseSelector `eqv` val
+              then runCases (c:cs) v True
+              else runCases cs v False
+      else do (rtype, rval, rtarget) <- runStmts stmts
+              let nextv = rval <|> v
+              case rtype of
+                CTNormal -> runCases cs nextv found
+                _        -> return (rtype, nextv, rtarget)
+
+
 
 
 -- ref 12.14
