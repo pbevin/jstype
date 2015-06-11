@@ -6,6 +6,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
+import Control.Arrow
 import Data.Maybe
 import Data.List (intercalate)
 import Data.Bits
@@ -354,21 +355,68 @@ runSwitchStatement e caseBlock = do
   else r
 
 runCaseBlock :: JSVal -> CaseBlock -> Runtime StmtReturn
-runCaseBlock val (c1, d, c2) = runCases c1 Nothing False
+runCaseBlock val caseBlock = do
+  step5 caseBlock Nothing False
   where
-    runCases [] v found = return (CTNormal, v, Nothing)
-    runCases (c@(CaseClause e stmts) : cs) v found = do
-      if not found
-      then do clauseSelector <- runExprStmt e >>= getValue
-              debug (clauseSelector, val, clauseSelector `eqv` val)
+    step5 :: CaseBlock -> Maybe JSVal -> Bool -> Runtime StmtReturn
+    step5 (as, d, bs) v found = case as of
+
+        (a@(CaseClause e stmts) : rest) -> do
+              if not found
+              then do clauseSelector <- runExprStmt e >>= getValue
+                      if clauseSelector `eqv` val
+                      then step5 (a:rest, d, bs) v True
+                      else step5 (  rest, d, bs) v False
+              else do (rtype, rval, rtarget) <- runStmts stmts
+                      let nextv = rval <|> v
+                      case rtype of
+                        CTNormal -> step5 (rest, d, bs) nextv True
+                        _        -> return (rtype, nextv, rtarget)
+
+        [] -> if found
+              then step8 ([], d, bs) v
+              else step7 ([], d, bs) v False
+
+    step7 :: CaseBlock -> Maybe JSVal -> Bool -> Runtime StmtReturn
+    step7 (as, d, bs) v foundInB = case (foundInB, bs) of
+
+      (False, (b@(CaseClause e stmts) : rest)) -> do
+              clauseSelector <- runExprStmt e >>= getValue
               if clauseSelector `eqv` val
-              then runCases (c:cs) v True
-              else runCases cs v False
-      else do (rtype, rval, rtarget) <- runStmts stmts
+              then step7 (as, d, b:rest) v True
+              else step7 (as, d,   rest) v foundInB
+
+      _ -> if foundInB
+           then step9 (as, d, bs) v
+           else step8 (as, d, bs) v
+
+
+    step8 :: CaseBlock -> Maybe JSVal -> Runtime StmtReturn
+    step8 (as, d, bs) v = case d of
+
+      Just (DefaultClause stmts) -> do
+              (rtype, rval, rtarget) <- runStmts stmts
               let nextv = rval <|> v
               case rtype of
-                CTNormal -> runCases cs nextv found
+                CTNormal -> step9 (as, d, bs) nextv
                 _        -> return (rtype, nextv, rtarget)
+
+      _ -> step9 (as, d, bs) v
+
+    step9 :: CaseBlock -> Maybe JSVal -> Runtime StmtReturn
+    step9 (as, d, bs) v = case bs of
+
+      (b@(CaseClause e stmts) : rest) -> do
+              (rtype, rval, rtarget) <- runStmts stmts
+              let nextv = rval <|> v
+              case rtype of
+                CTNormal -> step9 ([], d, rest) nextv
+                _        -> return (rtype, nextv, rtarget)
+
+      [] -> return (CTNormal, v, Nothing)
+
+
+
 
 
 
