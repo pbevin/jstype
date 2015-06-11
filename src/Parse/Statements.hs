@@ -101,10 +101,12 @@ paramList = do
     where allDistinct xs = (xs == nub xs)
 
 labelledStmt :: JSParser Statement
-labelledStmt = try $ do
-  loc <- srcLoc
-  lab <- identifier
-  tok ":"
+labelledStmt = do
+  (loc, lab) <- try $ do
+    loc <- srcLoc
+    lab <- identifier
+    tok ":"
+    return (loc, lab)
   LabelledStatement loc lab <$> withLabel lab statement
 
 varDecl :: JSParser Statement
