@@ -220,15 +220,18 @@ funGet p f = do
         _ -> return val
 
 -- ref 13.2.1
+-- ref 10.4.3
 funcCall :: Maybe Ident -> JSVal -> [Ident] -> Strictness -> [Statement] -> JSVal -> [JSVal] -> Runtime JSVal
 funcCall name func paramList strict body this args =
   let makeRef env name = JSRef (VEnv env) name NotStrict
       newCxt cxt env newThis = cxt { thisBinding = newThis, lexEnv = env, varEnv = env, cxtStrictness = strict }
       addToNewEnv :: EnvRec -> Ident -> JSVal -> Runtime ()
       addToNewEnv env x v = putValue (makeRef env x) v
-      findNewThis VNull  = getGlobalObject
-      findNewThis VUndef = getGlobalObject
-      findNewThis other  = toObject other
+      findNewThis :: Strictness -> JSVal -> Runtime JSVal
+      findNewThis Strict    this   = return this
+      findNewThis NotStrict VNull  = VObj <$> getGlobalObject
+      findNewThis NotStrict VUndef = VObj <$> getGlobalObject
+      findNewThis NotStrict other  = VObj <$> toObject other
   in do
     cxt <- getGlobalContext
 
@@ -239,7 +242,7 @@ funcCall name func paramList strict body this args =
     case name of
       Just n -> addToNewEnv env n func
       _      -> return ()
-    newThis <- VObj <$> findNewThis this
+    newThis <- findNewThis strict this
     withNewContext (newCxt cxt localEnv newThis) $ do
       performDBI DBIFunction strict body
       when ("arguments" `notElem` paramList) $ do
@@ -448,7 +451,7 @@ callFunction ref argList = do
         else case getBase ref of
           VEnv env -> return (implicitThisValue env)
 
-      _ -> return $ thisBinding cxt
+      _ -> return VUndef
 
     implicitThisValue (DeclEnvRec _) = VUndef
     implicitThisValue (ObjEnvRec obj True) = (VObj obj)
