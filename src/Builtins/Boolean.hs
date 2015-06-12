@@ -34,6 +34,7 @@ booleanConstructor this args =
       let prim = VBool (toBoolean val)
       setClass "Boolean" obj
         >>= setPrimitiveValue prim
+        >>= setPrimitiveToString (VStr $ showVal prim)
         >>= objSetPrototype prototype
       return (VObj obj)
     _ -> raiseError $ "Boolean constructor called with this = " ++ show this

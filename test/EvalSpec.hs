@@ -276,6 +276,7 @@ spec = do
     runJStr "if (console === this) console.log(\"wrong\")" `shouldReturn` Right ""
 
   it "can call a method on true" $ do
+    -- S11.2.1_A3_T1
     jsEvalExpr "true.toString()" `shouldReturn` VStr "true"
 
   it "can define a simple object" $ do
