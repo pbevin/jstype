@@ -279,6 +279,9 @@ spec = do
     -- S11.2.1_A3_T1
     jsEvalExpr "true.toString()" `shouldReturn` VStr "true"
 
+  it "can get a character in a string with []" $ do
+    jsEvalExpr "'abc'[1]" `shouldReturn` VStr "b"
+
   it "can define a simple object" $ do
     let prog = unlines [
           "function Counter(v) { this.val = v; };",

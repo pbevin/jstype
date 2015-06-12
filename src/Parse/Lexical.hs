@@ -72,8 +72,10 @@ comment = void parseComment
 whiteSpace :: JSParser ()
 whiteSpace = void $ many (lineBreak <|> void (satisfy isSpace) <|> comment)
 
+linebreaks = [ '\n', '\r', '\x2028', '\x2029' ]
+
 isLineBreak :: Char -> Bool
-isLineBreak ch = ch == '\n' || ch == '\r' || ch == '\x2028' || ch == '\x2029'
+isLineBreak ch = ch `elem` linebreaks
 
 lineBreak :: JSParser ()
 lineBreak = let crlf = try (string "\r\n") <?> "newline"

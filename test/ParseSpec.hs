@@ -125,6 +125,16 @@ spec = do
       parseExpr "\"abc\\\ndef\"" `shouldBe` Str "abc\ndef"
       parseExpr "'abc\\\ndef'" `shouldBe` Str "abc\ndef"
 
+    it "disallows actual line breaks in strings" $ do
+      unparseable "'abc\ndef'"
+      unparseable "'abc\rdef'"
+      unparseable "'abc\x2028\&def'"
+      unparseable "'abc\x2029\&def'"
+      unparseable "\"abc\ndef\""
+      unparseable "\"abc\rdef\""
+      unparseable "\"abc\x2028\&def\""
+      unparseable "\"abc\x2029\&def\""
+
     describe "Object literals" $ do
       it "parses object literals" $ do
         parseExpr "{}" `shouldBe` ObjectLiteral []

@@ -547,7 +547,7 @@ quotedString = doubleQuotedString <|> singleQuotedString
 doubleQuotedString :: JSParser String
 doubleQuotedString = do
   char '"'
-  str <- many (noneOf "\"\\" <|> (char '\\' >> escape))
+  str <- many (noneOf ("\"\\" ++ linebreaks) <|> (char '\\' >> escape))
   char '"'
   whiteSpace
   return str
@@ -569,7 +569,7 @@ singleCharEscape ch  = ch
 singleQuotedString :: JSParser String
 singleQuotedString = do
   char '\''
-  str <- many (noneOf "'\\" <|> (char '\\' >> escape))
+  str <- many (noneOf ("'\\" ++ linebreaks) <|> (char '\\' >> escape))
   char '\''
   whiteSpace
   return str

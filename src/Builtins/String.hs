@@ -1,7 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Builtins.String (makeStringClass) where
 
 import Safe
 import Runtime
+import Parse
 
 
 makeStringClass :: Runtime (Shared JSObj)
@@ -42,6 +45,7 @@ strConstructor this args =
                             >>= objSetExtensible True
                             >>= objSetPrimitive value
                             >>= addOwnProperty "length" (VNum $ fromIntegral $ length str)
+                            >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
 
 -- ref 15.5.4.2
@@ -84,3 +88,21 @@ toUpperCase _this _args = return VUndef
 
 fromCharCode :: JSFunction
 fromCharCode _this _args = return VUndef
+
+strGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+strGetOwnProperty p s = do
+  objGetOwnPropertyObj p s >>= \case
+    Just d -> return (Just d)
+    Nothing -> do
+      index <- toInt (VStr p)
+      let p' = show (abs index)
+      if p /= p'
+      then return Nothing
+      else do
+        VStr str <- objGetPrimitive s
+        if length str <= index
+        then return Nothing
+        else let s = VStr [str !! index]
+             in return $ Just $ dataPD s False False False
+    
+
