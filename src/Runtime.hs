@@ -19,6 +19,7 @@ import Runtime.Operations as X
 import Runtime.Conversion as X
 import Runtime.Global as X
 import Runtime.Error as X
+import Runtime.Arguments as X
 import Runtime.PropMap as X
 import Runtime.PropDesc as X
 import Runtime.Function as X
@@ -72,9 +73,10 @@ createGlobalThis = do
 
   object <- functionObject "Object" prototype
     >>= addMethod "getOwnPropertyDescriptor" 2 getOwnPropertyDescriptor
-    >>= addMethod "getOwnPropertyNames" 1 getOwnPropertyNames
-    >>= addMethod "defineProperty" 3 objDefineProperty
-    >>= addMethod "preventExtensions" 1 objPreventExtensions
+    >>= addMethod "getOwnPropertyNames"      1 getOwnPropertyNames
+    >>= addMethod "defineProperty"           3 objDefineProperty
+    >>= addMethod "preventExtensions"        1 objPreventExtensions
+    >>= addMethod "getPrototypeOf"           1 objGetPrototypeOf
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
   addOwnProperty "prototype" (VObj prototype) object
@@ -187,8 +189,8 @@ createFunction name paramList strict body scope =
           >>= setFormalParameters paramList
           >>= setCode (Program strict body)
           >>= objSetExtensible True
-          >>= defineOwnProperty "length" lengthProperty False
-          >>= defineOwnProperty "prototype" (prototypeProperty $ VObj prototype) False
+          >>= addOwnPropDesc "length" lengthProperty
+          >>= addOwnPropDesc "prototype" (prototypeProperty $ VObj prototype)
 
         defineOwnProperty "constructor" (dataPD (VObj func) True False True) False prototype
         setCallMethod (callMethod $ VObj func) func -- (6) XXX
@@ -248,7 +250,7 @@ funcCall name func paramList strict body this args =
     withNewContext (newCxt cxt localEnv newThis) $ do
       performDBI DBIFunction strict body
       when ("arguments" `notElem` paramList) $ do
-        VObj argsObj <- createArgumentsObject func paramList args strict
+        VObj argsObj <- createArgumentsObject func paramList args env strict
         addToNewEnv env "arguments" (VObj argsObj)
       result <- jsRunStmts body
       case result of
@@ -264,43 +266,6 @@ rethrowWithStack v = do
                 _              -> return []
     _ -> return []
   throwError $ JSError (v, stack)
-
--- ref 10.6
-createArgumentsObject :: JSVal -> [String] -> [JSVal] -> Strictness -> Runtime JSVal
-createArgumentsObject func names args strict =
-  let len = JSNum (fromIntegral $ length args)
-      thrower _ = raiseTypeError "Cannot access property"
-  in do
-    object <- getGlobalProperty "Object"
-    objectPrototype <- getGlobalObjectPrototype
-
-    map <- newObject
-    forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
-      -- XXX incomplete step 11
-      defineOwnProperty (show indx) (dataPD val True True True) False map
-
-    cs <- objGet "constructor" objectPrototype
-
-    obj <- newObject >>= setClass "Arguments"
-                     >>= objSetPrototype objectPrototype
-                     >>= defineOwnProperty "length" (dataPD (VNum len) True False True) False
-                     >>= objSetParameterMap (VObj map) -- XXX missing step 12b
-
-    -- Hack because I'm not willing to define new [[get]] etc. methods as per step 12b
-    -- just now...
-    forM_ (reverse $ zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
-      -- XXX incomplete step 11
-      defineOwnProperty (show indx) (dataPD val True True True) False obj
-
-    case strict of
-      NotStrict -> defineOwnProperty "callee" (dataPD func True False True) False obj
-      Strict -> do
-        defineOwnProperty "caller" (accessorPD (Just thrower) (Just thrower) False False) False obj
-        defineOwnProperty "callee" (accessorPD (Just thrower) (Just thrower) False False) False obj
-
-    return (VObj obj)
-
-
 
 -- ref 15.1.2.1
 objEval :: JSFunction
@@ -524,6 +489,15 @@ objCstr func this args = case func of
     Just method -> method this args
   VUndef -> raiseError "Undefined function"
   _ -> raiseError $ "Can't call " ++ show func
+
+
+-- ref 15.2.3.2
+objGetPrototypeOf :: JSFunction
+objGetPrototypeOf _this args =
+  let o = first1 args
+  in case o of
+    VObj obj -> maybe VUndef VObj . objPrototype <$> deref obj
+    _        -> raiseTypeError "Object.getPrototypeOf called on non-object"
 
 -- ref 15.2.3.3
 getOwnPropertyDescriptor :: JSVal -> [JSVal] -> Runtime JSVal

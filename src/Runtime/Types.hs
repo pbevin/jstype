@@ -67,10 +67,11 @@ data JSObj = JSObj {
   callMethod :: Maybe JSFunction,
   cstrMethod :: Maybe JSFunction,
   getMethod :: Maybe (String -> Shared JSObj -> Runtime JSVal),
+  getOwnPropertyMethod :: Maybe (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
   hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
-  defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)),
+  defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
   objPrimitiveValue :: Maybe JSVal,
-  objParameterMap :: Maybe JSVal,
+  objParameterMap :: Maybe (Shared JSObj),
   objScope :: Maybe (Shared LexEnv),
   objFormalParameters :: Maybe ([Ident]),
   objCode :: Maybe Program,
@@ -85,6 +86,7 @@ emptyObject = JSObj {
   callMethod = Nothing,
   cstrMethod = Nothing,
   getMethod = Nothing,
+  getOwnPropertyMethod = Nothing,
   hasInstanceMethod = Nothing,
   defineOwnPropertyMethod = Nothing,
   objPrimitiveValue = Nothing,
@@ -95,7 +97,7 @@ emptyObject = JSObj {
   objExtensible = True
 }
 
-defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
 defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
   Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
   Just m -> m name desc strict objRef
@@ -104,6 +106,12 @@ objGet :: String -> Shared JSObj -> Runtime JSVal
 objGet p obj = do
   getMethod <$> deref obj >>= \case
     Nothing -> raiseError $ "No get method for " ++ show obj
+    Just f -> f p obj
+
+objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+objGetOwnProperty p obj = do
+  getOwnPropertyMethod <$> deref obj >>= \case
+    Nothing -> raiseError $ "No getOwnProperty method for " ++ show obj
     Just f -> f p obj
 
 isCallable :: JSVal -> Runtime (Maybe JSFunction)

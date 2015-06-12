@@ -20,11 +20,12 @@ newObject = do
   prototype <- globalObjectPrototype <$> get
   share $ emptyObject { objPrototype = prototype,
                         defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                        getOwnPropertyMethod = Just objGetOwnPropertyObj,
                         getMethod = Just objGetObj }
 
 -- ref 8.12.1
-objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
-objGetOwnProperty name objRef = liftM (propMapLookup name . ownProperties) (deref objRef)
+objGetOwnPropertyObj :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+objGetOwnPropertyObj name objRef = liftM (propMapLookup name . ownProperties) (deref objRef)
 
 -- ref 8.12.2
 objGetProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -167,15 +168,15 @@ objDefaultValue hint objRef = case hint of
       else Nothing
 
 -- ref 8.12.9, incomplete
-objDefineOwnPropertyObject :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime (Shared JSObj)
+objDefineOwnPropertyObject :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
 objDefineOwnPropertyObject p desc throw objRef = do
   extensible <- objIsExtensible objRef
   objGetOwnProperty p objRef >>= \case
     Nothing ->
       if extensible
-      then _objCreateOwnProperty p desc objRef
+      then _objCreateOwnProperty p desc objRef >> return True
       else raiseProtoError TypeError $ "Can't add to non-extensible object"
-    Just current -> _objUpdateOwnProperty p desc current throw objRef
+    Just current -> _objUpdateOwnProperty p desc current throw objRef >> return True
 
 _objCreateOwnProperty :: String -> PropDesc JSVal -> Shared JSObj -> Runtime (Shared JSObj)
 _objCreateOwnProperty p desc = updateObj (objSetPropertyDescriptor p desc)
@@ -221,8 +222,6 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
         rejectIf condition = when (condition && throw) $ raiseProtoError TypeError "Cannot overwrite property"
 
 
-
-
 type ObjectModifier = Shared JSObj -> Runtime (Shared JSObj)
 
 updateObj :: (JSObj -> JSObj) -> ObjectModifier
@@ -251,6 +250,12 @@ setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
 
 setGetMethod :: (String -> Shared JSObj -> Runtime JSVal) -> ObjectModifier
 setGetMethod f = updateObj $ \obj -> obj { getMethod = Just f }
+
+setGetOwnPropertyMethod :: (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))) -> ObjectModifier
+setGetOwnPropertyMethod f = updateObj $ \obj -> obj { getOwnPropertyMethod = Just f }
+
+setDefineOwnPropertyMethod :: (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool) -> ObjectModifier
+setDefineOwnPropertyMethod f = updateObj $ \obj -> obj { defineOwnPropertyMethod = Just f }
 
 setScope :: Shared LexEnv -> ObjectModifier
 setScope scope = updateObj $ \obj -> obj { objScope = Just scope }
@@ -283,6 +288,9 @@ addMethod name len f = addOwnProperty name (VNative name len f)
 addOwnPropertyDescriptor :: String -> PropDesc JSVal -> ObjectModifier
 addOwnPropertyDescriptor name val = updateObj $ objSetPropertyDescriptor name val
 
+addOwnPropDesc :: String -> PropDesc JSVal -> ObjectModifier
+addOwnPropDesc = addOwnPropertyDescriptor
+
 addOwnConstant :: String -> JSVal -> ObjectModifier
 addOwnConstant name val = addOwnPropertyDescriptor name (dataPD val False False False)
 
@@ -307,11 +315,8 @@ objSetPrimitive val = updateObj $ \obj -> obj { objPrimitiveValue = Just val }
 objGetPrimitive :: Shared JSObj -> Runtime JSVal
 objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
 
-objSetParameterMap :: JSVal -> ObjectModifier
+objSetParameterMap :: Shared JSObj -> ObjectModifier
 objSetParameterMap m = updateObj $ \obj -> obj { objParameterMap = Just m }
-
-objGetParameterMap :: Shared JSObj -> Runtime JSVal
-objGetParameterMap objRef = fromMaybe VUndef . objParameterMap <$> deref objRef
 
 objSetHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> ObjectModifier
 objSetHasInstance method = updateObj $ \obj -> obj { hasInstanceMethod = Just method }

@@ -132,7 +132,7 @@ wrapNative :: String -> Int -> JSFunction -> Runtime (Shared JSObj)
 wrapNative name len f = do
   funPrototype <- objFindPrototype "Function"
   newObject
-    >>= defineOwnProperty "length" (dataPD (VNum $ fromIntegral len) True True True) False
+    >>= addOwnPropDesc "length" (dataPD (VNum $ fromIntegral len) True True True)
     >>= addOwnProperty "call" (VNative name len $ nativeCall f)
 
 nativeCall :: JSFunction -> JSFunction

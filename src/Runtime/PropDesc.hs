@@ -29,9 +29,10 @@ fromPropertyDescriptor desc
           e = propIsEnumerable d
           c = propIsConfigurable d
       in do obj <- newObject >>= addOwnProperty "get" (getter g)
-                             >>= addOwnProperty "writable" (setter s)
+                             >>= addOwnProperty "set" (setter s)
                              >>= addOwnProperty "enumerable" (VBool e)
                              >>= addOwnProperty "configurable" (VBool c)
+            debug (d, g, s, e, c)
             return $ VObj obj
   | otherwise = return VUndef
 

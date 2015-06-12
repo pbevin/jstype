@@ -6,20 +6,6 @@ import Runtime
 import Eval
 import Expectations
 
-unObj :: JSVal -> Shared JSObj
-unObj (VObj obj) = obj
-
-arrayLength :: [Maybe JSVal] -> IO (Either JSError JSVal)
-arrayLength xs = runtime' $ do
-  arr <- createArray xs
-  objGet "length" (unObj arr)
-
-runjs :: Runtime a -> IO ()
-runjs a = runtime a >> return ()
-
-jsEval :: String -> Runtime JSVal
-jsEval = liftIO . jsEvalExpr
-
 spec :: Spec
 spec = do
   describe "createArray" $ do
@@ -59,12 +45,3 @@ spec = do
       actual <- objGet "constructor" obj
       liftIO $ do
         actual `shouldBe` (VObj object)
-
-  describe "An arguments object" $ do
-    it "has a constructor property" $ runjs $ do
-      -- language/arguments-object/S10.6_A2
-      args <- jsEval "(function() { return arguments.constructor.prototype; })()"
-      objectPrototype <- getGlobalObjectPrototype
-
-      liftIO $ do
-        args `shouldBe` (VObj objectPrototype)

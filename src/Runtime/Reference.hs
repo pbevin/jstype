@@ -20,7 +20,8 @@ getValue v
   | isPropertyReference ref     = case base of
       VObj objRef -> objGetProperty name objRef >>= toValue
       _           -> toObject base >>= objGetProperty name >>= toValue
-  | otherwise                   = getValueEnvironmentRecord base name
+  | VEnv env <- base            = getBindingValue name strict env
+  | otherwise                   = raiseReferenceError $ "Can't lookup " ++ show name ++ " in reference " ++ show ref
     where ref@(JSRef base name strict) = unwrapRef v
           toValue desc = case desc of
               Nothing -> return VUndef
@@ -109,14 +110,19 @@ setMutableBinding name val d (ObjEnvRec obj _) = void $ addOwnPropertyDescriptor
 
 -- ref 10.2.1.1.4
 -- ref 10.2.1.2.4
-getValueEnvironmentRecord :: JSVal -> Ident -> Runtime JSVal
-getValueEnvironmentRecord (VEnv env) name = case env of
-  DeclEnvRec m -> lk VUndef name =<< deref m -- XXX VUndef for this
-  ObjEnvRec obj _ -> lk (VObj obj) name . ownProperties =<< deref obj
+getBindingValue :: Ident -> Strictness -> EnvRec -> Runtime JSVal
+getBindingValue n s env = case env of
+  DeclEnvRec m -> lk VUndef n =<< deref m -- XXX VUndef for this
+  ObjEnvRec obj _ -> lk (VObj obj) n . ownProperties =<< deref obj
   where
     lk this k m = case propMapLookup k m of
       Nothing   -> return VUndef
       Just desc -> getValueFrom this desc
+
+
+-- -- XXX deprecate this!
+-- getValueEnvironmentRecord :: JSVal -> Ident -> Runtime JSVal
+-- getValueEnvironmentRecord (VEnv env) name = getBindingValue name NotStrict env
 
 -- ref 10.2.1.1.5
 -- ref 10.2.1.2.5

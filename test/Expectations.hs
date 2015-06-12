@@ -2,6 +2,7 @@
 
 module Expectations where
 
+import Control.Monad.Trans (liftIO)
 import Test.Hspec
 import Data.List (isPrefixOf)
 import Runtime
@@ -40,3 +41,17 @@ shouldStartWith haystack needle
 
 runJStr :: String -> IO (Either RuntimeError String)
 runJStr = runJS ""
+
+unObj :: JSVal -> Shared JSObj
+unObj (VObj obj) = obj
+
+arrayLength :: [Maybe JSVal] -> IO (Either JSError JSVal)
+arrayLength xs = runtime' $ do
+  arr <- createArray xs
+  objGet "length" (unObj arr)
+
+runjs :: Runtime a -> IO ()
+runjs a = runtime a >> return ()
+
+jsEval :: String -> Runtime JSVal
+jsEval = liftIO . jsEvalExpr
