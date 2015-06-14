@@ -55,9 +55,7 @@ withNewContext cxt = withGlobalContext (const cxt)
 ifStrictContext :: Runtime a -> Runtime ()
 ifStrictContext a = do
   strictness <- cxtStrictness <$> getGlobalContext
-  if strictness == Strict
-  then void a
-  else return ()
+  when (strictness == Strict) $ void a
 
 withStrictness :: Strictness -> Runtime a -> Runtime a
 withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = strictness }

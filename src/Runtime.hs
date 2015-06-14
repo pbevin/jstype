@@ -649,7 +649,7 @@ walkStatement :: (Statement -> [a]) -> (Expr -> [a]) -> Statement -> [a]
 walkStatement sv ev = walk where
   walk stmt = sv stmt ++ case stmt of
     Block _ ss               -> concatMap walk ss
-    VarDecl _ vds -> concatMap ewalk (catMaybes $ map snd vds)
+    VarDecl _ vds -> concatMap ewalk (mapMaybe snd vds)
     ExprStmt _ e -> ewalk e
     LabelledStatement _ _ s  -> walk s
     IfStatement _ e s1 Nothing -> ewalk e ++ walk s1

@@ -87,9 +87,7 @@ objPut :: String -> JSVal -> Bool -> Shared JSObj -> Runtime ()
 objPut p v throw objRef = do
   canPut <- objCanPut p objRef
   if not canPut
-  then if throw
-       then raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
-       else return ()
+  then when throw $ raiseProtoError TypeError $ "Attempt to overwrite read-only property " ++ p
   else do
     ownDesc <- objGetOwnProperty p objRef
     if isDataDescriptor ownDesc
@@ -203,9 +201,9 @@ _objUpdateOwnProperty p newDesc oldDesc throw o =
       updateObj (objSetPropertyDescriptor p $ dataPD' v w e c) o
 
     (True, True) -> do
-      when (propIsConfigurable oldDesc == False) $
-        when (propIsWritable oldDesc == False) $ do
-          rejectIf (propIsWritable newDesc == True)
+      when (not $ propIsConfigurable oldDesc) $
+        when (not $ propIsWritable oldDesc) $ do
+          rejectIf (propIsWritable newDesc)
           rejectIf (sameValue (fromMaybe VUndef $ propValue oldDesc) (fromMaybe VUndef $ propValue newDesc))
       case propValue newDesc of
         Nothing -> return o
