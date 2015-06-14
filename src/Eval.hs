@@ -461,9 +461,10 @@ runExprStmt expr = case expr of
 
   MemberGet e x -> do -- ref 11.2.1
     baseValue <- runExprStmt e >>= getValue
-    propertyNameValue <- runExprStmt x >>= getValue >>= toString
-    checkObjectCoercible ("Cannot read property " ++ propertyNameValue) baseValue
-    memberGet baseValue propertyNameValue
+    propertyNameValue <- runExprStmt x >>= getValue
+    checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
+    propertyNameString <- toString propertyNameValue
+    memberGet baseValue propertyNameString
 
   FunCall f args -> do  -- ref 11.2.3
     ref <- runExprStmt f
