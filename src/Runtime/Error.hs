@@ -25,7 +25,9 @@ raiseTypeError msg = createError TypeError (VStr msg) >>= raise
 createError :: ErrorType -> JSVal -> Runtime JSVal
 createError errorType message = do
   prototype <- objFindPrototype name
+  cstr <- getGlobalProperty name
   obj <- newObject >>= addOwnProperty "name" (VStr name)
+                   >>= addOwnProperty "constructor" cstr
                    >>= objSetPrototype prototype
   errConstructor (VObj obj) [message]
   where name = show errorType
