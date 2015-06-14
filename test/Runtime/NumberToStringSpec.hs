@@ -1,7 +1,14 @@
 module Runtime.NumberToStringSpec where
 
+import Control.Monad
 import Test.Hspec
+import Test.QuickCheck
 import Runtime.NumberToString
+
+prop_dissect :: Double -> Bool
+prop_dissect d =
+  let (b, e, f, p) = dissectFloat d
+  in d == (fromIntegral f) * (fromIntegral b)^^(e-p)
 
 spec :: Spec
 spec = do
@@ -20,8 +27,42 @@ spec = do
       map numberToString [ 0/0, 1/0, -(1/0) ]
         `shouldBe` [ "NaN", "Infinity", "-Infinity" ]
 
+      numberToString (encodeFloat 1 (-980)) `shouldBe` "9.785978320356312e-296"
+
+      map numberToString [ 5.0e-3, 5.0e-4, 5.0e-5 ]
+        `shouldBe` ["0.005","0.0005","0.00005"]
+
+      map numberToString [ 2.5e-3, 2.5e-4, 2.5e-5 ]
+        `shouldBe` ["0.0025","0.00025","0.000025"]
+
+      map numberToString [ 2.5e-293, 2.5e-294, 2.5e-295 ]
+        `shouldBe` [ "2.5e-293", "2.5e-294", "2.5e-295" ]
+
+      map numberToString [ 5.0e-293, 5.0e-294, 5.0e-295 ]
+        `shouldBe` [ "5e-293", "5e-294", "5e-295" ]
+
+      numberToString 1.000000000000001
+         `shouldBe` "1.000000000000001"
+      numberToString 1.0000000000000001 `shouldBe` "1"
+
     it "goes to exponential notation for epsilon" $
-      map numberToString [ 0.12345,
+      map n2s            [ 0.1234,
+                           0.01234,
+                           0.001234,
+                           0.0001234,
+                           0.00001234,
+                           0.000001234,
+                           0.0000001234 ]
+             `shouldBe` [ "0.1234",
+                          "0.01234",
+                          "0.001234",
+                          "0.0001234",
+                          "0.00001234",
+                          "0.000001234",
+                          "1.234e-7" ]
+
+    it "goes to exponential notation for epsilon" $
+      map n2s            [ 0.12345,
                            0.012345,
                            0.0012345,
                            0.00012345,
@@ -33,12 +74,12 @@ spec = do
                           "0.0012345",
                           "0.00012345",
                           "0.000012345",
-                          "0.0000012345"
-                          , "1.2345e-7" ]
+                          "0.0000012345",
+                          "1.2345e-7" ]
 
 
     it "goes to exponential notation for big numbers" $
-      map numberToString [ 10000000000000000000,
+      map n2s            [ 10000000000000000000,
                            12345000000000000000,
                            100000000000000000000,
                            123450000000000000000,
@@ -51,46 +92,17 @@ spec = do
                           "1e+21",
                           "1.2345e+21" ]
 
-
   describe "splitNumber" $ do
-    it "has expected values for +ve powers of 10" $ do
-      splitNumber 1 `shouldBe` (1, 1, 1, 1)
-      splitNumber 10 `shouldBe` (10, 2, 1, 1)
-      splitNumber 100 `shouldBe` (100, 3, 1, 1)
-      splitNumber 1000 `shouldBe` (1000, 4, 1, 1)
+    it "does simple values" $ do
+      splitNumber 10  `shouldBe` (2, 1, [1])
+      splitNumber 1   `shouldBe` (1, 1, [1])
+      splitNumber 0.1 `shouldBe` (0, 1, [1])
 
-    it "has expected values for -ve powers of 10" $ do
-      splitNumber 1 `shouldBe` (1, 1, 1, 1)
-      splitNumber 0.1 `shouldBe` (0.1, 0, 1, 1)
-      splitNumber 0.01 `shouldBe` (0.01, -1, 1, 1)
-      splitNumber 0.001 `shouldBe` (0.001, -2, 1, 1)
+  describe "dissectFloat" $ do
+    it "satisfies d == f * b^(e-p)" $ property prop_dissect
 
-    it "has expected values for integer precision" $ do
-      splitNumber 1 `shouldBe` (1, 1, 1, 1)
-      splitNumber 12 `shouldBe` (12, 2, 2, 12)
-      splitNumber 123 `shouldBe` (123, 3, 3, 123)
+  describe "splitNumber - n" $ do
+    let splitn d = n where (n,k,s) = splitNumber d
 
-    it "has expected values for fractional precision" $ do
-      splitNumber 1 `shouldBe` (1, 1, 1, 1)
-      splitNumber 1.2 `shouldBe` (1.2, 1, 2, 12)
-      splitNumber 1.23 `shouldBe` (1.23, 1, 3, 123)
-      splitNumber 3.1415926535897932384626 `shouldBe` (3.141592653589793, 1, 16, 3141592653589794)
-
-    it "has expected values for multiples of 12345" $ do
-      splitNumber 12345 `shouldBe` (12345, 5, 5, 12345)
-      splitNumber 1234.5 `shouldBe` (1234.5, 4, 5, 12345)
-      splitNumber 123.45 `shouldBe` (123.45, 3, 5, 12345)
-      splitNumber 12.345 `shouldBe` (12.345, 2, 5, 12345)
-      splitNumber 1.2345 `shouldBe` (1.2345, 1, 5, 12345)
-      splitNumber 0.12345 `shouldBe` (0.12345, 0, 5, 12345)
-      splitNumber 0.012345 `shouldBe` (0.012345, -1, 5, 12345)
-
-  describe "findk" $ do
-    it "does powers of 10" $ do
-      map findk [1, 10, 100, 1000, 10000 ] `shouldBe` [1,1,1,1,1]
-      map findk [0.1, 0.01, 0.001, 0.001 ] `shouldBe` [1,1,1,1]
-
-    it "does multiples of 12345" $ do
-      findk 12345 `shouldBe` 5
-      map findk [12345, 1234.5, 123.45, 12.345, 1.2345] `shouldBe` [5,5,5,5,5]
-      map findk [123450, 1234500, 12345000] `shouldBe` [5,5,5]
+    it "is the base10 log of the input" $ property $ \v ->
+      let d = getPositive v in 1 + splitn d == splitn (d*10)
