@@ -254,9 +254,9 @@ funcCall name func paramList strict body this args =
         addToNewEnv env "arguments" (VObj argsObj)
       result <- jsRunStmts body
       case result of
-        (CTReturn, Just v, _) -> return v
-        (CTThrow, Just v, _)  -> rethrowWithStack v
-        _ -> return VUndef
+        CTReturn (Just v) -> return v
+        CTThrow  (Just v) -> rethrowWithStack v
+        otherwise         -> return VUndef
 
 rethrowWithStack :: JSVal -> Runtime a
 rethrowWithStack v = do
@@ -275,8 +275,8 @@ objEval _this args = case args of
     text <- toString prog
     result <- jsEvalCode text
     case result of
-      (CTNormal, Just v, _) -> return v
-      (CTThrow, Just v, _)  -> throwError $ JSError (v, []) -- XXXX
+      CTNormal (Just v)     -> return v
+      CTThrow  (Just v)     -> throwError $ JSError (v, []) -- XXXX
       _ -> return VUndef
 
 -- ref 15.1.2.2

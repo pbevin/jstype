@@ -200,8 +200,13 @@ type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc]) | JSProtoError (ErrorType, String) deriving (Show, Eq)
 type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
-data CompletionType = CTNormal | CTBreak | CTContinue | CTReturn | CTThrow deriving (Show, Eq)
-type StmtReturn = (CompletionType, Maybe JSVal, Maybe Ident)
+type StmtReturn = Result JSVal
+data Result a = CTNormal   { rval :: Maybe a }
+              | CTBreak    { rval :: Maybe a, label :: Maybe Ident }
+              | CTContinue { rval :: Maybe a, label :: Maybe Ident }
+              | CTReturn   { rval :: Maybe a }
+              | CTThrow    { rval :: Maybe a }
+              deriving (Show, Eq)
 
 
 -- Shared type

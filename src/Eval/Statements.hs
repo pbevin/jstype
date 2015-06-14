@@ -18,6 +18,19 @@ import JSNum
 import Runtime
 import Builtins
 import Runtime
+
+
+
+
+-- ref 12.1
+runStmts :: [Statement] -> Runtime StmtReturn
+runStmts = runStmts' (CTNormal Nothing) where
+  runStmts' r [] = return r
+  runStmts' _ (s:stmts) = do
+    result <- runStmt s `catchError` returnThrow s
+    case result of
+      CTNormal _ -> runStmts' result stmts
+      otherwise  -> return result
  
 
 callToString :: JSVal -> Runtime JSVal
@@ -38,7 +51,7 @@ getStackTrace _ = return []
 returnThrow :: Statement -> JSError -> Runtime StmtReturn
 returnThrow s (JSError (err, stack)) = do
   setStacktrace err (sourceLocation s : stack)
-  return (CTThrow, Just err, Nothing)
+  return $ CTThrow (Just err)
 returnThrow s (JSProtoError (t, msg)) = do
   err <- createError t (VStr msg)
   returnThrow s (JSError (err, []))
@@ -49,22 +62,12 @@ setStacktrace v stack =
     VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
     _           -> return ()
 
--- ref 12.1
-runStmts :: [Statement] -> Runtime StmtReturn
-runStmts = runStmts' (CTNormal, Nothing, Nothing) where
-  runStmts' emptyResult [] = return emptyResult
-  runStmts' _ (s:stmts) = do
-    result <- runStmt s `catchError` returnThrow s
-    case result of
-      (CTNormal, _, _) -> runStmts' result stmts
-      _ -> return result
-
 runStmt :: Statement -> Runtime StmtReturn
 runStmt s = {-# SCC stmt #-} case s of
-  FunDecl {} -> return (CTNormal, Nothing, Nothing)
+  FunDecl {} -> return (CTNormal Nothing)
   ExprStmt _loc e -> {-# SCC "exprStmt" #-} do
     val <- runExprStmt e >>= getValue
-    return (CTNormal, Just val, Nothing)
+    return $ CTNormal (Just val)
 
   VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
   LabelledStatement _loc _label stmt -> runStmt stmt
@@ -74,7 +77,7 @@ runStmt s = {-# SCC stmt #-} case s of
     if toBoolean v
     then runStmt ifThen
     else case ifElse of
-           Nothing -> return (CTNormal, Nothing, Nothing)
+           Nothing -> return $ CTNormal Nothing
            Just stmt  -> runStmt stmt
 
   DoWhileStatement _loc e stmt -> -- ref 12.6.1
@@ -105,13 +108,13 @@ runStmt s = {-# SCC stmt #-} case s of
     exprRef <- runExprStmt e
     exprValue <- getValue exprRef
     if (exprValue == VNull || exprValue == VUndef)
-    then return (CTNormal, Nothing, Nothing)
+    then return $ CTNormal Nothing
     else do
       obj <- toObject exprValue
       keys <- propMapKeys . ownProperties <$> deref obj
       keepGoing obj keys Nothing where
         keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
-        keepGoing _ [] v = return (CTNormal, v, Nothing)
+        keepGoing _ [] v = return $ CTNormal v
         keepGoing obj (p:ps) v = do
           desc <- objGetOwnProperty p obj
           let want = maybe False propIsEnumerable desc
@@ -119,11 +122,12 @@ runStmt s = {-# SCC stmt #-} case s of
           then do
             lhsRef <- runExprStmt lhs
             putValue' lhsRef (VStr p)
-            s@(stype, sval, _) <- runStmt stmt
-            case stype of
-              CTBreak -> return (CTNormal, sval <|> v, Nothing)
-              CTContinue -> keepGoing obj ps $ sval <|> v
-              CTNormal -> keepGoing obj ps $ sval <|> v
+            s <- runStmt stmt
+            let nextv = rval s <|> v
+            case s of
+              CTBreak v' _    -> return $ CTNormal nextv
+              CTContinue v' _ -> keepGoing obj ps  nextv
+              CTNormal _      -> keepGoing obj ps  nextv
               _ -> return s
           else keepGoing obj ps v
 
@@ -136,41 +140,41 @@ runStmt s = {-# SCC stmt #-} case s of
   Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
-    b@(btype, bval, _) <- runStmt block
+    br <- runStmt block
 
     case (catch, finally) of
       (Just c, Nothing) -> do
-        if btype == CTThrow
-        then runCatch c (fromJust bval)
-        else return b
+        case br of
+          CTThrow (Just exc) -> runCatch c exc
+          otherwise          -> return br
 
       (Nothing, Just f) -> do
-        f@(ftype, _, _) <- runFinally f
-        if ftype == CTNormal
-        then return b
-        else return f
+        fr <- runFinally f
+        case fr of
+          CTNormal _ -> return br
+          otherwise  -> return fr
 
       (Just c, Just f) -> do
-        c <- if btype == CTThrow
-             then runCatch c (fromJust bval)
-             else return b
-        f@(ftype, _, _) <- runFinally f
-        if ftype == CTNormal
-        then return c
-        else return f
+        cr <- case br of
+                CTThrow (Just exc) -> runCatch c exc
+                otherwise          -> return br
+        fr <- runFinally f
+        case fr of
+          CTNormal _ -> return cr
+          otherwise  -> return fr
 
   ThrowStatement _loc e -> do
     exc <- runExprStmt e >>= getValue
-    return (CTThrow, Just exc, Nothing)
+    return $ CTThrow (Just exc)
 
-  BreakStatement _loc label -> return (CTBreak, Nothing, label)
-  ContinueStatement _loc label -> return (CTContinue, Nothing, label)
-  Return _loc Nothing -> return (CTReturn, Just VUndef, Nothing)
+  BreakStatement _loc label    -> return $ CTBreak    Nothing label
+  ContinueStatement _loc label -> return $ CTContinue Nothing label
+  Return _loc Nothing          -> return $ CTReturn  (Just VUndef)
   Return _loc (Just e) -> do
     val <- runExprStmt e >>= getValue
-    return (CTReturn, Just val, Nothing)
+    return $ CTReturn (Just val)
 
-  EmptyStatement _loc -> return (CTNormal, Nothing, Nothing)
+  EmptyStatement _loc -> return $ CTNormal Nothing
 
   _ -> error ("Unimplemented stmt: " ++ show s)
 
@@ -181,17 +185,14 @@ loopConstruct condition increment stmt = keepGoing Nothing where
   keepGoing v = do
     willEval <- condition
     if not willEval
-    then return (CTNormal, v, Nothing)
+    then return $ CTNormal v
     else do
-      sval@(stype, v', _) <- {-# SCC loop_body #-} runStmt stmt
-      let nextVal = case v' of
-                      Nothing -> v
-                      Just newVal -> Just newVal
-      case stype of
-        CTBreak -> return (CTNormal, v, Nothing)
-        CTContinue -> increment >> keepGoing nextVal
-        CTNormal -> increment >> keepGoing nextVal
-        _ -> return sval
+      r <- {-# SCC loop_body #-} runStmt stmt
+      case r of
+        CTBreak    v _ -> return $ CTNormal v
+        CTContinue v _ -> increment >> keepGoing v
+        CTNormal   v   -> increment >> keepGoing v
+        otherwise      -> return r
 
 
 -- |
@@ -226,7 +227,7 @@ runVarDecl assignments = do
     Nothing  -> return ()
     Just e' -> do
       runExprStmt e' >>= getValue >>= putVar x
-  return (CTNormal, Nothing, Nothing)
+  return $ CTNormal Nothing
 
 -- ref 12.10
 runWithStatement :: Expr -> Statement -> Runtime StmtReturn
@@ -241,10 +242,10 @@ runWithStatement e s = do
 runSwitchStatement :: Expr -> CaseBlock -> Runtime StmtReturn
 runSwitchStatement e caseBlock = do
   val <- runExprStmt e >>= getValue
-  r@(rtype, rval, _rlabel) <- runCaseBlock val caseBlock
-  return $ if rtype == CTBreak
-  then (CTNormal, rval, Nothing)
-  else r
+  r <- runCaseBlock val caseBlock
+  return $ case r of
+   CTBreak v _ -> CTNormal v
+   otherwise   -> r
 
 runCaseBlock :: JSVal -> CaseBlock -> Runtime StmtReturn
 runCaseBlock val caseBlock = do
@@ -259,11 +260,11 @@ runCaseBlock val caseBlock = do
                       if clauseSelector `eqv` val
                       then step5 (a:rest, d, bs) v True
                       else step5 (  rest, d, bs) v False
-              else do (rtype, rval, rtarget) <- runStmts stmts
-                      let nextv = rval <|> v
-                      case rtype of
-                        CTNormal -> step5 (rest, d, bs) nextv True
-                        _        -> return (rtype, nextv, rtarget)
+              else do r <- runStmts stmts
+                      let nextv = rval r <|> v
+                      case r of
+                        CTNormal _ -> step5 (rest, d, bs) nextv True
+                        otherwise  -> return r { rval = nextv }
 
         [] -> if found
               then step8 ([], d, bs) v
@@ -287,11 +288,11 @@ runCaseBlock val caseBlock = do
     step8 (as, d, bs) v = case d of
 
       Just (DefaultClause stmts) -> do
-              (rtype, rval, rtarget) <- runStmts stmts
-              let nextv = rval <|> v
-              case rtype of
-                CTNormal -> step9 (as, d, bs) nextv
-                _        -> return (rtype, nextv, rtarget)
+              r <- runStmts stmts
+              let nextv = rval r <|> v
+              case r of
+                CTNormal _ -> step9 (as, d, bs) nextv
+                otherwise  -> return r { rval = nextv }
 
       _ -> step9 (as, d, bs) v
 
@@ -299,13 +300,13 @@ runCaseBlock val caseBlock = do
     step9 (as, d, bs) v = case bs of
 
       (b@(CaseClause e stmts) : rest) -> do
-              (rtype, rval, rtarget) <- runStmts stmts
-              let nextv = rval <|> v
-              case rtype of
-                CTNormal -> step9 ([], d, rest) nextv
-                _        -> return (rtype, nextv, rtarget)
+              r <- runStmts stmts
+              let nextv = rval r <|> v
+              case r of
+                CTNormal _ -> step9 ([], d, rest) nextv
+                otherwise  -> return r { rval = nextv }
 
-      [] -> return (CTNormal, v, Nothing)
+      [] -> return (CTNormal v)
 
 
 

@@ -120,11 +120,14 @@ runProg (Program strictness stmts) = do
   performDBI DBIGlobal strictness stmts
   result <- withStrictness strictness (runStmts stmts)
   case result of
-    (CTNormal, v, _) -> return v
-    (CTThrow, Just v, _) -> do
-      msg <- callToString v
-      st <- getStackTrace v
-      throwError $ JSError (msg, st)
-    _ -> do
+    CTNormal v       -> return v
+    CTThrow (Just v) -> throwValAsException v
+    otherwise        -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
+
+throwValAsException :: JSVal -> Runtime a
+throwValAsException v = do
+  msg <- callToString v
+  st <- getStackTrace v
+  throwError $ JSError (msg, st)
