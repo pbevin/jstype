@@ -530,6 +530,7 @@ evalTypeof val = do
         callMethod <$> deref objRef >>= \case
           Nothing -> return "object"
           Just _  -> return "function"
+      VNative{}   -> return "function"
       _ ->
         return $ case typeof resolved of
           TypeUndefined -> "undefined"

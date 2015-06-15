@@ -254,6 +254,7 @@ spec = do
     runJStr "console.log(typeof this)" `shouldReturn` Right "object\n"
     runJStr "console.log(typeof 5)" `shouldReturn` Right "number\n"
     runJStr "console.log(typeof 'aa')" `shouldReturn` Right "string\n"
+    runJStr "console.log(typeof Object.toString)" `shouldReturn` Right "function\n"
 
   it "can still typeof a variable that doesn't exist" $ do
     jsEvalExpr "typeof x" `shouldReturn` VStr "undefined"
