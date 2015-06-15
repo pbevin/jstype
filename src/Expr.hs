@@ -97,6 +97,7 @@ jsLang = Lang {
     words "break do instanceof typeof case else new var catch finally" ++
       words "return void continue for switch while debugger" ++
       words "function this with default if throw delete in try" ++
+      words "null" ++
       words "class enum extends super const export import",
   reservedWordsStrict =
     words "implements let private public yield interface package protected static",
