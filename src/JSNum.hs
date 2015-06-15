@@ -16,6 +16,9 @@ jsMaxValue = JSNum $ maxNonInfiniteFloat 1.0
 jsMinValue :: JSNum
 jsMinValue = JSNum $ minPositiveFloat 1.0
 
+jsInt :: Int -> JSNum
+jsInt n = JSNum (fromIntegral n)
+
 
 instance Num JSNum where
   (JSNum a) + (JSNum b) = JSNum (a + b)

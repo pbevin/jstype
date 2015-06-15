@@ -17,6 +17,7 @@ makeArrayClass = do
     >>= addMethod "join" 1 arrayJoin
     >>= addMethod "reverse" 0 arrayReverse
     >>= addMethod "sort" 1 arraySort
+    >>= addMethod "push" 1 arrayPush
 
   functionObject "Array" arrayPrototype
     >>= setCallMethod (arrayFunction arrayPrototype)
@@ -85,3 +86,17 @@ arrayReverse _this _args = return VUndef
 
 isArray :: JSFunction
 isArray _this _args = return (VBool True)
+
+arrayPush :: JSFunction
+arrayPush this args = do
+  obj <- toObject this
+  lenVal <- objGet "length" obj
+  n <- toInt lenVal
+  n' <- VNum . jsInt <$> placeValues obj n args
+  objPut "length" n' True obj
+  return n'
+
+  where
+    placeValues :: Shared JSObj -> Int -> [JSVal] -> Runtime Int
+    placeValues   _ n []     = return n
+    placeValues obj n (e:es) = objPut (show n) e True obj >> placeValues obj (n+1) es
