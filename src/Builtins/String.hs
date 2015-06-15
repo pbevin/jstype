@@ -40,11 +40,13 @@ strConstructor this args =
   in case this of
     VObj obj -> do
       prototype <- objFindPrototype "String"
+      stringObject <- getGlobalProperty "String"
       str <- toString value
       setClass "String" obj >>= objSetPrototype prototype
                             >>= objSetExtensible True
                             >>= objSetPrimitive value
                             >>= addOwnProperty "length" (VNum $ fromIntegral $ length str)
+                            >>= addOwnProperty "constructor" stringObject
                             >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
 

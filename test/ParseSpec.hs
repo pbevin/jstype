@@ -121,6 +121,21 @@ spec = do
       parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
       parseExpr "'back\\\\quote'" `shouldBe` Str "back\\quote"
 
+    it "parses \\0" $ do
+      parseExpr "'a\\0b'" `shouldBe` Str [ 'a', '\0', 'b' ]
+
+    it "parses \\0 only if the following char is not a number" $ do
+      unparseable "'a\\00b'"
+      unparseable "'a\\01b'"
+      unparseable "'a\\02b'"
+      unparseable "'a\\03b'"
+      unparseable "'a\\04b'"
+      unparseable "'a\\05b'"
+      unparseable "'a\\06b'"
+      unparseable "'a\\07b'"
+      unparseable "'a\\08b'"
+      unparseable "'a\\09b'"
+
     it "allows line breaks in strings when preceded by backslash" $ do
       parseExpr "\"abc\\\ndef\"" `shouldBe` Str "abc\ndef"
       parseExpr "'abc\\\ndef'" `shouldBe` Str "abc\ndef"

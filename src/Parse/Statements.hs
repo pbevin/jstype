@@ -555,6 +555,7 @@ doubleQuotedString = do
 escape :: JSParser Char
 escape = oneOf "'\"\\\n"
      <|> liftM singleCharEscape (oneOf "bfnrtv")
+     <|> (char '0' >> lookAhead (noneOf "0123456789") >> return '\0')
      <|> (char 'u' >> unicodeEscape)
 
 singleCharEscape :: Char -> Char
