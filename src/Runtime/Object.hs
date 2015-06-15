@@ -293,7 +293,7 @@ addOwnConstant :: String -> JSVal -> ObjectModifier
 addOwnConstant name val = addOwnPropertyDescriptor name (dataPD val False False False)
 
 objSetProperty :: String -> JSVal -> JSObj -> JSObj
-objSetProperty name value obj = objSetPropertyDescriptor name (dataPD value True True True) obj
+objSetProperty name value obj = objSetPropertyDescriptor name (dataPD value True False True) obj
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
 objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
