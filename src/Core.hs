@@ -12,7 +12,7 @@ data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
                  | CoreRet   a Expr
-                 | CoreCase  a CaseBlock
+                 | CoreCase  a Expr (Maybe (CoreStmt a)) [(Expr, CoreStmt a)]
                  | CoreLabel a Label (CoreStmt a)
                  | CoreTry   a (CoreStmt a) (Maybe (Ident, CoreStmt a)) (Maybe (CoreStmt a))
                  | Unconverted Statement
@@ -26,12 +26,27 @@ desugar stmts = CoreBind DBIGlobal (declBindings stmts) . coreBlock $ map conver
 
 convert :: Statement -> CoreStatement
 convert stmt = case stmt of
+  Block loc body                 -> convertBlock loc body
+  LabelledStatement loc lab body -> convertLabelled loc lab body
+  VarDecl loc decls              -> convertVarDecl loc decls
   ExprStmt loc e                 -> convertExpr loc e
   WhileStatement loc cond body   -> convertWhile loc cond body
   DoWhileStatement loc cond body -> convertDoWhile loc cond body
   For loc header body            -> convertFor loc header body
+  IfStatement loc e s1 s2        -> convertIf loc e s1 s2
+  ContinueStatement loc label    -> convertContinue loc label
+  BreakStatement loc label       -> convertBreak loc label
   otherwise                      -> Unconverted stmt
 
+convertBlock :: SrcLoc -> [Statement] -> CoreStatement
+convertBlock _loc body = CoreBlock (map convert body)
+
+convertLabelled :: SrcLoc -> Label -> Statement -> CoreStatement
+convertLabelled loc label body = CoreLabel loc label (convert body)
+
+convertVarDecl :: SrcLoc -> [VarDeclaration] -> CoreStatement
+convertVarDecl loc decls = CoreBlock (map makeAssignment . filter (isJust . snd) $ decls)
+  where makeAssignment (name, Just val) = CoreExpr loc (Assign (ReadVar name) "=" val)
 
 convertExpr :: SrcLoc -> Expr -> CoreStatement
 convertExpr = CoreExpr
@@ -60,12 +75,25 @@ convertFor3Var loc ds e2 e3 stmt =
       s2 = convertFor3 loc Nothing e2 e3 stmt
   in CoreBlock [ s1, s2 ]
 
-
 convertForIn :: SrcLoc -> Expr -> Expr -> Statement -> CoreStatement
 convertForIn loc e1 e2 stmt = Unconverted (For loc (ForIn e1 e2) stmt)
 
 convertForInVar :: SrcLoc -> VarDeclaration -> Expr -> Statement -> CoreStatement
 convertForInVar loc d e stmt = Unconverted (For loc (ForInVar d e) stmt)
+
+convertIf :: SrcLoc -> Expr -> Statement -> Maybe Statement -> CoreStatement
+convertIf loc expr s1 s2 = CoreCase loc cond ifFalse [(Boolean True, ifTrue)]
+  where cond    = UnOp "!" (UnOp "!" expr)
+        ifTrue  = CoreBlock [ convert s1, CoreBreak loc Nothing ]
+        ifFalse = convert <$> s2
+
+convertContinue :: SrcLoc -> Maybe Label -> CoreStatement
+convertContinue loc label = CoreCont loc label
+
+convertBreak :: SrcLoc -> Maybe Label -> CoreStatement
+convertBreak loc label = CoreBreak loc label
+
+
 
 declBindings :: [Statement] -> [(Ident, Expr)]
 declBindings stmts = [ (name, LiteralUndefined) | name <- concatMap searchVariables stmts ]

@@ -59,6 +59,10 @@ runStmt stmt = action `catchError` returnThrow stmt
       CoreBlock stmts                -> runCoreBlock stmts
       CoreExpr _loc e                -> runCoreExpr e
       CoreLoop _loc test inc body    -> runCoreLoop test inc body
+      CoreBreak _loc label           -> runCoreBreak label
+      CoreCont _loc label            -> runCoreCont label
+      CoreCase _loc e dflt cases     -> runCoreCase e dflt cases
+      CoreLabel _loc label body      -> runCoreLabel label body
       Unconverted s                  -> runUnconvertedStmt s
       otherwise                      -> error $ "Can't execute " ++ show otherwise
 
@@ -106,6 +110,29 @@ runCoreLoop test inc body = keepGoing Nothing where
         CTNormal   v'   -> increment >> keepGoing (v' <|> v)
         otherwise      -> return r
 
+runCoreBreak :: Maybe Label -> Runtime StmtReturn
+runCoreBreak = return . CTBreak Nothing
+
+runCoreCont :: Maybe Label -> Runtime StmtReturn
+runCoreCont = return . CTContinue Nothing
+
+runCoreCase :: Expr -> Maybe CoreStatement -> [(Expr, CoreStatement)] -> Runtime StmtReturn
+runCoreCase e dflt cases = do
+  runExprStmt e >>= getValue >>= go cases dflt Nothing
+    where
+      go :: [(Expr, CoreStatement)] -> Maybe CoreStatement -> Maybe JSVal -> JSVal -> Runtime StmtReturn
+      go cases dflt v input = case (cases, dflt) of
+        ((e, stmt) : rest, _) -> do
+          clauseSelector <- runExprStmt e >>= getValue
+          if input `eqv` clauseSelector
+          then runStmt stmt
+          else go rest dflt v input
+        ([], Just d) -> runStmt d
+        ([], Nothing) -> return (CTNormal v)
+
+runCoreLabel :: Label -> CoreStatement -> Runtime StmtReturn
+runCoreLabel _ = runStmt
+
 
 
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
@@ -124,37 +151,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
   VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
   LabelledStatement _loc _label stmt -> runStmt (Unconverted stmt)
 
-  IfStatement _loc predicate ifThen ifElse -> do -- ref 12.5
-    v <- runExprStmt predicate >>= getValue
-    if toBoolean v
-    then runStmt (Unconverted ifThen)
-    else case ifElse of
-           Nothing -> return $ CTNormal Nothing
-           Just stmt  -> runStmt (Unconverted stmt)
-
-  DoWhileStatement _loc e stmt -> -- ref 12.6.1
-    runStmt . Unconverted $ transformDoWhileToWhile _loc e stmt
-
-  WhileStatement _loc e stmt -> -- ref 12.6.2
-    let cond      = toBoolean <$> (runExprStmt e >>= getValue)
-        increment = return ()
-    in loopConstruct cond increment stmt
-
-  For loc (For3 e1 e2 e3) stmt -> -- ref 12.6.3
-    let init =      case e1 of
-                       Just e -> runExprStmt e >>= getValue >> return ()
-                       Nothing -> return ()
-        cond =      case e2 of
-                       Just e  -> toBoolean <$> (runExprStmt e >>= getValue)
-                       Nothing -> return True
-        increment = case e3 of
-                       Just e -> runExprStmt e >>= getValue >> return ()
-                       Nothing -> return ()
-    in init >> {-# SCC for3 #-} loopConstruct cond increment stmt
-
-
-  For loc (For3Var assigns e2 e3) stmt -> -- ref 12.6.3
-    runStmt . Unconverted $ transformFor3VarToFor3 loc assigns e2 e3 stmt
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -189,7 +185,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
 
   WithStatement _loc e s -> runWithStatement e s
   SwitchStatement _loc e caseBlock -> runSwitchStatement e caseBlock
-  Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
     br <- runStmt (Unconverted block)
@@ -219,8 +214,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
     exc <- runExprStmt e >>= getValue
     return $ CTThrow (Just exc)
 
-  BreakStatement _loc label    -> return $ CTBreak    Nothing label
-  ContinueStatement _loc label -> return $ CTContinue Nothing label
   Return _loc Nothing          -> return $ CTReturn  (Just VUndef)
   Return _loc (Just e) -> do
     val <- runExprStmt e >>= getValue
