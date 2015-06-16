@@ -55,6 +55,7 @@ runStmt :: CoreStatement -> Runtime StmtReturn
 runStmt stmt = case stmt of
   Unconverted s                   -> runUnconvertedStmt s
   CoreBind dbiType bindings stmts -> runCoreBinding dbiType bindings stmts
+  CoreLoop _loc test inc body     -> runCoreLoop test inc body
   otherwise                       -> error $ "Can't execute " ++ show otherwise
 
 
@@ -79,6 +80,23 @@ runCoreBinding dbiType bindings stmts = do
       returnThrow s (JSProtoError (t, msg)) = do
         err <- createError t (VStr msg)
         returnThrow s (JSError (err, []))
+
+
+runCoreLoop :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
+runCoreLoop test inc body = keepGoing Nothing where
+  condition = toBoolean <$> (runExprStmt test >>= getValue)
+  increment = runExprStmt inc >>= getValue
+  keepGoing v = do
+    willEval <- condition
+    if not willEval
+    then return $ CTNormal v
+    else do
+      r <- {-# SCC loop_body #-} runStmt body
+      case r of
+        CTBreak    v _ -> return $ CTNormal v
+        CTContinue v _ -> increment >> keepGoing v
+        CTNormal   v   -> increment >> keepGoing v
+        otherwise      -> return r
 
 
 
@@ -373,6 +391,7 @@ runExprStmt expr = case expr of
   Str s              -> return $ VStr s
   Boolean b          -> return $ VBool b
   LiteralNull        -> return VNull
+  LiteralUndefined   -> return VUndef
   ReadVar name       -> readVar name
   This               -> thisBinding <$> getGlobalContext
   ArrayLiteral vals  -> evalArrayLiteral vals
