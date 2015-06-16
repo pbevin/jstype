@@ -5,7 +5,8 @@ import Expr
 
 data DBIType = DBIGlobal | DBIFunction | DBIEval deriving (Show, Eq)
 type CoreStatement = CoreStmt SrcLoc
-data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] [CoreStmt a]
+data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] (CoreStmt a)
+                 | CoreBlock [CoreStmt a]
                  | CoreExpr  a Expr
                  | CoreLoop  a Expr Expr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
@@ -19,16 +20,22 @@ data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] [CoreStmt a]
 
 
 desugar :: [Statement] -> CoreStatement
-desugar stmts = CoreBind DBIGlobal (declBindings stmts) $ map convert stmts
+desugar stmts = CoreBind DBIGlobal (declBindings stmts) . coreBlock $ map convert stmts
+  where coreBlock [s] = s
+        coreBlock xs  = CoreBlock xs
 
 convert :: Statement -> CoreStatement
 convert stmt = case stmt of
-  WhileStatement loc cond body -> convertWhile loc cond body
-  otherwise                    -> Unconverted stmt
+  WhileStatement loc cond body   -> convertWhile loc cond body
+  DoWhileStatement loc cond body -> convertDoWhile loc cond body
+  otherwise                      -> Unconverted stmt
 
 
 convertWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
 convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt)
+
+convertDoWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
+convertDoWhile loc expr stmt = CoreBlock [ convert stmt, convertWhile loc expr stmt ]
 
 
 declBindings :: [Statement] -> [(Ident, Expr)]
@@ -39,6 +46,7 @@ declBindings stmts = [ (name, LiteralUndefined) | name <- concatMap searchVariab
 sourceLocation :: CoreStatement -> SrcLoc
 sourceLocation stmt = case stmt of
   CoreBind _ _ _   -> error "no srcloc for corebind"
+  CoreBlock _      -> error "no srcloc for coreblock"
   CoreExpr a _     -> a
   Unconverted s    -> sourceLocationUnconverted s
 

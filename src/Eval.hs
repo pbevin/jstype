@@ -63,7 +63,7 @@ rethrowAsString err = case err of
 
 toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
-toRuntimeError _ = error "Runtime did not convert error to string"
+toRuntimeError e = error $ "Runtime did not convert error to string: " ++ show e
 
 evalCode :: String -> Runtime StmtReturn
 evalCode text = do

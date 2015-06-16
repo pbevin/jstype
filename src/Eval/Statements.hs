@@ -50,36 +50,42 @@ runProg (Program strictness stmts) = do
 runStmts :: [Statement] -> Runtime StmtReturn
 runStmts = runStmt . desugar
 
- 
+
 runStmt :: CoreStatement -> Runtime StmtReturn
-runStmt stmt = case stmt of
-  Unconverted s                   -> runUnconvertedStmt s
-  CoreBind dbiType bindings stmts -> runCoreBinding dbiType bindings stmts
-  CoreLoop _loc test inc body     -> runCoreLoop test inc body
-  otherwise                       -> error $ "Can't execute " ++ show otherwise
+runStmt stmt = action `catchError` returnThrow stmt
+  where
+    action = case stmt of
+      CoreBind dbiType bindings stmt -> runCoreBinding dbiType bindings stmt
+      CoreBlock stmts                -> runCoreBlock stmts
+      CoreLoop _loc test inc body    -> runCoreLoop test inc body
+      Unconverted s                  -> runUnconvertedStmt s
+      otherwise                      -> error $ "Can't execute " ++ show otherwise
+
+    returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
+    returnThrow s (JSError (err, stack)) = do
+      setStacktrace err (sourceLocation s : stack)
+      return $ CTThrow (Just err)
+    returnThrow s (JSProtoError (t, msg)) = do
+      err <- createError t (VStr msg)
+      returnThrow s (JSError (err, []))
 
 
-runCoreBinding :: DBIType -> [(Ident, Expr)] -> [CoreStatement] -> Runtime StmtReturn
-runCoreBinding dbiType bindings stmts = do
+runCoreBinding :: DBIType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
+runCoreBinding dbiType bindings stmt = do
   bindAll dbiType NotStrict bindings
-  runAll (CTNormal Nothing) stmts
-    where
-      runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
-      runAll r [] = return r
-      runAll _ (s:stmts) = do
-        result <- runStmt s `catchError` returnThrow s
-        case result of
-          CTNormal _ -> runAll result stmts
-          otherwise  -> return result
+  runStmt stmt
 
+runCoreBlock :: [CoreStatement] -> Runtime StmtReturn
+runCoreBlock stmts = runAll (CTNormal Nothing) stmts
+  where
+    runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
+    runAll r [] = return r
+    runAll _ (s:stmts) = do
+      result <- runStmt s
+      case result of
+        CTNormal _ -> runAll result stmts
+        otherwise  -> return result
 
-      returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
-      returnThrow s (JSError (err, stack)) = do
-        setStacktrace err (sourceLocation s : stack)
-        return $ CTThrow (Just err)
-      returnThrow s (JSProtoError (t, msg)) = do
-        err <- createError t (VStr msg)
-        returnThrow s (JSError (err, []))
 
 
 runCoreLoop :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
