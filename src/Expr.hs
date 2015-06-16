@@ -1,4 +1,6 @@
 module Expr where
+
+import Data.Maybe
 import JSNum
 
 data Program = Program Strictness [Statement] deriving (Show, Eq)
@@ -91,6 +93,9 @@ data Lang = Lang {
   binaryOps :: [String],
   postfixOps :: [String]
 }
+
+maybeExpr :: Maybe Expr -> Expr
+maybeExpr = fromMaybe LiteralUndefined
 
 jsLang :: Lang
 jsLang = Lang {

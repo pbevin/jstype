@@ -28,6 +28,7 @@ convert :: Statement -> CoreStatement
 convert stmt = case stmt of
   WhileStatement loc cond body   -> convertWhile loc cond body
   DoWhileStatement loc cond body -> convertDoWhile loc cond body
+  For loc header body            -> convertFor loc header body
   otherwise                      -> Unconverted stmt
 
 
@@ -37,11 +38,34 @@ convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt)
 convertDoWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
 convertDoWhile loc expr stmt = CoreBlock [ convert stmt, convertWhile loc expr stmt ]
 
+convertFor :: SrcLoc -> ForHeader -> Statement -> CoreStatement
+convertFor loc header stmt = case header of
+  For3 e1 e2 e3    -> convertFor3     loc e1 e2 e3 stmt
+  For3Var ds e2 e3 -> convertFor3Var  loc ds e2 e3 stmt
+  ForIn e1 e2      -> convertForIn    loc e1 e2    stmt
+  ForInVar d e     -> convertForInVar loc d  e     stmt
+
+convertFor3 :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
+convertFor3 loc e1 e2 e3 stmt = case e1 of
+  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt)
+  Just e  -> CoreBlock [ CoreExpr loc e, convertFor3 loc Nothing e2 e3 stmt ]
+
+convertFor3Var :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
+convertFor3Var loc ds e2 e3 stmt =
+  let s1 = Unconverted $ VarDecl loc ds
+      s2 = convertFor3 loc Nothing e2 e3 stmt
+  in CoreBlock [ s1, s2 ]
+
+
+convertForIn :: SrcLoc -> Expr -> Expr -> Statement -> CoreStatement
+convertForIn loc e1 e2 stmt = Unconverted (For loc (ForIn e1 e2) stmt)
+
+convertForInVar :: SrcLoc -> VarDeclaration -> Expr -> Statement -> CoreStatement
+convertForInVar loc d e stmt = Unconverted (For loc (ForInVar d e) stmt)
 
 declBindings :: [Statement] -> [(Ident, Expr)]
 declBindings stmts = [ (name, LiteralUndefined) | name <- concatMap searchVariables stmts ]
                   ++ concatMap searchFunctions stmts
-
 
 sourceLocation :: CoreStatement -> SrcLoc
 sourceLocation stmt = case stmt of

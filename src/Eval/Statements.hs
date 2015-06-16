@@ -57,6 +57,7 @@ runStmt stmt = action `catchError` returnThrow stmt
     action = case stmt of
       CoreBind dbiType bindings stmt -> runCoreBinding dbiType bindings stmt
       CoreBlock stmts                -> runCoreBlock stmts
+      CoreExpr _loc e                -> runCoreExpr e
       CoreLoop _loc test inc body    -> runCoreLoop test inc body
       Unconverted s                  -> runUnconvertedStmt s
       otherwise                      -> error $ "Can't execute " ++ show otherwise
@@ -86,7 +87,8 @@ runCoreBlock stmts = runAll (CTNormal Nothing) stmts
         CTNormal _ -> runAll result stmts
         otherwise  -> return result
 
-
+runCoreExpr :: Expr -> Runtime StmtReturn
+runCoreExpr e = CTNormal . Just <$> (runExprStmt e >>= getValue)
 
 runCoreLoop :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
 runCoreLoop test inc body = keepGoing Nothing where
@@ -103,8 +105,6 @@ runCoreLoop test inc body = keepGoing Nothing where
         CTContinue v _ -> increment >> keepGoing v
         CTNormal   v   -> increment >> keepGoing v
         otherwise      -> return r
-
-
 
 
 
