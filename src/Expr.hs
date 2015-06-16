@@ -113,21 +113,3 @@ jsLang = Lang {
   postfixOps = [ "++", "--" ]
 }
 
-sourceLocation :: Statement -> SrcLoc
-sourceLocation stmt = case stmt of
-  Block loc _ -> loc
-  LabelledStatement loc _ _ -> loc
-  VarDecl loc _ -> loc
-  ExprStmt loc _ -> loc
-  IfStatement loc _ _ _ -> loc
-  WhileStatement loc _ _ -> loc
-  DoWhileStatement loc _ _ -> loc
-  For loc _ _ -> loc
-  ContinueStatement loc _ -> loc
-  BreakStatement loc _ -> loc
-  Return loc _ -> loc
-  WithStatement loc _ _ -> loc
-  ThrowStatement loc _ -> loc
-  TryStatement loc _ _ _ -> loc
-  EmptyStatement loc -> loc
-  DebuggerStatement loc -> loc

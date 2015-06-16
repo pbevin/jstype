@@ -3,8 +3,9 @@ module Core where
 import Data.Maybe
 import Expr
 
+data DBIType = DBIGlobal | DBIFunction | DBIEval deriving (Show, Eq)
 type CoreStatement = CoreStmt SrcLoc
-data CoreStmt a  = CoreBinding [(Ident, Expr)] [CoreStmt a]
+data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] [CoreStmt a]
                  | CoreExpr  a Expr
                  | CoreLoop  a Expr Expr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
@@ -18,7 +19,7 @@ data CoreStmt a  = CoreBinding [(Ident, Expr)] [CoreStmt a]
 
 
 desugar :: [Statement] -> CoreStatement
-desugar stmts = CoreBinding (declBindings stmts) $ map convert stmts
+desugar stmts = CoreBind DBIGlobal (declBindings stmts) $ map convert stmts
 
 convert :: Statement -> CoreStatement
 convert stmt = Unconverted stmt
@@ -29,6 +30,30 @@ declBindings stmts = [ (name, LiteralUndefined) | name <- concatMap searchVariab
                   ++ concatMap searchFunctions stmts
 
 
+sourceLocation :: CoreStatement -> SrcLoc
+sourceLocation stmt = case stmt of
+  CoreBind _ _ _   -> error "no srcloc for corebind"
+  CoreExpr a _     -> a
+  Unconverted s    -> sourceLocationUnconverted s
+
+sourceLocationUnconverted :: Statement -> SrcLoc
+sourceLocationUnconverted stmt = case stmt of
+  Block loc _               -> loc
+  LabelledStatement loc _ _ -> loc
+  VarDecl loc _             -> loc
+  ExprStmt loc _            -> loc
+  IfStatement loc _ _ _     -> loc
+  WhileStatement loc _ _    -> loc
+  DoWhileStatement loc _ _  -> loc
+  For loc _ _               -> loc
+  ContinueStatement loc _   -> loc
+  BreakStatement loc _      -> loc
+  Return loc _              -> loc
+  WithStatement loc _ _     -> loc
+  ThrowStatement loc _      -> loc
+  TryStatement loc _ _ _    -> loc
+  EmptyStatement loc        -> loc
+  DebuggerStatement loc     -> loc
 
 
 

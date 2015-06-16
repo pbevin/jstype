@@ -18,43 +18,71 @@ import JSNum
 import Runtime
 import Builtins
 import Runtime
+import Core
 
 
+runProg :: Program -> Runtime (Maybe JSVal)
+runProg (Program strictness stmts) = do
+  result <- withStrictness strictness (runStmts stmts)
+  case result of
+    CTNormal v       -> return v
+    CTThrow (Just v) -> throwValAsException v
+    otherwise        -> do
+      liftIO $ putStrLn $ "Abnormal exit: " ++ show result
+      return Nothing
 
+  where
+    throwValAsException :: JSVal -> Runtime a
+    throwValAsException v = do
+      msg <- toString v
+      st <- getStackTrace v
+      throwError $ JSError (VStr msg, st)
+
+    getStackTrace :: JSVal -> Runtime [SrcLoc]
+    getStackTrace (VObj obj) = do
+      st <- objGet "stack" obj
+      return $ case st of
+        VStacktrace s -> s
+        _ -> []
+    getStackTrace _ = return []
 
 -- ref 12.1
 runStmts :: [Statement] -> Runtime StmtReturn
-runStmts = runStmts' (CTNormal Nothing) where
-  runStmts' r [] = return r
-  runStmts' _ (s:stmts) = do
-    result <- runStmt s `catchError` returnThrow s
-    case result of
-      CTNormal _ -> runStmts' result stmts
-      otherwise  -> return result
+runStmts = runStmt . desugar
+
  
+runStmt :: CoreStatement -> Runtime StmtReturn
+runStmt stmt = case stmt of
+  Unconverted s                   -> runUnconvertedStmt s
+  CoreBind dbiType bindings stmts -> runCoreBinding dbiType bindings stmts
+  otherwise                       -> error $ "Can't execute " ++ show otherwise
 
-callToString :: JSVal -> Runtime JSVal
-callToString (VStr str) = return (VStr str)
-callToString v = do
-  obj <- toObject v
-  ref <- memberGet (VObj obj) "toString"
-  callFunction ref []
 
-getStackTrace :: JSVal -> Runtime [SrcLoc]
-getStackTrace (VObj obj) = do
-  st <- objGet "stack" obj
-  return $ case st of
-    VStacktrace s -> s
-    _ -> []
-getStackTrace _ = return []
+runCoreBinding :: DBIType -> [(Ident, Expr)] -> [CoreStatement] -> Runtime StmtReturn
+runCoreBinding dbiType bindings stmts = do
+  bindAll dbiType NotStrict bindings
+  runAll (CTNormal Nothing) stmts
+    where
+      runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
+      runAll r [] = return r
+      runAll _ (s:stmts) = do
+        result <- runStmt s `catchError` returnThrow s
+        case result of
+          CTNormal _ -> runAll result stmts
+          otherwise  -> return result
 
-returnThrow :: Statement -> JSError -> Runtime StmtReturn
-returnThrow s (JSError (err, stack)) = do
-  setStacktrace err (sourceLocation s : stack)
-  return $ CTThrow (Just err)
-returnThrow s (JSProtoError (t, msg)) = do
-  err <- createError t (VStr msg)
-  returnThrow s (JSError (err, []))
+
+      returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
+      returnThrow s (JSError (err, stack)) = do
+        setStacktrace err (sourceLocation s : stack)
+        return $ CTThrow (Just err)
+      returnThrow s (JSProtoError (t, msg)) = do
+        err <- createError t (VStr msg)
+        returnThrow s (JSError (err, []))
+
+
+
+
 
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
 setStacktrace v stack =
@@ -62,26 +90,26 @@ setStacktrace v stack =
     VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
     _           -> return ()
 
-runStmt :: Statement -> Runtime StmtReturn
-runStmt s = {-# SCC stmt #-} case s of
+runUnconvertedStmt :: Statement -> Runtime StmtReturn
+runUnconvertedStmt s = {-# SCC stmt #-} case s of
   FunDecl {} -> return (CTNormal Nothing)
   ExprStmt _loc e -> {-# SCC "exprStmt" #-} do
     val <- runExprStmt e >>= getValue
     return $ CTNormal (Just val)
 
   VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
-  LabelledStatement _loc _label stmt -> runStmt stmt
+  LabelledStatement _loc _label stmt -> runStmt (Unconverted stmt)
 
   IfStatement _loc predicate ifThen ifElse -> do -- ref 12.5
     v <- runExprStmt predicate >>= getValue
     if toBoolean v
-    then runStmt ifThen
+    then runStmt (Unconverted ifThen)
     else case ifElse of
            Nothing -> return $ CTNormal Nothing
-           Just stmt  -> runStmt stmt
+           Just stmt  -> runStmt (Unconverted stmt)
 
   DoWhileStatement _loc e stmt -> -- ref 12.6.1
-    runStmt $ transformDoWhileToWhile _loc e stmt
+    runStmt . Unconverted $ transformDoWhileToWhile _loc e stmt
 
   WhileStatement _loc e stmt -> -- ref 12.6.2
     let cond      = toBoolean <$> (runExprStmt e >>= getValue)
@@ -102,7 +130,7 @@ runStmt s = {-# SCC stmt #-} case s of
 
 
   For loc (For3Var assigns e2 e3) stmt -> -- ref 12.6.3
-    runStmt $ transformFor3VarToFor3 loc assigns e2 e3 stmt
+    runStmt . Unconverted $ transformFor3VarToFor3 loc assigns e2 e3 stmt
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -122,7 +150,7 @@ runStmt s = {-# SCC stmt #-} case s of
           then do
             lhsRef <- runExprStmt lhs
             putValue' lhsRef (VStr p)
-            s <- runStmt stmt
+            s <- runStmt (Unconverted stmt)
             let nextv = rval s <|> v
             case s of
               CTBreak v' _    -> return $ CTNormal nextv
@@ -133,14 +161,14 @@ runStmt s = {-# SCC stmt #-} case s of
 
 
   For loc (ForInVar (x, e1) e2) stmt ->
-    runStmt $ transformFor3VarIn loc x e1 e2 stmt
+    runStmt . Unconverted $ transformFor3VarIn loc x e1 e2 stmt
 
   WithStatement _loc e s -> runWithStatement e s
   SwitchStatement _loc e caseBlock -> runSwitchStatement e caseBlock
   Block _loc stmts -> runStmts stmts
 
   TryStatement _loc block catch finally -> do -- ref 12.14
-    br <- runStmt block
+    br <- runStmt (Unconverted block)
 
     case (catch, finally) of
       (Just c, Nothing) -> do
@@ -187,7 +215,7 @@ loopConstruct condition increment stmt = keepGoing Nothing where
     if not willEval
     then return $ CTNormal v
     else do
-      r <- {-# SCC loop_body #-} runStmt stmt
+      r <- {-# SCC loop_body #-} runStmt (Unconverted stmt)
       case r of
         CTBreak    v _ -> return $ CTNormal v
         CTContinue v _ -> increment >> keepGoing v
@@ -236,7 +264,7 @@ runWithStatement e s = do
   obj <- toObject =<< getValue val
   oldEnv <- lexEnv <$> getGlobalContext
   newEnv <- newObjectEnvironment obj (Just oldEnv) True
-  withLexEnv newEnv $ runStmt s
+  withLexEnv newEnv $ runStmt (Unconverted s)
 
 -- ref 12.11
 runSwitchStatement :: Expr -> CaseBlock -> Runtime StmtReturn
@@ -322,10 +350,10 @@ runCatch (Catch _loc var block) c = do
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True rec
   setMutableBinding var c False rec
-  withLexEnv catchEnv $ runStmt block
+  withLexEnv catchEnv $ runStmt (Unconverted block)
 
 runFinally :: Statement -> Runtime StmtReturn
-runFinally (Finally _loc stmt) = runStmt stmt
+runFinally (Finally _loc stmt) = runStmt (Unconverted stmt)
 
 maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
 maybeValList = mapM evalOne

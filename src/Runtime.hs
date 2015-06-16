@@ -28,7 +28,7 @@ import Runtime.PropertyDescriptor as X
 import JSNum as X
 import Parse
 import Expr
-import JSNum
+import Core
 
 import Debug.Trace
 
@@ -572,6 +572,7 @@ objIsPrototypeOf this args =
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
 objId (VObj (Shared _ oid)) _args = return $ VNum $ fromIntegral oid
+objId x _ = raiseTypeError $ "No objId for " ++ show x
 
 -- ref 15.2.4.5
 objHasOwnProperty :: JSVal -> [JSVal] -> Runtime JSVal
@@ -583,16 +584,25 @@ objHasOwnProperty this args =
     VBool . isJust <$> objGetOwnProperty p o
 
 -- ref 10.5
-data DBIType = DBIGlobal | DBIFunction | DBIEval deriving (Show, Eq)
 performDBI :: DBIType -> Strictness -> [Statement] -> Runtime ()
-performDBI dbiType strict stmts = do
+performDBI dbiType strict stmts = bindAll dbiType strict (declBindings stmts)
+  where
+    vars      = concatMap searchVariables stmts
+    functions = concatMap searchFunctions stmts
+
+bindAll :: DBIType -> Strictness -> [(Ident, Expr)] -> Runtime ()
+bindAll dbiType strict bindings = do
   env <- varEnv <$> getGlobalContext
-  mapM_ (bindVar env) (concatMap searchVariables stmts)
-  mapM_ (bindFunc env) (concatMap searchFunctionNames stmts)
+  mapM_ (bindTo env) bindings
     where
-      bindFunc :: JSEnv -> Statement -> Runtime ()
-      bindFunc env (FunDecl _ fn paramList strict body) = do -- (5)
-        fo <- createFunction (Just fn) paramList strict body env -- (5b)
+      bindTo :: JSEnv -> (Ident, Expr) -> Runtime ()
+      bindTo env (name, FunExpr _ paramList strictFun body) = bindFunc env name paramList strictFun body
+      bindTo env (name, LiteralUndefined) = bindVar env name
+      bindTo env other = error $ "Cannot bind " ++ show other
+
+      bindFunc :: JSEnv -> Ident -> [Ident] -> Strictness -> [Statement] -> Runtime ()
+      bindFunc env fn paramList strictFun body = do -- (5)
+        fo <- createFunction (Just fn) paramList strictFun body env -- (5b)
         envRec <- envRec <$> deref env
         funcAlreadyDeclared <- hasBinding fn envRec -- (5c)
 
@@ -607,7 +617,7 @@ performDBI dbiType strict stmts = do
             else when (propIsUnwritable existingProp) $
                   raiseTypeError $ "Cannot overwrite function " ++ fn
 
-        setMutableBinding fn fo (strict == Strict) envRec
+        setMutableBinding fn fo (strictFun == Strict) envRec
 
 
       bindVar :: JSEnv -> Ident -> Runtime ()
@@ -628,67 +638,6 @@ performDBI dbiType strict stmts = do
       blankDesc :: PropDesc JSVal
       blankDesc = dataPD VUndef True True configurableBindings
 
-
-
-searchFunctionNames :: Statement -> [Statement]
-searchFunctionNames = walkStatement fnFinder (const [])
-
-fnFinder :: Statement -> [Statement]
-fnFinder stmt = case stmt of
-  FunDecl _ fn _ _ _ -> [stmt]
-  _                  -> []
-
-searchVariables :: Statement -> [Ident]
-searchVariables = walkStatement varFinder (const [])
-
-varFinder :: Statement -> [Ident]
-varFinder (VarDecl _ ds) = map fst ds
-varFinder _ = []
-
-walkStatement :: (Statement -> [a]) -> (Expr -> [a]) -> Statement -> [a]
-walkStatement sv ev = walk where
-  walk stmt = sv stmt ++ case stmt of
-    Block _ ss               -> concatMap walk ss
-    VarDecl _ vds -> concatMap ewalk (mapMaybe snd vds)
-    ExprStmt _ e -> ewalk e
-    LabelledStatement _ _ s  -> walk s
-    IfStatement _ e s1 Nothing -> ewalk e ++ walk s1
-    IfStatement _ e s1 (Just s2) -> ewalk e ++ walk s1 ++ walk s2
-    WhileStatement _ e s     -> ewalk e ++ walk s
-    DoWhileStatement _ e s   -> ewalk e ++ walk s
-    Return _ (Just e)        -> ewalk e
-    WithStatement _ e s      -> ewalk e ++ walk s
-    For l h s                -> hwalk l h ++ walk s
-    TryStatement _ s c f     -> walk s ++ concatMap walk (catMaybes [c, f])
-    Catch _ _ s              -> walk s
-    Finally _ s              -> walk s
-
-    _                        -> []
-  ewalk = walkExpr sv ev
-  hwalk l header = case header of
-    For3 e1 e2 e3            -> concatMap ewalk (catMaybes [e1, e2, e3])
-    For3Var decls e2 e3      -> walk (VarDecl l decls) ++ concatMap ewalk (catMaybes [e2, e3])
-    ForIn e1 e2              -> ewalk e1 ++ ewalk e2
-    ForInVar decl e          -> walk (VarDecl l [decl]) ++ ewalk e
-
-walkExpr :: (Statement -> [a]) -> (Expr -> [a]) -> Expr -> [a]
-walkExpr sv ev = walk where
-  walk expr = ev expr ++ case expr of
-    ArrayLiteral es  -> concatMap walk (catMaybes es)
-    ObjectLiteral as -> concatMap walkPropAss as
-    BinOp _ e1 e2    -> walk e1 ++ walk e2
-    UnOp _ e         -> walk e
-    PostOp _ e       -> walk e
-    NewExpr e es     -> walk e ++ concatMap walk es
-    Assign e1 _ e2   -> walk e1 ++ walk e2
-    Cond e1 e2 e3    -> walk e1 ++ walk e2 ++ walk e3
-    MemberDot e _    -> walk e
-    MemberGet e1 e2  -> walk e1 ++ walk e2
-    FunCall e es     -> walk e ++ concatMap walk es
-    _                -> []
-
-  walkPropAss (_, Value e) = walk e
-  walkPropAss (_, _) = []
 
 firstArg :: JSVal -> [JSVal] -> JSVal
 firstArg defaultVal [] = defaultVal

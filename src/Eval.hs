@@ -18,6 +18,7 @@ import JSNum
 import Runtime
 import Builtins
 import Eval.Statements
+import Core
 
 data RuntimeError = RuntimeError {
   errorMessage :: String,
@@ -46,7 +47,7 @@ runJS sourceName input = do
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
   result <- runtime $ do
-    initGlobals
+    initGlobals evalCode
     (runExprStmt (parseExpr input) >>= getValue) `catchError` rethrowAsString
   case result of
     Left err  -> do
@@ -54,11 +55,11 @@ jsEvalExpr input = do
     Right val -> return val
 
 rethrowAsString :: JSError -> Runtime a
-rethrowAsString (JSError (err, s)) = do
-  v <- callToString err
-  throwError $ JSError (v, s)
-rethrowAsString (JSProtoError (etype, msg)) =
-  throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
+rethrowAsString err = case err of
+  JSProtoError (etype, msg) -> throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
+  JSError (err, s) -> do
+    v <- toString err
+    throwError $ JSError (VStr v, s)
 
 toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
@@ -88,7 +89,7 @@ runInEvalContext (Program strictness stmts) = do
 runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
 runJS' sourceName input = case parseJS' input sourceName of
   Left err -> return ((Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), ""), emptyGlobal)
-  Right ast -> runRuntime (runProg ast)
+  Right ast -> runRuntime (initGlobals evalCode >> runProg ast)
 
 runtime :: Runtime a -> IO (Either JSError a)
 runtime p = do
@@ -96,10 +97,10 @@ runtime p = do
   return $ fst (fst result)
 
 runtime' :: Runtime a -> IO (Either JSError a)
-runtime' p = runtime (initGlobals >> p)
+runtime' p = runtime (initGlobals evalCode >> p)
 
-initGlobals :: Runtime ()
-initGlobals = do
+initGlobals :: (String -> Runtime StmtReturn) -> Runtime ()
+initGlobals evalCode = do
   objProto <- createGlobalObjectPrototype
   modify $ \st -> st { globalObjectPrototype = Just objProto }
 
@@ -113,21 +114,3 @@ initGlobals = do
 
   configureBuiltins newGlobalObject
 
-
-runProg :: Program -> Runtime (Maybe JSVal)
-runProg (Program strictness stmts) = do
-  initGlobals
-  performDBI DBIGlobal strictness stmts
-  result <- withStrictness strictness (runStmts stmts)
-  case result of
-    CTNormal v       -> return v
-    CTThrow (Just v) -> throwValAsException v
-    otherwise        -> do
-      liftIO $ putStrLn $ "Abnormal exit: " ++ show result
-      return Nothing
-
-throwValAsException :: JSVal -> Runtime a
-throwValAsException v = do
-  msg <- callToString v
-  st <- getStackTrace v
-  throwError $ JSError (msg, st)
