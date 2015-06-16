@@ -101,9 +101,9 @@ runCoreLoop test inc body = keepGoing Nothing where
     else do
       r <- {-# SCC loop_body #-} runStmt body
       case r of
-        CTBreak    v _ -> return $ CTNormal v
-        CTContinue v _ -> increment >> keepGoing v
-        CTNormal   v   -> increment >> keepGoing v
+        CTBreak    v' _ -> return $ CTNormal (v' <|> v)
+        CTContinue v' _ -> increment >> keepGoing (v' <|> v)
+        CTNormal   v'   -> increment >> keepGoing (v' <|> v)
         otherwise      -> return r
 
 
