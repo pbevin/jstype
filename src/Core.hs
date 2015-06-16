@@ -26,11 +26,15 @@ desugar stmts = CoreBind DBIGlobal (declBindings stmts) . coreBlock $ map conver
 
 convert :: Statement -> CoreStatement
 convert stmt = case stmt of
+  ExprStmt loc e                 -> convertExpr loc e
   WhileStatement loc cond body   -> convertWhile loc cond body
   DoWhileStatement loc cond body -> convertDoWhile loc cond body
   For loc header body            -> convertFor loc header body
   otherwise                      -> Unconverted stmt
 
+
+convertExpr :: SrcLoc -> Expr -> CoreStatement
+convertExpr = CoreExpr
 
 convertWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
 convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt)
