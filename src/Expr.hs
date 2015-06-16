@@ -65,6 +65,7 @@ data Expr = Num JSNum
           | Str String
           | Boolean Bool
           | LiteralNull
+          | LiteralUndefined
           | This
           | ArrayLiteral [Maybe Expr]
           | ObjectLiteral [PropertyAssignment]
