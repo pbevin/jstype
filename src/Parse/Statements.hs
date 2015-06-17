@@ -29,17 +29,20 @@ statementList = do
 directivePrologue :: JSParser Strictness
 directivePrologue = withDirectivePrologue $ do
   currentStrictness <- getStrictness
-  directives <- lookAhead $ many directive
-  return $ if "use strict" `elem` (catMaybes . takeWhile isJust $ directives)
-           then Strict
-           else currentStrictness
+  if currentStrictness == Strict
+  then return Strict
+  else do
+    directives <- lookAhead $ many directive
+    return $ if "use strict" `elem` (catMaybes . takeWhile isJust $ directives)
+             then Strict
+             else NotStrict
 
 isString :: Statement -> Maybe String
 isString (ExprStmt _ (Str s)) = Just s
 isString _ = Nothing
 
 directive :: JSParser (Maybe String)
-directive = try $ isString <$> terminated exprStmt
+directive = lookAhead quotedString >> isString <$> terminated exprStmt
 
 
 terminated :: JSParser a -> JSParser a
