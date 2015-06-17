@@ -23,7 +23,26 @@
 #
 # and, you'll have to watch "config/Guardfile" instead of "Guardfile"
 
-guard :haskell, all_on_start: true do
+require 'pry'
+require 'guard/haskell'
+require 'guard/haskell/repl'
+
+class ::Guard::Haskellish < ::Guard::Haskell
+  class ::Guard::Haskell::Repl
+    # Show dots rather than all tests when not in failing mode
+    def reload_and_run_matching(pattern = nil)
+      if run_command_and_wait_for_result(":reload\n")
+        if pattern.nil?
+          run_command_and_wait_for_result(":main --color --format=progress\n")
+        else
+          run_command_and_wait_for_result(":main --color --match #{pattern} --format=progress\n")
+        end
+      end
+    end
+  end
+end
+
+guard :haskellish, all_on_start: true do
   watch(%r{test/.+Spec\.l?hs$})
   watch(%r{src/.+\.l?hs$})
   watch(%r{\.cabal$})
