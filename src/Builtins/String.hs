@@ -1,7 +1,9 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
-module Builtins.String (makeStringClass) where
+module Builtins.String where
 
+import qualified Data.Text as T
+import Data.Text (Text)
 import Data.Char
 import Safe
 import Runtime
@@ -22,6 +24,7 @@ makeStringClass = do
     >>= addMethod "substring"    2 substring
     >>= addMethod "toLowerCase"  0 toLowerCase
     >>= addMethod "toUpperCase"  0 toUpperCase
+    >>= addMethod "replace"      2 replace
 
   functionObject "String" stringPrototype
     >>= setCallMethod strFunction
@@ -107,3 +110,27 @@ strGetOwnProperty p s = do
         then return Nothing
         else let s = VStr [str !! index]
              in return $ Just $ dataPD s False False False
+
+replace :: JSFunction
+replace this args =
+  let (searchValue, replaceValue) = first2 args
+  in do
+    checkObjectCoercible "Cannot get string value" this
+    string <- toString this
+    searchString <- toString searchValue
+    case findOnce (T.pack searchString) (T.pack string) of
+      Nothing -> return this
+      Just (before, match, after) -> do
+        isCallable replaceValue >>= \case
+          Nothing -> raiseTypeError "Replace value is not a function"
+          Just call -> do
+            let offset = T.length before
+            result <- call VUndef [VStr $ T.unpack match, VNum (fromIntegral offset), VStr string]
+            replacement <- toString result
+            return . VStr . T.unpack $ T.concat [before, T.pack replacement, after]
+
+findOnce :: Text -> Text -> Maybe (Text, Text, Text)
+findOnce needle haystack = case post of
+  "" -> Nothing
+  _  -> Just (pre, needle, T.drop (T.length needle) post)
+  where (pre, post) = T.breakOn needle haystack
