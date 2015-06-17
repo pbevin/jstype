@@ -1,5 +1,6 @@
 module Core where
 
+import Control.Arrow
 import Data.Maybe
 import Expr
 
@@ -12,7 +13,8 @@ data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
                  | CoreRet   a Expr
-                 | CoreCase  a Expr (Maybe (CoreStmt a)) [(Expr, CoreStmt a)]
+                 | CoreCase  a Expr [(Maybe Expr, CoreStmt a)]
+                 | CoreIf    a Expr (CoreStmt a) (Maybe (CoreStmt a))
                  | CoreLabel a Label (CoreStmt a)
                  | CoreTry   a (CoreStmt a) (Maybe (Ident, CoreStmt a)) (Maybe (CoreStmt a))
                  | Unconverted Statement
@@ -21,8 +23,6 @@ data CoreStmt a  = CoreBind  DBIType [(Ident, Expr)] (CoreStmt a)
 
 desugar :: [Statement] -> CoreStatement
 desugar stmts = CoreBind DBIGlobal (declBindings stmts) . coreBlock $ map convert stmts
-  where coreBlock [s] = s
-        coreBlock xs  = CoreBlock xs
 
 convert :: Statement -> CoreStatement
 convert stmt = case stmt of
@@ -36,10 +36,15 @@ convert stmt = case stmt of
   IfStatement loc e s1 s2        -> convertIf loc e s1 s2
   ContinueStatement loc label    -> convertContinue loc label
   BreakStatement loc label       -> convertBreak loc label
+  SwitchStatement loc expr cases -> convertSwitch loc expr cases
   otherwise                      -> Unconverted stmt
 
+coreBlock :: [CoreStatement] -> CoreStatement
+coreBlock [s] = s
+coreBlock xs  = CoreBlock xs
+
 convertBlock :: SrcLoc -> [Statement] -> CoreStatement
-convertBlock _loc body = CoreBlock (map convert body)
+convertBlock _loc body = coreBlock (map convert body)
 
 convertLabelled :: SrcLoc -> Label -> Statement -> CoreStatement
 convertLabelled loc label body = CoreLabel loc label (convert body)
@@ -82,16 +87,23 @@ convertForInVar :: SrcLoc -> VarDeclaration -> Expr -> Statement -> CoreStatemen
 convertForInVar loc d e stmt = Unconverted (For loc (ForInVar d e) stmt)
 
 convertIf :: SrcLoc -> Expr -> Statement -> Maybe Statement -> CoreStatement
-convertIf loc expr s1 s2 = CoreCase loc cond ifFalse [(Boolean True, ifTrue)]
-  where cond    = UnOp "!" (UnOp "!" expr)
-        ifTrue  = CoreBlock [ convert s1, CoreBreak loc Nothing ]
-        ifFalse = convert <$> s2
+convertIf loc expr s1 s2 = CoreIf loc expr (convert s1) (convert <$> s2)
 
 convertContinue :: SrcLoc -> Maybe Label -> CoreStatement
 convertContinue loc label = CoreCont loc label
 
 convertBreak :: SrcLoc -> Maybe Label -> CoreStatement
 convertBreak loc label = CoreBreak loc label
+
+convertSwitch :: SrcLoc -> Expr -> CaseBlock -> CoreStatement
+convertSwitch loc e (as, d, bs) = CoreCase loc e cases
+  where
+    cases = map toCase as ++ dflt ++ map toCase bs
+    dflt :: [(Maybe Expr, CoreStatement)]
+    dflt  = case d of
+      Nothing -> []
+      Just (DefaultClause s) -> [(Nothing, CoreBlock $ map convert s)]
+    toCase (CaseClause e body) = (Just e, coreBlock $ map convert body)
 
 
 

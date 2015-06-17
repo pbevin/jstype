@@ -58,10 +58,11 @@ runStmt stmt = action `catchError` returnThrow stmt
       CoreBind dbiType bindings stmt -> runCoreBinding dbiType bindings stmt
       CoreBlock stmts                -> runCoreBlock stmts
       CoreExpr _loc e                -> runCoreExpr e
+      CoreIf _loc e ifThen ifElse    -> runCoreIf e ifThen ifElse
       CoreLoop _loc test inc body    -> runCoreLoop test inc body
       CoreBreak _loc label           -> runCoreBreak label
       CoreCont _loc label            -> runCoreCont label
-      CoreCase _loc e dflt cases     -> runCoreCase e dflt cases
+      CoreCase _loc e cases          -> runCoreCase e cases
       CoreLabel _loc label body      -> runCoreLabel label body
       Unconverted s                  -> runUnconvertedStmt s
       otherwise                      -> error $ "Can't execute " ++ show otherwise
@@ -94,6 +95,14 @@ runCoreBlock stmts = runAll (CTNormal Nothing) stmts
 runCoreExpr :: Expr -> Runtime StmtReturn
 runCoreExpr e = CTNormal . Just <$> (runExprStmt e >>= getValue)
 
+runCoreIf :: Expr -> CoreStatement -> Maybe CoreStatement -> Runtime StmtReturn
+runCoreIf e ifThen ifElse = do
+  cond <- toBoolean <$> (runExprStmt e >>= getValue)
+  case (cond, ifElse) of
+    (True, _)        -> runStmt ifThen
+    (False, Just s)  -> runStmt s
+    (False, Nothing) -> return (CTNormal Nothing)
+
 runCoreLoop :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
 runCoreLoop test inc body = keepGoing Nothing where
   condition = toBoolean <$> (runExprStmt test >>= getValue)
@@ -104,10 +113,11 @@ runCoreLoop test inc body = keepGoing Nothing where
     then return $ CTNormal v
     else do
       r <- {-# SCC loop_body #-} runStmt body
+      let v' = rval r <|> v
       case r of
-        CTBreak    v' _ -> return $ CTNormal (v' <|> v)
-        CTContinue v' _ -> increment >> keepGoing (v' <|> v)
-        CTNormal   v'   -> increment >> keepGoing (v' <|> v)
+        CTBreak    v' _ -> return $ CTNormal v'
+        CTContinue v' _ -> increment >> keepGoing v'
+        CTNormal   v'   -> increment >> keepGoing v'
         otherwise      -> return r
 
 runCoreBreak :: Maybe Label -> Runtime StmtReturn
@@ -116,19 +126,33 @@ runCoreBreak = return . CTBreak Nothing
 runCoreCont :: Maybe Label -> Runtime StmtReturn
 runCoreCont = return . CTContinue Nothing
 
-runCoreCase :: Expr -> Maybe CoreStatement -> [(Expr, CoreStatement)] -> Runtime StmtReturn
-runCoreCase e dflt cases = do
-  runExprStmt e >>= getValue >>= go cases dflt Nothing
+runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Runtime StmtReturn
+runCoreCase e cases =
+  runExprStmt e >>= getValue >>= go cases
     where
-      go :: [(Expr, CoreStatement)] -> Maybe CoreStatement -> Maybe JSVal -> JSVal -> Runtime StmtReturn
-      go cases dflt v input = case (cases, dflt) of
-        ((e, stmt) : rest, _) -> do
-          clauseSelector <- runExprStmt e >>= getValue
-          if input `eqv` clauseSelector
-          then runStmt stmt
-          else go rest dflt v input
-        ([], Just d) -> runStmt d
-        ([], Nothing) -> return (CTNormal v)
+      go :: [(Maybe Expr, CoreStatement)] -> JSVal -> Runtime StmtReturn
+      go cs input = case cs of
+        []       -> endWith dflt
+        (c:rest) -> case c of
+          (Nothing, s) -> go rest input
+          (Just e,  s) -> do
+            clauseSelector <- runExprStmt e >>= getValue
+            if input `eqv` clauseSelector
+            then endWith (s : map snd rest)
+            else go rest input
+
+      endWith = runToEnd Nothing
+
+      runToEnd v [] = return (CTNormal v)
+      runToEnd v (s:rest) = do
+        r <- runStmt s
+        let v' = rval r <|> v
+        case r of
+          CTNormal _  -> runToEnd v' rest
+          CTBreak _ _ -> return $ CTNormal v'
+          otherwise   -> return $ r { rval = v' }
+
+      dflt = map snd . dropWhile (isJust . fst) $ cases
 
 runCoreLabel :: Label -> CoreStatement -> Runtime StmtReturn
 runCoreLabel _ = runStmt
@@ -144,13 +168,7 @@ setStacktrace v stack =
 runUnconvertedStmt :: Statement -> Runtime StmtReturn
 runUnconvertedStmt s = {-# SCC stmt #-} case s of
   FunDecl {} -> return (CTNormal Nothing)
-  ExprStmt _loc e -> {-# SCC "exprStmt" #-} do
-    val <- runExprStmt e >>= getValue
-    return $ CTNormal (Just val)
-
   VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
-  LabelledStatement _loc _label stmt -> runStmt (Unconverted stmt)
-
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -170,7 +188,7 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
           then do
             lhsRef <- runExprStmt lhs
             putValue' lhsRef (VStr p)
-            s <- runStmt (Unconverted stmt)
+            s <- runStmt (convert stmt)
             let nextv = rval s <|> v
             case s of
               CTBreak v' _    -> return $ CTNormal nextv
@@ -181,13 +199,12 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
 
 
   For loc (ForInVar (x, e1) e2) stmt ->
-    runStmt . Unconverted $ transformFor3VarIn loc x e1 e2 stmt
+    runStmt . convert $ transformFor3VarIn loc x e1 e2 stmt
 
   WithStatement _loc e s -> runWithStatement e s
-  SwitchStatement _loc e caseBlock -> runSwitchStatement e caseBlock
 
   TryStatement _loc block catch finally -> do -- ref 12.14
-    br <- runStmt (Unconverted block)
+    br <- runStmt (convert block)
 
     case (catch, finally) of
       (Just c, Nothing) -> do
@@ -232,7 +249,7 @@ loopConstruct condition increment stmt = keepGoing Nothing where
     if not willEval
     then return $ CTNormal v
     else do
-      r <- {-# SCC loop_body #-} runStmt (Unconverted stmt)
+      r <- {-# SCC loop_body #-} runStmt (convert stmt)
       case r of
         CTBreak    v _ -> return $ CTNormal v
         CTContinue v _ -> increment >> keepGoing v
@@ -240,25 +257,6 @@ loopConstruct condition increment stmt = keepGoing Nothing where
         otherwise      -> return r
 
 
--- |
--- Turn "for (var x = e1; e2; e3) { s }" into
--- "var x = e1; while (e2) { s; e3 }"
--- with sensible defaults for missing statements
-transformFor3VarToFor3 :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> Statement
-transformFor3VarToFor3 loc decls e2 e3 stmt =
-  let s1 = VarDecl loc decls
-      s2 = For loc (For3 Nothing e2 e3) stmt
-  in Block loc [ s1, s2 ]
-
--- |
--- Turn "do { s } while (e)" into
--- "while (true) { s; if (!e) break; }"
-transformDoWhileToWhile :: SrcLoc -> Expr -> Statement -> Statement
-transformDoWhileToWhile loc e s =
-  let esc = IfStatement loc (UnOp "!" e)
-              (BreakStatement loc Nothing)
-              Nothing
-  in WhileStatement loc (Boolean True) $ TryStatement loc s Nothing (Just $ Finally loc esc)
 
 transformFor3VarIn :: SrcLoc -> Ident -> Maybe Expr -> Expr -> Statement -> Statement
 transformFor3VarIn loc x e1 e2 s =
@@ -281,7 +279,7 @@ runWithStatement e s = do
   obj <- toObject =<< getValue val
   oldEnv <- lexEnv <$> getGlobalContext
   newEnv <- newObjectEnvironment obj (Just oldEnv) True
-  withLexEnv newEnv $ runStmt (Unconverted s)
+  withLexEnv newEnv $ runStmt (convert s)
 
 -- ref 12.11
 runSwitchStatement :: Expr -> CaseBlock -> Runtime StmtReturn
@@ -367,10 +365,10 @@ runCatch (Catch _loc var block) c = do
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True rec
   setMutableBinding var c False rec
-  withLexEnv catchEnv $ runStmt (Unconverted block)
+  withLexEnv catchEnv $ runStmt (convert block)
 
 runFinally :: Statement -> Runtime StmtReturn
-runFinally (Finally _loc stmt) = runStmt (Unconverted stmt)
+runFinally (Finally _loc stmt) = runStmt (convert stmt)
 
 maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
 maybeValList = mapM evalOne
