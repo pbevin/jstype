@@ -241,23 +241,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
   _ -> error ("Unimplemented stmt: " ++ show s)
 
 
-loopConstruct :: Runtime Bool -> Runtime () -> Statement -> Runtime StmtReturn
-loopConstruct condition increment stmt = keepGoing Nothing where
-  keepGoing :: Maybe JSVal -> Runtime StmtReturn
-  keepGoing v = do
-    willEval <- condition
-    if not willEval
-    then return $ CTNormal v
-    else do
-      r <- {-# SCC loop_body #-} runStmt (convert stmt)
-      case r of
-        CTBreak    v _ -> return $ CTNormal v
-        CTContinue v _ -> increment >> keepGoing v
-        CTNormal   v   -> increment >> keepGoing v
-        otherwise      -> return r
-
-
-
 transformFor3VarIn :: SrcLoc -> Ident -> Maybe Expr -> Expr -> Statement -> Statement
 transformFor3VarIn loc x e1 e2 s =
   let s1 = VarDecl loc [(x, e1)]
@@ -281,80 +264,6 @@ runWithStatement e s = do
   newEnv <- newObjectEnvironment obj (Just oldEnv) True
   withLexEnv newEnv $ runStmt (convert s)
 
--- ref 12.11
-runSwitchStatement :: Expr -> CaseBlock -> Runtime StmtReturn
-runSwitchStatement e caseBlock = do
-  val <- runExprStmt e >>= getValue
-  r <- runCaseBlock val caseBlock
-  return $ case r of
-   CTBreak v _ -> CTNormal v
-   otherwise   -> r
-
-runCaseBlock :: JSVal -> CaseBlock -> Runtime StmtReturn
-runCaseBlock val caseBlock = do
-  step5 caseBlock Nothing False
-  where
-    step5 :: CaseBlock -> Maybe JSVal -> Bool -> Runtime StmtReturn
-    step5 (as, d, bs) v found = case as of
-
-        (a@(CaseClause e stmts) : rest) -> do
-              if not found
-              then do clauseSelector <- runExprStmt e >>= getValue
-                      if clauseSelector `eqv` val
-                      then step5 (a:rest, d, bs) v True
-                      else step5 (  rest, d, bs) v False
-              else do r <- runStmts stmts
-                      let nextv = rval r <|> v
-                      case r of
-                        CTNormal _ -> step5 (rest, d, bs) nextv True
-                        otherwise  -> return r { rval = nextv }
-
-        [] -> if found
-              then step8 ([], d, bs) v
-              else step7 ([], d, bs) v False
-
-    step7 :: CaseBlock -> Maybe JSVal -> Bool -> Runtime StmtReturn
-    step7 (as, d, bs) v foundInB = case (foundInB, bs) of
-
-      (False, (b@(CaseClause e stmts) : rest)) -> do
-              clauseSelector <- runExprStmt e >>= getValue
-              if clauseSelector `eqv` val
-              then step7 (as, d, b:rest) v True
-              else step7 (as, d,   rest) v foundInB
-
-      _ -> if foundInB
-           then step9 (as, d, bs) v
-           else step8 (as, d, bs) v
-
-
-    step8 :: CaseBlock -> Maybe JSVal -> Runtime StmtReturn
-    step8 (as, d, bs) v = case d of
-
-      Just (DefaultClause stmts) -> do
-              r <- runStmts stmts
-              let nextv = rval r <|> v
-              case r of
-                CTNormal _ -> step9 (as, d, bs) nextv
-                otherwise  -> return r { rval = nextv }
-
-      _ -> step9 (as, d, bs) v
-
-    step9 :: CaseBlock -> Maybe JSVal -> Runtime StmtReturn
-    step9 (as, d, bs) v = case bs of
-
-      (b@(CaseClause e stmts) : rest) -> do
-              r <- runStmts stmts
-              let nextv = rval r <|> v
-              case r of
-                CTNormal _ -> step9 ([], d, rest) nextv
-                otherwise  -> return r { rval = nextv }
-
-      [] -> return (CTNormal v)
-
-
-
-
-
 
 
 -- ref 12.14
@@ -369,13 +278,6 @@ runCatch (Catch _loc var block) c = do
 
 runFinally :: Statement -> Runtime StmtReturn
 runFinally (Finally _loc stmt) = runStmt (convert stmt)
-
-maybeValList :: [Maybe Expr] -> Runtime [Maybe JSVal]
-maybeValList = mapM evalOne
-  where
-    evalOne v = case v of
-      Nothing -> return Nothing
-      Just e  -> Just <$> (runExprStmt e >>= getValue)
 
 readVar :: Ident -> Runtime JSVal
 readVar name = do
