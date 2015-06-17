@@ -78,6 +78,10 @@ toInt32 = to32Bit
 toUInt32 :: JSVal -> Runtime Word32
 toUInt32 = to32Bit
 
+-- ref 9.7
+toUInt16 :: JSVal -> Runtime Word16
+toUInt16 = to32Bit
+
 to32Bit :: Integral a => JSVal -> Runtime a
 to32Bit val = do
   number <- toNumber val

@@ -2,6 +2,7 @@
 
 module Builtins.String (makeStringClass) where
 
+import Data.Char
 import Safe
 import Runtime
 import Parse
@@ -89,7 +90,7 @@ toUpperCase :: JSFunction
 toUpperCase _this _args = return VUndef
 
 fromCharCode :: JSFunction
-fromCharCode _this _args = return VUndef
+fromCharCode _this args = VStr . map (chr . fromIntegral) <$> mapM toUInt16 args
 
 strGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 strGetOwnProperty p s = do
@@ -106,5 +107,3 @@ strGetOwnProperty p s = do
         then return Nothing
         else let s = VStr [str !! index]
              in return $ Just $ dataPD s False False False
-    
-
