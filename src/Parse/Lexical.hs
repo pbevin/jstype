@@ -5,7 +5,7 @@ import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
 import Data.Char (isSpace, chr)
-import Numeric (readHex)
+import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
 import Expr
@@ -180,13 +180,15 @@ normalChar unwanted = do
 escapeSequence :: JSParser (String, String)
 escapeSequence = do
   char '\\'
-  (a, b) <- anyChar >>= escape
+  (a, b) <- lookAhead anyChar >>= escape
   return ('\\':a, b)
 
 escape :: Char -> JSParser (String,String)
-escape '0' = lookAhead (noneOf "0123456789") >> return ("0", "\0")
-escape 'u' = replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
-escape ch  = return ([ch], [singleCharEscape ch])
+escape ch
+  | ch == '0' = try octalEscape <|> (char '0' >> lookAhead (noneOf "0123456789") >> return ("0", "\0"))
+  | ch == 'u' = char 'u' >> replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
+  | ch `elem` "01234567" = octalEscape
+  | otherwise = char ch >> return ([ch], [singleCharEscape ch])
 
 singleCharEscape :: Char -> Char
 singleCharEscape 'b' = '\b'
@@ -197,11 +199,25 @@ singleCharEscape 'f' = '\f'
 singleCharEscape 'r' = '\r'
 singleCharEscape ch  = ch
 
+octalEscape :: JSParser (String,String)
+octalEscape = failIfStrict >> choice [ oct1, oct2, oct3, oct4 ] >>= \d -> return (d, [octToChar d])
+  where
+    oct1 = try $ join1 <$> oneOf "1234567" <* lookAhead (noneOf "0123456789")
+    oct2 = try $ join2 <$> oneOf "123" <*> oneOf "01234567" <* lookAhead (noneOf "0123456789")
+    oct3 = try $ join2 <$> oneOf "4567" <*> oneOf "01234567"
+    oct4 = try $ join3 <$> oneOf "123" <*> oneOf "01234567" <*> oneOf "01234567"
+    join1 a     = [a]
+    join2 a b   = [a,b]
+    join3 a b c = [a,b,c]
+
 unicodeEscape :: JSParser Char
 unicodeEscape = liftM hexToChar $ replicateM 4 hexDigit
 
 hexToChar :: String -> Char
 hexToChar = chr . fst . head . readHex
+
+octToChar :: String -> Char
+octToChar = chr . fst . head . readOct
 
 unicodeIdentifierEscape :: JSParser Char
 unicodeIdentifierEscape = do

@@ -120,6 +120,7 @@ spec = do
       parseExpr "\"a\\u0009b\"" `shouldBe` Str "a\tb"
       parseExpr "'it\\'s ok now'" `shouldBe` Str "it's ok now"
       parseExpr "'back\\\\quote'" `shouldBe` Str "back\\quote"
+      parseExpr "'\\117\\143\\164\\141\\154'" `shouldBe` Str "Octal"
 
     it "parses \\0" $ do
       parseExpr "'a\\0b'" `shouldBe` Str [ 'a', '\0', 'b' ]

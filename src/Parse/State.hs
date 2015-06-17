@@ -99,6 +99,9 @@ ifStrict p = do
     Strict -> void p
     NotStrict -> return ()
 
+failIfStrict :: JSParser ()
+failIfStrict = ifStrict (fail "")
+
 getStrictness :: JSParser Strictness
 getStrictness = strictnessState <$> getState
 
