@@ -69,7 +69,7 @@ putUnresolvable :: JSRef -> JSVal -> Runtime ()
 putUnresolvable ref val =
   if isStrictReference ref
   then raiseReferenceError $ getReferencedName ref ++ " is not defined"
-  else void $ getGlobalObject >>= addOwnProperty (getReferencedName ref) val
+  else void $ getGlobalObject >>= objPut (getReferencedName ref) val (isStrictReference ref)
 
 isStrictReference :: JSRef -> Bool
 isStrictReference ref = refStrictness ref == Strict
