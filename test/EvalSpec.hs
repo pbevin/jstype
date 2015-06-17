@@ -359,6 +359,11 @@ spec = do
       v <- jsEvalExpr "new Boolean(true)"
       v `shouldSatisfy` isObj
 
+  describe "Directive Prologue" $ do
+    it "is evaluated" $
+      runJStr "console.log(eval('\"use strict\"'))" `shouldReturn` Right "use strict\n"
+
+
   describe "Number" $ do
     it "has a NaN property" $ do
       runJStr "console.log(Number.NaN)" `shouldReturn` Right "NaN\n"

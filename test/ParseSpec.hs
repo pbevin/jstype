@@ -287,7 +287,16 @@ spec = do
   describe "Parsing programs" $ do
     it "parses a strict-mode program" $ do
       testParse "'use strict';\nvar a;" `shouldBe`
-        Program Strict [VarDecl s [("a", Nothing)]]
+        Program Strict [ExprStmt s (Str "use strict"), VarDecl s [("a", Nothing)]]
+
+    it "recognizes use strict when preceded by another string" $ do
+      testParse "'xyz'\n'use strict';\nvar a;" `shouldBe`
+        Program Strict [ExprStmt s (Str "xyz"), ExprStmt s (Str "use strict"), VarDecl s [("a", Nothing)]]
+
+    it "only counts complete ExprStmts in the directive prologue" $ do
+      testParse "'use strict' === x" `shouldBe`
+        Program NotStrict [ExprStmt s (BinOp "===" (Str "use strict") (ReadVar "x"))]
+
 
     it "parses a while statement" $ do
       testParse "while (a) { }" `shouldBe` Program NotStrict [WhileStatement s (ReadVar "a") (Block s [])]

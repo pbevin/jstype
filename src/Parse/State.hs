@@ -18,6 +18,7 @@ initialParseState strict inFunction =
                insideIteration = False,
                insideFunction = inFunction,
                insideSwitch = False,
+               insideDirectivePrologue = False,
                strictnessState = strict,
                labelSet = [],
                contextDescription = Nothing }
@@ -35,6 +36,9 @@ withLabel label = recurseState addLabel
 
 withStrictness :: Strictness -> JSParser a -> JSParser a
 withStrictness isStrict = recurseState $ \st -> st { strictnessState = isStrict }
+
+withDirectivePrologue :: JSParser a -> JSParser a
+withDirectivePrologue = recurseState $ \st -> st { insideDirectivePrologue = True }
 
 withoutInKeyword :: JSParser a -> JSParser a
 withoutInKeyword = recurseState $ \st -> st { inKeywordAllowed = False }
@@ -54,27 +58,28 @@ withFunctionContext fname =
   in recurseState $ \st -> st { contextDescription = Just here,
                                 insideFunction = True }
 
-ifContext :: (ParseState -> Bool) -> String -> JSParser a -> JSParser a
-ifContext pred msg p = do
+ifContext :: (ParseState -> Bool) -> JSParser a -> JSParser a -> JSParser a
+ifContext pred ifNo ifYes = do
   st <- getState
-  if pred st
-  then p
-  else fail msg
-
+  if pred st then ifYes else ifNo
 
 ifInsideFunction :: JSParser a -> JSParser a
 ifInsideFunction = ifContext insideFunction $
-  "Return statement found outside a function"
+  fail "Return statement found outside a function"
 
 ifInsideIterationOrSwitch :: JSParser a -> JSParser a
 ifInsideIterationOrSwitch = ifContext insideFunctionOrSwitch $
-  "break statement found outside loop or switch statement"
+  fail "break statement found outside loop or switch statement"
     where
       insideFunctionOrSwitch st = insideIteration st || insideSwitch st
 
 ifInsideIteration :: JSParser a -> JSParser a
 ifInsideIteration = ifContext insideIteration $
-  "break and continue belong in loops"
+  fail "break and continue belong in loops"
+
+ifInDirectivePrologue :: JSParser a -> JSParser a -> JSParser a
+ifInDirectivePrologue = flip (ifContext insideDirectivePrologue)
+
 
 fromLabelSet :: JSParser String -> JSParser String
 fromLabelSet p = do

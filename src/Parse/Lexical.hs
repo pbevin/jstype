@@ -20,14 +20,6 @@ identStart, identLetter :: String
 identStart  = ['a'..'z'] ++ ['A'..'Z'] ++ "$_"
 identLetter = identStart ++ ['0'..'9']
 
-unicodeEscape :: JSParser Char
-unicodeEscape = liftM (chr . fst . head . readHex) $ replicateM 4 hexDigit
-
-unicodeIdentifierEscape = do
-  ch <- unicodeEscape
-  guard $ ch `elem` identLetter
-  return ch
-
 surround :: String -> String -> JSParser a -> JSParser a
 surround lhs rhs p = tok lhs *> p <* tok rhs
 
@@ -72,6 +64,7 @@ comment = void parseComment
 whiteSpace :: JSParser ()
 whiteSpace = void $ many (lineBreak <|> void (satisfy isSpace) <|> comment)
 
+linebreaks :: String
 linebreaks = [ '\n', '\r', '\x2028', '\x2029' ]
 
 isLineBreak :: Char -> Bool
@@ -155,3 +148,63 @@ np = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
 
         dup x = (x,x)
         applyTo = fmap
+
+-- ref 7.8.4
+quotedString :: JSParser String
+quotedString =
+  ifInDirectivePrologue (doubleQuotedString fst <|> singleQuotedString fst)
+                        (doubleQuotedString snd <|> singleQuotedString snd)
+
+
+doubleQuotedString :: ((String,String) -> String) -> JSParser String
+doubleQuotedString convert = do
+  char '"'
+  str <- concat . map convert <$> many (normalChar "\"\\" <|> escapeSequence)
+  char '"'
+  whiteSpace
+  return str
+
+singleQuotedString :: ((String,String) -> String) -> JSParser String
+singleQuotedString convert = do
+  char '\''
+  str <- concat . map convert <$> many (normalChar "\'\\" <|> escapeSequence)
+  char '\''
+  whiteSpace
+  return str
+
+normalChar :: String -> JSParser (String, String)
+normalChar unwanted = do
+  ch <- noneOf (unwanted ++ linebreaks)
+  return ([ch], [ch])
+
+escapeSequence :: JSParser (String, String)
+escapeSequence = do
+  char '\\'
+  (a, b) <- anyChar >>= escape
+  return ('\\':a, b)
+
+escape :: Char -> JSParser (String,String)
+escape '0' = lookAhead (noneOf "0123456789") >> return ("0", "\0")
+escape 'u' = replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
+escape ch  = return ([ch], [singleCharEscape ch])
+
+singleCharEscape :: Char -> Char
+singleCharEscape 'b' = '\b'
+singleCharEscape 't' = '\t'
+singleCharEscape 'n' = '\n'
+singleCharEscape 'v' = '\v'
+singleCharEscape 'f' = '\f'
+singleCharEscape 'r' = '\r'
+singleCharEscape ch  = ch
+
+unicodeEscape :: JSParser Char
+unicodeEscape = liftM hexToChar $ replicateM 4 hexDigit
+
+hexToChar :: String -> Char
+hexToChar = chr . fst . head . readHex
+
+unicodeIdentifierEscape :: JSParser Char
+unicodeIdentifierEscape = do
+  ch <- unicodeEscape
+  guard $ ch `elem` identLetter
+  return ch

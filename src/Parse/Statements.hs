@@ -21,24 +21,25 @@ prog = do
 
 statementList :: JSParser (Strictness, [Statement])
 statementList = do
-  strictness <- directivePrefix
+  strictness <- directivePrologue
   withStrictness strictness $ do
     statements <- many statement
     return (strictness, statements)
 
-directivePrefix :: JSParser Strictness
-directivePrefix = do
+directivePrologue :: JSParser Strictness
+directivePrologue = withDirectivePrologue $ do
   currentStrictness <- getStrictness
-  directives <- many (terminated directive)
-  return $ if "use strict" `elem` directives
+  directives <- lookAhead $ many directive
+  return $ if "use strict" `elem` (catMaybes . takeWhile isJust $ directives)
            then Strict
            else currentStrictness
 
-directive :: JSParser String
-directive = try $ do
-  str <- quotedString
-  guard (str == "use strict")
-  return str
+isString :: Statement -> Maybe String
+isString (ExprStmt _ (Str s)) = Just s
+isString _ = Nothing
+
+directive :: JSParser (Maybe String)
+directive = try $ isString <$> terminated exprStmt
 
 
 terminated :: JSParser a -> JSParser a
@@ -539,41 +540,6 @@ tostr p = do
   c <- p
   return [c]
 
-
--- ref 7.8.4
-quotedString :: JSParser String
-quotedString = doubleQuotedString <|> singleQuotedString
-
-doubleQuotedString :: JSParser String
-doubleQuotedString = do
-  char '"'
-  str <- many (noneOf ("\"\\" ++ linebreaks) <|> (char '\\' >> escape))
-  char '"'
-  whiteSpace
-  return str
-
-escape :: JSParser Char
-escape = oneOf "'\"\\\n"
-     <|> liftM singleCharEscape (oneOf "bfnrtv")
-     <|> (char '0' >> lookAhead (noneOf "0123456789") >> return '\0')
-     <|> (char 'u' >> unicodeEscape)
-
-singleCharEscape :: Char -> Char
-singleCharEscape 'b' = '\b'
-singleCharEscape 't' = '\t'
-singleCharEscape 'n' = '\n'
-singleCharEscape 'v' = '\v'
-singleCharEscape 'f' = '\f'
-singleCharEscape 'r' = '\r'
-singleCharEscape ch  = ch
-
-singleQuotedString :: JSParser String
-singleQuotedString = do
-  char '\''
-  str <- many (noneOf ("'\\" ++ linebreaks) <|> (char '\\' >> escape))
-  char '\''
-  whiteSpace
-  return str
 
 num :: JSParser Expr
 num = Num <$> numericLiteral

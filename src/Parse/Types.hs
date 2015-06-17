@@ -8,6 +8,7 @@ data ParseState = ParseState {
   insideIteration :: Bool,
   insideFunction :: Bool,
   insideSwitch :: Bool,
+  insideDirectivePrologue :: Bool,
   strictnessState :: Strictness,
   labelSet :: [String],
   contextDescription :: Maybe String } deriving Show
