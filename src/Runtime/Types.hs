@@ -272,9 +272,10 @@ data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
 
 data PrimitiveHint = HintNone | HintNumber | HintString deriving (Show, Eq)
 
-debug :: Show a => a -> Runtime ()
+debug :: Show a => a -> Runtime a
 debug a = do
   liftIO $ print a
+  return a
 
 finally :: Runtime a -> Runtime () -> Runtime a
 finally a f = do
@@ -285,7 +286,7 @@ type PropertyMap = PropMap Ident (PropDesc JSVal)
 data Property a = PropValue a
                 | PropFlag Bool
                 | PropGetter (JSVal -> Runtime a)
-                | PropSetter (a -> Runtime ())
+                | PropSetter (JSVal -> a -> Runtime ())
                 deriving Show
 
 newtype PropDesc a = PropDesc (M.Map String (Property a)) deriving Show

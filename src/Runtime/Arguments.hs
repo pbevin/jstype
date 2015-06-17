@@ -17,14 +17,13 @@ import JSNum
 createArgumentsObject :: JSVal -> [String] -> [JSVal] -> EnvRec -> Strictness -> Runtime JSVal
 createArgumentsObject func names args env strict =
   let len = JSNum (fromIntegral $ length args)
-      thrower _ = raiseTypeError "Cannot access property"
+      thrower _  = raiseTypeError "Cannot access property"
+      sthrower _ = thrower
   in do
     object <- getGlobalProperty "Object"
     objectPrototype <- getGlobalObjectPrototype
 
     map <- newObject
-
-    cs <- objGet "constructor" objectPrototype
 
     obj <- newObject >>= setClass "Arguments"
                      >>= objSetPrototype objectPrototype
@@ -36,9 +35,9 @@ createArgumentsObject func names args env strict =
       defineOwnProperty (show indx) (dataPD val True True True) False obj
 
       when (strict == NotStrict && name /= "") $
-        let getter _ = getBindingValue name strict env
-            setter a = setMutableBinding name a (strict == Strict) env
-            desc     = accessorPD (Just getter) (Just setter) True True
+        let getter _      = getBindingValue name strict env
+            setter this a = setMutableBinding name a (strict == Strict) env
+            desc          = accessorPD (Just getter) (Just setter) True True
         in void $ defineOwnProperty (show indx) desc False map
 
     case strict of
@@ -47,7 +46,7 @@ createArgumentsObject func names args env strict =
                      >>= setGetOwnPropertyMethod (argGetOwnProperty map)
                      >>= setDefineOwnPropertyMethod (argDefineOwnProperty map)
       Strict ->
-        let prop = accessorPD (Just thrower) (Just thrower) False False
+        let prop = accessorPD (Just thrower) (Just sthrower) False False
         in do addOwnPropDesc "caller" prop obj
               addOwnPropDesc "callee" prop obj
 

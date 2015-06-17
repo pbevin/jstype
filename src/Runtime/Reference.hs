@@ -155,11 +155,11 @@ mkGetter (VObj obj) = do
 mkGetter _ = return Nothing
 
 
-mkSetter :: JSVal -> Runtime (Maybe (JSVal -> Runtime ()))
+mkSetter :: JSVal -> Runtime (Maybe (JSVal -> JSVal -> Runtime ()))
 mkSetter (VObj obj) = do
   call <- callMethod <$> deref obj
   case call of
-    Just setter -> return $ Just (\a -> void $ setter VUndef [a])
+    Just setter -> return $ Just (\this val -> void $ setter this [val])
     Nothing -> raiseProtoError TypeError $ "Setter not defined"
 mkSetter _ = return Nothing
 

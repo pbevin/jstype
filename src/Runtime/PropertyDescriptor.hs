@@ -35,7 +35,7 @@ propGetter pd = case getPropertyOfType "get" pd of
   Just (PropGetter s) -> Just s
   _ -> Nothing
 
-propSetter :: PropDesc a -> Maybe (a -> Runtime ())
+propSetter :: PropDesc a -> Maybe (JSVal -> a -> Runtime ())
 propSetter pd = case getPropertyOfType "set" pd of
   Just (PropSetter s) -> Just s
   _ -> Nothing
@@ -92,7 +92,7 @@ dataPD' Nothing w e c = PropDesc $ M.fromList  [ ("writable", PropFlag w),
                                                  ("enumerable", PropFlag e),
                                                  ("configurable", PropFlag c) ]
 
-accessorPD :: Maybe (JSVal -> Runtime a) -> Maybe (a -> Runtime ()) -> Bool -> Bool -> PropDesc a
+accessorPD :: Maybe (JSVal -> Runtime a) -> Maybe (JSVal -> a -> Runtime ()) -> Bool -> Bool -> PropDesc a
 accessorPD g s e c = PropDesc $ M.fromList $ maybeAttr "get" PropGetter g
                                           ++ maybeAttr "set" PropSetter s
                                           ++ [ ("enumerable", PropFlag e),

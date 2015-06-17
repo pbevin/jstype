@@ -97,7 +97,7 @@ objPut p v throw objRef = do
       if isAccessorDescriptor desc
       then case propSetter (fromJust desc) of
         Nothing -> return ()
-        Just s -> s v
+        Just s -> s (VObj objRef) v
       else void $ defineOwnProperty p (dataPD v True True True) throw objRef
 
 -- ref 8.12.6

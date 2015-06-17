@@ -294,7 +294,7 @@ createFunction name paramList strict body scope =
       callMethod func = funcCall name func paramList strict body
 
 throwerProperty :: PropDesc JSVal
-throwerProperty = accessorPD (Just thrower) (Just thrower) False False
+throwerProperty = accessorPD (Just thrower) (Just (const thrower)) False False
 
 thrower :: a -> Runtime b
 thrower _ = raiseTypeError "Cannot access property"
