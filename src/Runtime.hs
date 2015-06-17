@@ -60,6 +60,7 @@ createGlobalThis = do
     >>= addOwnProperty "length" (VNum 0)
     >>= addMethod "call" 1 funCallMethod
     >>= addMethod "bind" 1 funBind
+    >>= addMethod "apply" 2 funApply
 
   function <- newObject
     >>= setClass "Function"
@@ -171,13 +172,38 @@ funCallMethod this args = do
     Nothing   -> raiseTypeError $ "Not a function: " ++ show this
     Just call -> call (first1 args) (tail1 args)
 
+-- ref 15.3.4.3
+funApply :: JSFunction
+funApply this args =
+  let (thisArg, argArray) = first2 args
+  in do
+    call <- findCallMethod this
+    case argArray of
+      VNull     -> call thisArg []
+      VUndef    -> call thisArg []
+      VObj obj  -> funApply' call thisArg obj
+      otherwise -> raiseTypeError "apply: Arguments list has wrong type"
+
+  where
+    funApply' call thisArg argArray = do
+      n <- objGet "length" argArray >>= toInt32
+      args <- forM [0..n] $ \index -> objGet (show index) argArray
+      call thisArg args
+
+    findCallMethod :: JSVal -> Runtime JSFunction
+    findCallMethod this = do
+      originalCallMethod <- isCallable this
+      case originalCallMethod of
+        Nothing -> raiseTypeError "Cannot apply non-function"
+        Just call -> return call
+
 
 -- ref 15.3.4.5
 funBind :: JSFunction
 funBind this args = do
   originalCallMethod <- isCallable this
   case originalCallMethod of
-    Nothing -> raiseTypeError "Cannot bind to non-function"
+    Nothing -> raiseTypeError "Cannot bind non-function"
     Just targetCall -> do
       let (VObj target) = this
 
