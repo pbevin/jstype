@@ -59,6 +59,7 @@ createGlobalThis = do
     >>= setCallMethod (\_this _args -> return VUndef)
     >>= addOwnProperty "length" (VNum 0)
     >>= addMethod "call" 1 funCallMethod
+    >>= addMethod "bind" 1 funBind
 
   function <- newObject
     >>= setClass "Function"
@@ -170,6 +171,63 @@ funCallMethod this args = do
     Nothing   -> raiseTypeError $ "Not a function: " ++ show this
     Just call -> call (first1 args) (tail1 args)
 
+
+-- ref 15.3.4.5
+funBind :: JSFunction
+funBind this args = do
+  originalCallMethod <- isCallable this
+  case originalCallMethod of
+    Nothing -> raiseTypeError "Cannot bind to non-function"
+    Just targetCall -> do
+      let (VObj target) = this
+
+      funPrototype <- objFindPrototype "Function"
+
+      targetCstr   <- cstrMethod <$> deref target
+      targetClass  <- objClassName target
+      targetLength <- objGet "length" target >>= toInt
+
+      let (thisArg, a) = if null args then (VUndef, []) else (head args, tail args)
+          l = if targetClass == "Function"
+              then max 0 $ targetLength - length a
+              else 0
+          cstrMethod = case targetCstr of
+            Nothing -> funCstrError
+            Just m  -> funCstrBound m          thisArg a
+          callMethod = funCallBound targetCall thisArg a
+
+      f <- newObject >>= setGetMethod funGet
+                     >>= setClass "Function"
+                     >>= objSetPrototype funPrototype
+                     >>= setCallMethod callMethod
+                     >>= setCstrMethod cstrMethod
+                     >>= objSetHasInstance funHasInstanceBound
+                     >>= addOwnPropertyDescriptor "length" (dataPD (VNum $ fromIntegral l) False False False)
+                     >>= objSetExtensible True
+                     >>= addOwnPropertyDescriptor "caller" throwerProperty
+                     >>= addOwnPropertyDescriptor "arguments" throwerProperty
+      return (VObj f)
+
+-- ref 15.3.4.5.1
+funCallBound :: JSFunction -> JSVal -> [JSVal] -> JSFunction
+funCallBound targetCall boundThis boundArgs _this args = do
+  targetCall boundThis (boundArgs ++ args)
+
+
+-- ref 15.3.4.5.2
+funCstrBound :: JSFunction -> JSVal -> [JSVal] -> JSFunction
+funCstrBound targetCstr boundThis boundArgs _this args = do
+  targetCstr boundThis (boundArgs ++ args)
+
+funCstrError :: JSFunction
+funCstrError _ _ = raiseTypeError "Cannot construct object"
+
+-- ref 15.3.4.5.3
+funHasInstanceBound :: Shared JSObj -> JSVal -> Runtime a
+funHasInstanceBound = undefined
+
+
+
 -- ref 13.2
 createFunction :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Shared LexEnv -> Runtime JSVal
 createFunction name paramList strict body scope =
@@ -197,7 +255,7 @@ createFunction name paramList strict body scope =
         setCstrMethod (callMethod $ VObj func) func -- (7) XXX
 
         ifStrictContext $ do
-          let prop = accessorPD (Just thrower) (Just thrower) False False
+          let prop = throwerProperty
           defineOwnProperty "caller" prop False func
           defineOwnProperty "arguments" prop False func
 
@@ -208,8 +266,14 @@ createFunction name paramList strict body scope =
       prototypeProperty prototype = dataPD prototype True False False
       nameProperty = fromMaybe "" name
       callMethod func = funcCall name func paramList strict body
-      thrower _ = raiseTypeError "Cannot access property"
 
+throwerProperty :: PropDesc JSVal
+throwerProperty = accessorPD (Just thrower) (Just thrower) False False
+
+thrower :: a -> Runtime b
+thrower _ = raiseTypeError "Cannot access property"
+
+-- ref 15.3.5.4
 funGet :: String -> Shared JSObj -> Runtime JSVal
 funGet p f = do
   val <- objGetObj p f

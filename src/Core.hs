@@ -116,6 +116,14 @@ sourceLocation stmt = case stmt of
   CoreBind _ _ _   -> error "no srcloc for corebind"
   CoreBlock _      -> error "no srcloc for coreblock"
   CoreExpr a _     -> a
+  CoreLoop a _ _ _ -> a
+  CoreBreak a _    -> a
+  CoreCont a _     -> a
+  CoreRet a _      -> a
+  CoreCase a _ _   -> a
+  CoreIf a _ _ _   -> a
+  CoreLabel a _ _  -> a
+  CoreTry a _ _ _  -> a
   Unconverted s    -> sourceLocationUnconverted s
 
 sourceLocationUnconverted :: Statement -> SrcLoc
