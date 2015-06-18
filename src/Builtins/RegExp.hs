@@ -9,10 +9,9 @@ import Runtime
 makeRegExpClass :: Runtime (Shared JSObj)
 makeRegExpClass = do
   regExpPrototype <- makePrototype "RegExp"
-    >>= addMethod "constructor" 1 regExpConstructor
-    >>= addMethod "exec"        1 regExpExec
-    >>= addMethod "test"        1 regExpTest
-    >>= addMethod "toString" 0 regExpToString
+    >>= addMethod      "exec"        1 regExpExec
+    >>= addMethod      "test"        1 regExpTest
+    >>= addMethod      "toString"    0 regExpToString
 
   functionPrototype <- findPrototypeForClass "Function"
 
@@ -24,8 +23,9 @@ makeRegExpClass = do
     >>= addOwnProperty "length" (VNum 2)
     >>= addOwnProperty "prototype" (VObj regExpPrototype)
 
-  return obj
+  addOwnProperty "constructor" (VObj obj) regExpPrototype
 
+  return obj
 
 regExpFunction :: JSFunction
 regExpFunction _this args =

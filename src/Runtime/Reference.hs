@@ -34,6 +34,40 @@ putValue ref@(JSRef base name strict) w
   | isPropertyReference ref     = putPropertyReference ref w
   | otherwise                   = setMutableBinding name w (strict == Strict) env
     where (VEnv env) = base
+          putUnresolvable :: JSRef -> JSVal -> Runtime ()
+          putUnresolvable ref val =
+            if isStrictReference ref
+            then raiseReferenceError $ getReferencedName ref ++ " is not defined"
+            else void $ getGlobalObject >>= objPut (getReferencedName ref) val (isStrictReference ref)
+
+          putPropertyReference :: JSRef -> JSVal -> Runtime ()
+          putPropertyReference (JSRef (VObj objRef) name strict) val =
+            objPut name val (strict == Strict) objRef
+          putPropertyReference _other value = do
+            o <- toObject base
+            canPut <- objCanPut name o
+            if not canPut
+            then if strict == Strict
+                 then raiseTypeError $ "Cannot set " ++ name
+                 else return ()
+            else do
+              ownDesc <- objGetOwnProperty name o
+              if isDataDescriptor ownDesc
+              then if strict == Strict
+                   then raiseTypeError $ "Cannot set " ++ name
+                   else return ()
+              else do
+                desc <- objGetProperty name o
+                if isAccessorDescriptor desc
+                then
+                  let Just d = desc
+                      Just s = propSetter d
+                  in s base value
+                else if strict == Strict
+                     then raiseTypeError $ "Cannot set " ++ name
+                     else return ()
+
+
 
 putValue' :: JSVal -> JSVal -> Runtime ()
 putValue' (VRef ref) = putValue ref
@@ -65,20 +99,9 @@ isUnresolvableReference ref =
     _      -> False
 
 
-putUnresolvable :: JSRef -> JSVal -> Runtime ()
-putUnresolvable ref val =
-  if isStrictReference ref
-  then raiseReferenceError $ getReferencedName ref ++ " is not defined"
-  else void $ getGlobalObject >>= objPut (getReferencedName ref) val (isStrictReference ref)
-
 isStrictReference :: JSRef -> Bool
 isStrictReference ref = refStrictness ref == Strict
 
-
-putPropertyReference :: JSRef -> JSVal -> Runtime ()
-putPropertyReference (JSRef (VObj objRef) name strict) val =
-  objPut name val (strict == Strict) objRef
-putPropertyReference _ _ = error "Internal error in putPropertyReference"
 
 
 unwrapRef :: JSVal -> JSRef
