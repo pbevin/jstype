@@ -1,6 +1,7 @@
 module Runtime.Reference where
 
 import Control.Monad.Except
+import Control.Monad.Trans.Either
 import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Object
@@ -40,33 +41,30 @@ putValue ref@(JSRef base name strict) w
             then raiseReferenceError $ getReferencedName ref ++ " is not defined"
             else void $ getGlobalObject >>= objPut (getReferencedName ref) val (isStrictReference ref)
 
+          guard :: Bool -> Runtime ()
+          guard cond = unless (cond) $ do
+            if strict == Strict
+            then raiseTypeError $ "Cannot set " ++ name
+            else exit
+
           putPropertyReference :: JSRef -> JSVal -> Runtime ()
           putPropertyReference (JSRef (VObj objRef) name strict) val =
             objPut name val (strict == Strict) objRef
-          putPropertyReference _other value = do
+
+          putPropertyReference _other value = withGuard $ do
             o <- toObject base
             canPut <- objCanPut name o
-            if not canPut
-            then if strict == Strict
-                 then raiseTypeError $ "Cannot set " ++ name
-                 else return ()
-            else do
-              ownDesc <- objGetOwnProperty name o
-              if isDataDescriptor ownDesc
-              then if strict == Strict
-                   then raiseTypeError $ "Cannot set " ++ name
-                   else return ()
-              else do
-                desc <- objGetProperty name o
-                if isAccessorDescriptor desc
-                then
-                  let Just d = desc
-                      Just s = propSetter d
-                  in s base value
-                else if strict == Strict
-                     then raiseTypeError $ "Cannot set " ++ name
-                     else return ()
+            guard canPut
 
+            ownDesc <- objGetOwnProperty name o
+            guard (not $ isDataDescriptor ownDesc)
+
+            desc <- objGetProperty name o
+            guard (isAccessorDescriptor desc)
+
+            let Just d = desc
+                Just s = propSetter d
+            s base value
 
 
 putValue' :: JSVal -> JSVal -> Runtime ()

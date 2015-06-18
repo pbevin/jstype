@@ -200,7 +200,10 @@ newEnvRec = do
   return (DeclEnvRec m)
 
 type JSOutput = String
-data JSError = JSError (JSVal, [SrcLoc]) | JSProtoError (ErrorType, String) deriving (Show, Eq)
+data JSError = JSError (JSVal, [SrcLoc])
+             | JSProtoError (ErrorType, String)
+             | EarlyExit
+             deriving (Show, Eq)
 type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 
 type StmtReturn = Result JSVal
@@ -247,8 +250,21 @@ newtype Runtime a = JS {
             Functor,
             Applicative)
 
+instance Alternative Runtime where
+  (<|>) = mplus
+  empty = mzero
+
+instance MonadPlus Runtime where
+  mzero = throwError EarlyExit
+
 runRuntime :: Runtime a -> IO ((Either JSError a, String), JSGlobal)
 runRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
+
+withGuard :: Runtime () -> Runtime ()
+withGuard p = p `catchError` (\e -> if e == EarlyExit then return () else throwError e)
+
+exit :: Runtime a
+exit = throwError EarlyExit
 
 
 data JSGlobal = JSGlobal {
