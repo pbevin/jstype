@@ -1,5 +1,9 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Builtins.RegExp where
 
+import Control.Monad.Except
+import Text.Regex.PCRE.String
 import Runtime
 
 makeRegExpClass :: Runtime (Shared JSObj)
@@ -23,24 +27,47 @@ makeRegExpClass = do
   return obj
 
 
-
-functionIsConstructor :: JSFunction -> Shared JSObj -> JSFunction
-functionIsConstructor cstr proto _this args = do
-  this <- newObject >>= objSetPrototype proto
-  cstr (VObj this) args
-
 regExpFunction :: JSFunction
-regExpFunction _this args = do
-  this <- newObject
-  regExpConstructor (VObj this) args
-
+regExpFunction _this args =
+  let (pattern, flags) = first2 args
+  in do
+    r <- getPrimitiveRegex pattern `catchError` const (return pattern)
+    case (r, flags) of
+      (VRegExp{}, VUndef) -> return pattern
+      otherwise -> do
+        this <- newObject
+        regExpConstructor (VObj this) args
 
 regExpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-regExpConstructor this _ = case this of
-  VObj objRef -> VObj <$> (setClass "RegExp" objRef)
-  _ -> raiseTypeError "Bad type for RegExp constructor"
+regExpConstructor this args =
+  let (pattern, flags) = first2 args
+  in case this of
+
+    VObj objRef -> do
+      p <- toString pattern
+      liftIO (compile 0 0 p) >>= \case
+        Left (_offset, err) -> raiseSyntaxError err
+        Right re -> do
+          prototype <- objFindPrototype "RegExp"
+          setClass "RegExp" objRef
+            >>= addOwnProperty "prototype" (VObj prototype)
+            >>= objSetPrimitive (VRegExp p "" re)
+
+          return $ VObj objRef
+    _ -> raiseTypeError "Bad type for RegExp constructor"
 
 regExpExec, regExpTest, regExpToString :: JSFunction
-regExpExec = undefined
-regExpTest = undefined
-regExpToString = undefined
+regExpExec = error "regExpExec"
+regExpTest = error "regExpTest"
+regExpToString this args = do
+  VRegExp p f _ <- getPrimitiveRegex this
+  return . VStr $ "/" ++ p ++ "/"
+
+getPrimitiveRegex :: JSVal -> Runtime JSVal
+getPrimitiveRegex v =
+  case v of
+    VObj o ->
+      objPrimitiveValue <$> deref o >>= \case
+        Just v@(VRegExp{}) -> return v
+        otherwise          -> raiseTypeError "Not a regexp"
+    _ -> raiseTypeError "Not a regexp"

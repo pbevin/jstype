@@ -2,12 +2,15 @@
 
 module Builtins.String where
 
+import Text.Regex.PCRE.String
 import qualified Data.Text as T
+import Data.Array
 import Data.Text (Text)
 import Data.Char
 import Safe
 import Runtime
 import Parse
+import Builtins.RegExp
 
 
 makeStringClass :: Runtime (Shared JSObj)
@@ -141,9 +144,12 @@ search :: JSFunction
 search this args = do
   let regexp = first1 args
   string <- toString this
-  return (VStr string)
-  -- rx <- toRegexp regexp
 
-
-
-
+  o <- toObject =<< regExpFunction VUndef [regexp]
+  objPrimitiveValue <$> (deref o) >>= \case
+    Just (VRegExp _ _ re) -> do
+      liftIO (execute re string) >>= \case
+        Left err -> raiseSyntaxError (show err)
+        Right Nothing -> return (VNum $ -1)
+        Right (Just arr) -> return (VNum . fromIntegral . fst . (! 0) $ arr)
+    _ -> raiseSyntaxError "No regexp found"
