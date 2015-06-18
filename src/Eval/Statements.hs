@@ -286,95 +286,125 @@ readVar name = do
 
 runExprStmt :: Expr -> Runtime JSVal
 runExprStmt expr = case expr of
-  Num n              -> return $ VNum n
-  Str s              -> return $ VStr s
-  Boolean b          -> return $ VBool b
-  LiteralNull        -> return VNull
-  LiteralUndefined   -> return VUndef
-  ReadVar name       -> readVar name
-  This               -> thisBinding <$> getGlobalContext
-  ArrayLiteral vals  -> evalArrayLiteral vals
-  ObjectLiteral map  -> makeObjectLiteral map
+  Num n                 -> return $ VNum n
+  Str s                 -> return $ VStr s
+  Boolean b             -> return $ VBool b
+  LiteralNull           -> return VNull
+  LiteralUndefined      -> return VUndef
+  ReadVar name          -> readVar name
+  This                  -> thisBinding <$> getGlobalContext
+  ArrayLiteral vals     -> evalArrayLiteral vals
+  ObjectLiteral map     -> makeObjectLiteral map
   RegularExpression r f -> makeRegularExpression r f
+  MemberDot e x         -> evalPropertyAccessorIdent e x
+  MemberGet e x         -> evalPropertyAccessor e x
+  FunCall f args        -> evalFunCall f args
+  Assign lhs op e       -> evalAssignment lhs op e
+  Cond e1 e2 e3         -> evalCond e1 e2 e3
+  BinOp "&&" e1 e2      -> evalAndAnd e1 e2
+  BinOp "||" e1 e2      -> evalOrOr e1 e2
+  BinOp op e1 e2        -> evalBinaryOp op e1 e2
+  UnOp "delete" e       -> runExprStmt e >>= evalDelete -- ref 11.4.1
+  UnOp "typeof" e       -> runExprStmt e >>= evalTypeof -- ref 11.4.3
+  UnOp op e             -> evalUnOp op e
+  PostOp op e           -> evalPostOp op e
+  NewExpr f args        -> evalNewExpr f args
+  FunExpr n ps st body  -> evalFunExpr n ps st body
 
-  MemberDot e x      -> runExprStmt (MemberGet e (Str x)) -- ref 11.2.1
+-- ref 11.2.1
+evalPropertyAccessor :: Expr -> Expr -> Runtime JSVal
+evalPropertyAccessor e x = do
+  baseValue <- runExprStmt e >>= getValue
+  propertyNameValue <- runExprStmt x >>= getValue
+  checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
+  propertyNameString <- toString propertyNameValue
+  memberGet baseValue propertyNameString
 
-  MemberGet e x -> do -- ref 11.2.1
-    baseValue <- runExprStmt e >>= getValue
-    propertyNameValue <- runExprStmt x >>= getValue
-    checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
-    propertyNameString <- toString propertyNameValue
-    memberGet baseValue propertyNameString
+-- ref 11.2.1
+evalPropertyAccessorIdent :: Expr -> Ident -> Runtime JSVal
+evalPropertyAccessorIdent e x = do
+  baseValue <- runExprStmt e >>= getValue
+  checkObjectCoercible ("Cannot read property " ++ x) baseValue
+  memberGet baseValue x
 
-  FunCall f args -> do  -- ref 11.2.3
-    ref <- runExprStmt f
-    argList <- evalArguments args
-    callFunction ref argList
 
-  Assign lhs op e -> do
-    lref <- runExprStmt lhs
-    rref <- runExprStmt e
-    case op of
-      "=" -> assignRef lref rref
-      _   -> updateRef (init op) lref rref
+-- ref 11.2.2
+evalNewExpr :: Expr -> [Expr] -> Runtime JSVal
+evalNewExpr f args = do
+  fun <- runExprStmt f >>= getValue
+  argList <- evalArguments args
+  assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
+  liftM VObj (newObjectFromConstructor fun argList)
 
-  Cond e1 e2 e3 -> do
-    lref <- runExprStmt e1 >>= getValue
-    if toBoolean lref
-    then runExprStmt e2 >>= getValue
-    else runExprStmt e3 >>= getValue
+-- ref 11.13.1 (simple assignment)
+-- ref 11.13.2 (compound assignment)
+evalAssignment :: Expr -> Ident -> Expr -> Runtime JSVal
+evalAssignment lhs op e = do
+  lref <- runExprStmt lhs
+  rref <- runExprStmt e
+  case op of
+    "=" -> assignRef lref rref
+    _   -> updateRef (init op) lref rref
 
-  BinOp "&&" e1 e2 -> do
-    v1 <- runExprStmt e1 >>= getValue
-    if toBoolean v1
-    then runExprStmt e2 >>= getValue
-    else return v1
+evalCond :: Expr -> Expr -> Expr -> Runtime JSVal
+evalCond e1 e2 e3 = do
+  lref <- runExprStmt e1 >>= getValue
+  if toBoolean lref
+  then runExprStmt e2 >>= getValue
+  else runExprStmt e3 >>= getValue
 
-  BinOp "||" e1 e2 -> do
-    v1 <- runExprStmt e1 >>= getValue
-    if toBoolean v1
-    then return v1
-    else runExprStmt e2 >>= getValue
+evalAndAnd :: Expr -> Expr -> Runtime JSVal
+evalAndAnd e1 e2 = do
+  v1 <- runExprStmt e1 >>= getValue
+  if toBoolean v1
+  then runExprStmt e2 >>= getValue
+  else return v1
 
-  BinOp op e1 e2 -> do
-    v1 <- runExprStmt e1 >>= getValue
-    v2 <- runExprStmt e2 >>= getValue
-    evalBinOp op v1 v2
+evalOrOr :: Expr -> Expr -> Runtime JSVal
+evalOrOr e1 e2 = do
+  v1 <- runExprStmt e1 >>= getValue
+  if toBoolean v1
+  then return v1
+  else runExprStmt e2 >>= getValue
 
-  UnOp "delete" e -> do -- ref 11.4.1
-    evalDelete =<< runExprStmt e
-  UnOp "typeof" e -> do -- ref 11.4.3
-    evalTypeof =<< runExprStmt e
-  UnOp op e -> -- ref 11.4
-    let f = case op of
-              "++"   -> modifyingOp (+ 1) (+ 1)
-              "--"   -> modifyingOp (subtract 1) (subtract 1)
-              "+"    -> purePrefix unaryPlus
-              "-"    -> purePrefix unaryMinus
-              "!"    -> purePrefix unaryNot
-              "~"    -> purePrefix unaryBitwiseNot
-              "void" -> purePrefix (return . const VUndef)
-              _    -> const $ raiseError $ "Prefix not implemented: " ++ op
-    in f e
+evalBinaryOp :: Ident -> Expr -> Expr -> Runtime JSVal
+evalBinaryOp op e1 e2 = do
+  v1 <- runExprStmt e1 >>= getValue
+  v2 <- runExprStmt e2 >>= getValue
+  evalBinOp op v1 v2
 
-  PostOp op e -> -- ref 11.3
-    let f = case op of
-              "++" -> modifyingOp (+1) id
-              "--" -> modifyingOp (subtract 1) id
-              _    -> const $ raiseError $ "No such postfix operator: " ++ op
-    in f e
+evalUnOp :: Ident -> Expr -> Runtime JSVal
+evalUnOp op e = f e
+  where 
+    f = case op of
+          "++"   -> modifyingOp (+ 1) (+ 1)
+          "--"   -> modifyingOp (subtract 1) (subtract 1)
+          "+"    -> purePrefix unaryPlus
+          "-"    -> purePrefix unaryMinus
+          "!"    -> purePrefix unaryNot
+          "~"    -> purePrefix unaryBitwiseNot
+          "void" -> purePrefix (return . const VUndef)
+          _      -> const $ raiseError $ "Prefix not implemented: " ++ op
 
-  NewExpr f args -> do -- ref 11.2.2
-    fun <- runExprStmt f >>= getValue
-    argList <- evalArguments args
-    assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
-    liftM VObj (newObjectFromConstructor fun argList)
+evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
+evalFunExpr name params strictness body = do
+  env <- lexEnv <$> getGlobalContext
+  createFunction name params strictness body env
 
-  FunExpr name params strictness body -> do
-    env <- lexEnv <$> getGlobalContext
-    createFunction name params strictness body env
+-- ref 11.3
+evalPostOp :: Ident -> Expr -> Runtime JSVal
+evalPostOp op e = f e
+  where f = case op of
+          "++" -> modifyingOp (+1) id
+          "--" -> modifyingOp (subtract 1) id
+          _    -> const $ raiseError $ "No such postfix operator: " ++ op
 
-  _ -> error ("Unimplemented expr: " ++ show expr)
+-- ref 11.2.3
+evalFunCall :: Expr -> [Expr] -> Runtime JSVal
+evalFunCall f args = do
+  ref <- runExprStmt f
+  argList <- evalArguments args
+  callFunction ref argList
 
 evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
 evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
