@@ -295,6 +295,7 @@ runExprStmt expr = case expr of
   This               -> thisBinding <$> getGlobalContext
   ArrayLiteral vals  -> evalArrayLiteral vals
   ObjectLiteral map  -> makeObjectLiteral map
+  RegularExpression r f -> makeRegularExpression r f
 
   MemberDot e x      -> runExprStmt (MemberGet e (Str x)) -- ref 11.2.1
 
@@ -400,6 +401,9 @@ purePrefix :: (JSVal -> Runtime JSVal) -> Expr -> Runtime JSVal
 purePrefix f e = runExprStmt e >>= getValue >>= f
 
 
+-- ref 7.8.5
+makeRegularExpression :: String -> String -> Runtime JSVal
+makeRegularExpression body flags = runExprStmt (NewExpr (ReadVar "RegExp") [ (Str body), (Str flags) ])
 
 -- ref 11.1.5
 makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal

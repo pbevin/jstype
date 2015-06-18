@@ -25,6 +25,7 @@ makeStringClass = do
     >>= addMethod "toLowerCase"  0 toLowerCase
     >>= addMethod "toUpperCase"  0 toUpperCase
     >>= addMethod "replace"      2 replace
+    >>= addMethod "search"       1 search
 
   functionObject "String" stringPrototype
     >>= setCallMethod strFunction
@@ -129,8 +130,20 @@ replace this args =
             replacement <- toString result
             return . VStr . T.unpack $ T.concat [before, T.pack replacement, after]
 
-findOnce :: Text -> Text -> Maybe (Text, Text, Text)
-findOnce needle haystack = case post of
-  "" -> Nothing
-  _  -> Just (pre, needle, T.drop (T.length needle) post)
-  where (pre, post) = T.breakOn needle haystack
+  where
+    findOnce :: Text -> Text -> Maybe (Text, Text, Text)
+    findOnce needle haystack = case post of
+      "" -> Nothing
+      _  -> Just (pre, needle, T.drop (T.length needle) post)
+      where (pre, post) = T.breakOn needle haystack
+
+search :: JSFunction
+search this args = do
+  let regexp = first1 args
+  string <- toString this
+  return (VStr string)
+  -- rx <- toRegexp regexp
+
+
+
+

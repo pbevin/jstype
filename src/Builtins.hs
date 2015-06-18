@@ -5,21 +5,27 @@ import Control.Arrow
 import Text.Printf
 import Safe
 import Runtime
-import Builtins.Date
-import Builtins.Number
-import Builtins.Boolean
-import Builtins.String
 import Builtins.Array
+import Builtins.String
+import Builtins.Boolean
+import Builtins.Number
 import Builtins.Math
+import Builtins.Date
+import Builtins.RegExp
 
 configureBuiltins :: Shared JSObj -> Runtime ()
 configureBuiltins obj = do
   prototype <- getGlobalObjectPrototype
 
-  string <- makeStringClass
-  boolean <- makeBooleanClass
-  number <- makeNumberClass
-  array <- makeArrayClass
+  array     <- makeArrayClass     -- 15.4
+  string    <- makeStringClass    -- 15.5
+  boolean   <- makeBooleanClass   -- 15.6
+  number    <- makeNumberClass    -- 15.7
+  math      <- mathObject         -- 15.8
+  date      <- makeDateClass      -- 15.9
+  regexp    <- makeRegExpClass    -- 15.10
+  json      <- newObject          -- 15.12
+    >>= addMethod      "stringify"           1 jsonStringify
 
   errorPrototype <- newObject
     >>= setClass       "Error"
@@ -37,23 +43,6 @@ configureBuiltins obj = do
   syntaxError    <- errorSubtype "SyntaxError"    ( VObj errorPrototype )
   typeError      <- errorSubtype "TypeError"      ( VObj errorPrototype )
   uriError       <- errorSubtype "URIError"       ( VObj errorPrototype )
-
-  date <- makeDateClass
-
-  math <- mathObject
-  json <- newObject
-    >>= addMethod      "stringify"           1 jsonStringify
-
-  regexpPrototype <- newObject
-    >>= objSetPrototype prototype
-    >>= setClass       "RegExp"
-    >>= addMethod      "exec"                1 regexpExec
-
-  regexp <- newObject
-    >>= setClass "Function"
-    >>= setCallMethod (regexpFunction regexpPrototype)
-    >>= setCstrMethod regexpConstructor
-    >>= addOwnProperty "prototype" (VObj regexpPrototype)
 
   console <- newObject
     >>= addMethod      "log"                 1 jsConsoleLog
@@ -103,19 +92,3 @@ errorSubtype name parentPrototype = do
 
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
-
-functionIsConstructor :: JSFunction -> Shared JSObj -> JSFunction
-functionIsConstructor cstr proto _this args = do
-  this <- newObject >>= objSetPrototype proto
-  cstr (VObj this) args
-
-regexpFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
-regexpFunction = functionIsConstructor regexpConstructor
-
-regexpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-regexpConstructor this _ = case this of
-  VObj objRef -> VObj <$> (setClass "RegExp" objRef)
-
--- ref 15.10.6.2, incomplete
-regexpExec :: JSVal -> [JSVal] -> Runtime JSVal
-regexpExec _ _ = return VNull
