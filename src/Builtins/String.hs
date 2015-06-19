@@ -65,19 +65,22 @@ stringToString this _args = do
     VObj obj -> objGetPrimitive obj
     _        -> raiseTypeError "Bad type in String.prototype.toString()"
 
--- ref 15.5.4.4, incomplete
+-- ref 15.5.4.4
 charAt :: JSFunction
-charAt this args =
+charAt = charAtMethod "charAt" (VStr . replicate 1)
+
+-- ref 15.5.4.5
+charCodeAt :: JSFunction
+charCodeAt = charAtMethod "charCodeAt" (VNum . fromIntegral . ord)
+
+charAtMethod :: String -> (Char -> JSVal) -> JSFunction
+charAtMethod name f this args =
   let pos = first1 args
   in do
-    checkObjectCoercible "String.prototype.charAt called on" this
+    checkObjectCoercible ("String.prototype." ++ name ++ " called on") this
     str <- toString this
     position <- toInt pos
-    return $ maybe VUndef charToStr $ atMay str position
-      where charToStr ch = VStr [ch]
-
-charCodeAt :: JSFunction
-charCodeAt _this _args = return VUndef
+    return $ maybe VUndef f $ atMay str position
 
 indexOf :: JSFunction
 indexOf _this _args = return VUndef
