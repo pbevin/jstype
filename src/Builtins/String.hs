@@ -73,20 +73,20 @@ stringToString this _args = do
 
 -- ref 15.5.4.4
 charAt :: JSFunction
-charAt = charAtMethod "charAt" (VStr . replicate 1)
+charAt = charAtMethod "charAt" (VStr . maybe "" (replicate 1))
 
 -- ref 15.5.4.5
 charCodeAt :: JSFunction
-charCodeAt = charAtMethod "charCodeAt" (VNum . fromIntegral . ord)
+charCodeAt = charAtMethod "charCodeAt" $ maybe (VNum jsNaN) (VNum . fromIntegral . ord)
 
-charAtMethod :: String -> (Char -> JSVal) -> JSFunction
+charAtMethod :: String -> (Maybe Char -> JSVal) -> JSFunction
 charAtMethod name f this args =
   let pos = first1 args
   in do
     checkObjectCoercible ("String.prototype." ++ name ++ " called on") this
     str <- toString this
     position <- toInt pos
-    return $ maybe VUndef f $ atMay str position
+    return . f . atMay str $ position
 
 indexOf :: JSFunction
 indexOf _this _args = return VUndef

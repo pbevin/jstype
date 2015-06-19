@@ -41,3 +41,11 @@ spec = do
 
     it "converts a string to regexp" $ do
       jsEvalExpr "'test string'.search('s.*s')" `shouldReturn` VNum 2
+
+  describe "String.prototype.charAt" $ do
+    it "returns a single character" $ do
+      jsEvalExpr "'abc'.charAt(2)" `shouldReturn` VStr "c"
+
+    it "returns the empty string when out of range" $ do
+      jsEvalExpr "'abc'.charAt(3)" `shouldReturn` VStr ""
+      jsEvalExpr "'abc'.charAt(-1)" `shouldReturn` VStr ""
