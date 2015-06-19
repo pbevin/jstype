@@ -4,7 +4,7 @@ import Text.Parsec hiding (many, optional, (<|>), crlf)
 import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
-import Data.Char (isSpace, chr, digitToInt)
+import Data.Char (isSpace, chr, ord, digitToInt)
 import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
@@ -157,7 +157,7 @@ np = lexeme (octalNumber <|> hexNumber <|> numberWithoutDecimal <|> numberWithDe
 
 -- ref 7.8.4
 quotedString :: JSParser String
-quotedString =
+quotedString = mapToUtf16 <$>
   ifInDirectivePrologue (doubleQuotedString fst <|> singleQuotedString fst)
                         (doubleQuotedString snd <|> singleQuotedString snd)
 
@@ -230,3 +230,12 @@ unicodeIdentifierEscape = do
   ch <- unicodeEscape
   guard $ ch `elem` identLetter
   return ch
+
+mapToUtf16 :: String -> String
+mapToUtf16 = concatMap toUtf16
+  where
+    toUtf16 :: Char -> String
+    toUtf16 ch
+      | ord ch <= 0xFFFF = [ch]
+      | otherwise        = [chr $ 0xD800 + a, chr $ 0xDC00 + b]
+        where (a, b) = (ord ch - 0x10000) `divMod` 1024

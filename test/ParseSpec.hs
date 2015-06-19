@@ -564,6 +564,10 @@ spec = do
     it "refuses to parse a number in strict mode" $ do
       unparseableInStrictMode "010"
 
+  describe "String parsing" $ do
+    it "splits chars outside the BMP (> 0xFFFF) into two UTF-16 characters" $ do
+      parseExpr "'\x104A0'" `shouldBe` Str "\xD801\xDCA0"
+
   describe "Regular expression parsing" $ do
     it "parses regular expression literals" $ do
       parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"
