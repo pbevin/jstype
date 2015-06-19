@@ -38,14 +38,6 @@ runProg (Program strictness stmts) = do
       st <- getStackTrace v
       throwError $ JSError (VStr msg, st)
 
-    getStackTrace :: JSVal -> Runtime [SrcLoc]
-    getStackTrace (VObj obj) = do
-      st <- objGet "stack" obj
-      return $ case st of
-        VStacktrace s -> s
-        _ -> []
-    getStackTrace _ = return []
-
 -- ref 12.1
 runStmts :: [Statement] -> Runtime StmtReturn
 runStmts = runStmt . desugar

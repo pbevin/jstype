@@ -48,31 +48,31 @@ configureBuiltins obj = do
     >>= addMethod      "log"                 1 jsConsoleLog
 
   addMethod            "escape"              1 objEscape obj
-    >>= addMethod      "eval"                1 objEval      
-    >>= addMethod      "isNaN"               1 objIsNaN     
-    >>= addMethod      "isFinite"            1 objIsFinite  
-    >>= addMethod      "parseInt"            1 parseInt     
-    >>= addMethod      "parseFloat"          1 parseFloat   
-    >>= addOwnProperty "console"        ( VObj console          ) 
-    >>= addOwnProperty "String"         ( VObj string           ) 
-    >>= addOwnProperty "Number"         ( VObj number           ) 
-    >>= addOwnProperty "Boolean"        ( VObj boolean          ) 
-    >>= addOwnProperty "Array"          ( VObj array            ) 
-    >>= addOwnProperty "Date"           ( VObj date             ) 
-    >>= addOwnProperty "RegExp"         ( VObj regexp           ) 
-    >>= addOwnProperty "Error"          ( VObj errorObj         ) 
-    >>= addOwnProperty "EvalError"      ( VObj evalError        ) 
-    >>= addOwnProperty "RangeError"     ( VObj rangeError       ) 
-    >>= addOwnProperty "ReferenceError" ( VObj referenceError   ) 
-    >>= addOwnProperty "SyntaxError"    ( VObj syntaxError      ) 
-    >>= addOwnProperty "TypeError"      ( VObj typeError        ) 
-    >>= addOwnProperty "URIError"       ( VObj uriError         ) 
-    >>= addOwnProperty "Math"           ( VObj math             ) 
-    >>= addOwnProperty "JSON"           ( VObj json             ) 
-    >>= addOwnConstant "Infinity"       ( VNum $ 1 / 0          ) 
-    >>= addOwnConstant "NaN"            ( VNum $ jsNaN          ) 
-    >>= addOwnConstant "undefined"      ( VUndef                ) 
-    >>= addOwnConstant "null"           ( VNull                 ) 
+    >>= addMethod      "eval"                1 (objEval IndirectEvalCall)
+    >>= addMethod      "isNaN"               1 objIsNaN
+    >>= addMethod      "isFinite"            1 objIsFinite
+    >>= addMethod      "parseInt"            1 parseInt
+    >>= addMethod      "parseFloat"          1 parseFloat
+    >>= addOwnProperty "console"        ( VObj console          )
+    >>= addOwnProperty "String"         ( VObj string           )
+    >>= addOwnProperty "Number"         ( VObj number           )
+    >>= addOwnProperty "Boolean"        ( VObj boolean          )
+    >>= addOwnProperty "Array"          ( VObj array            )
+    >>= addOwnProperty "Date"           ( VObj date             )
+    >>= addOwnProperty "RegExp"         ( VObj regexp           )
+    >>= addOwnProperty "Error"          ( VObj errorObj         )
+    >>= addOwnProperty "EvalError"      ( VObj evalError        )
+    >>= addOwnProperty "RangeError"     ( VObj rangeError       )
+    >>= addOwnProperty "ReferenceError" ( VObj referenceError   )
+    >>= addOwnProperty "SyntaxError"    ( VObj syntaxError      )
+    >>= addOwnProperty "TypeError"      ( VObj typeError        )
+    >>= addOwnProperty "URIError"       ( VObj uriError         )
+    >>= addOwnProperty "Math"           ( VObj math             )
+    >>= addOwnProperty "JSON"           ( VObj json             )
+    >>= addOwnConstant "Infinity"       ( VNum $ 1 / 0          )
+    >>= addOwnConstant "NaN"            ( VNum $ jsNaN          )
+    >>= addOwnConstant "undefined"      ( VUndef                )
+    >>= addOwnConstant "null"           ( VNull                 )
 
   return ()
 

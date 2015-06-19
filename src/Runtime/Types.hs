@@ -270,7 +270,7 @@ data JSGlobal = JSGlobal {
   globalNextID    :: Int,
   globalObject    :: Maybe (Shared JSObj),
   globalObjectPrototype :: Maybe (Shared JSObj),
-  globalEvaluator :: Maybe (String -> Runtime StmtReturn),
+  globalEvaluator :: Maybe (EvalCallType -> String -> Runtime StmtReturn),
   globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
   globalEnvironment :: Maybe (Shared LexEnv),
   globalContext   :: Maybe JSCxt
@@ -287,8 +287,8 @@ raiseProtoError :: ErrorType -> String -> Runtime a
 raiseProtoError t msg = throwError $ JSProtoError (t, msg)
 
 data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
-
 data PrimitiveHint = HintNone | HintNumber | HintString deriving (Show, Eq)
+data EvalCallType = DirectEvalCall | IndirectEvalCall deriving (Show, Eq)
 
 debug :: Show a => a -> Runtime a
 debug a = do

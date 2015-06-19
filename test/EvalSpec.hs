@@ -352,6 +352,10 @@ spec = do
       runJStr "try { eval(\"'use strict'; a = 1;\") } catch (e) { console.log('ok'); if (e instanceof ReferenceError) { console.log(e.message); } }"
         `shouldReturn` Right "ok\na is not defined\n"
 
+    it "uses a different context when called indirectly" $ do
+      runJStr "var a = 1; function f() { var eval1 = eval, a = 2; console.log(eval('a'), eval1('a')) }; f();"
+        `shouldReturn` Right "2 1\n"
+
   describe "Boolean" $ do
     it "can be called as a function" $ do
       jsEvalExpr "Boolean(true)" `shouldReturn` VBool True

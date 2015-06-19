@@ -8,10 +8,11 @@ import Expr
 
 type SourceName = String
 type SourceCode = String
-jsEvalCode :: String -> Runtime StmtReturn
-jsEvalCode str = do
+jsEvalCode :: EvalCallType -> String -> Runtime StmtReturn
+jsEvalCode callType str = do
   global <- get
-  maybe (raiseError "Global evaluator not set up") ($ str) (globalEvaluator global)
+  maybe (raiseError "Global evaluator not set up") eval (globalEvaluator global)
+    where eval f = f callType str
 
 jsRunStmts :: [Statement] -> Runtime StmtReturn
 jsRunStmts stmts = do

@@ -357,16 +357,26 @@ rethrowWithStack v = do
     _ -> return []
   throwError $ JSError (v, stack)
 
+getStackTrace :: JSVal -> Runtime [SrcLoc]
+getStackTrace (VObj obj) = do
+  st <- objGet "stack" obj
+  return $ case st of
+    VStacktrace s -> s
+    _ -> []
+getStackTrace _ = return []
+
 -- ref 15.1.2.1
-objEval :: JSFunction
-objEval _this args = case args of
+objEval :: EvalCallType -> JSFunction
+objEval callType _this args = case args of
   [] -> return VUndef
   (prog:_) -> do
     text <- toString prog
-    result <- jsEvalCode text
+    result <- jsEvalCode callType text
     case result of
-      CTNormal (Just v)     -> return v
-      CTThrow  (Just v)     -> throwError $ JSError (v, []) -- XXXX
+      CTNormal (Just v) -> return v
+      CTThrow  (Just v) -> do
+        stackTrace <- getStackTrace v
+        throwError $ JSError (v, stackTrace)
       _ -> return VUndef
 
 -- ref 15.1.2.2
@@ -496,9 +506,12 @@ callFunction :: JSVal -> [JSVal] -> Runtime JSVal
 callFunction ref argList = do
   cxt <- getGlobalContext
   func <- getValue ref
-  assertFunction name callMethod func
   thisValue <- computeThisValue cxt ref
-  objCall func thisValue argList
+  case evalCallType ref func of
+    DirectEvalCall -> objEval DirectEvalCall thisValue argList
+    _              -> do
+      assertFunction name callMethod func
+      objCall func thisValue argList
 
   where
     computeThisValue cxt v = case v of
@@ -530,6 +543,12 @@ assertFunction name m val =
     _ -> error "is not a function"
 
   where error reason = raiseTypeError $ unwords [name, reason]
+
+-- ref 15.1.2.1.1
+evalCallType :: JSVal -> JSVal -> EvalCallType
+evalCallType (VRef (JSRef (VEnv env) "eval" _)) (VNative "eval" _ _) = DirectEvalCall
+evalCallType _ _                                                     = IndirectEvalCall
+
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)

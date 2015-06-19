@@ -65,18 +65,19 @@ toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
 toRuntimeError e = error $ "Runtime did not convert error to string: " ++ show e
 
-evalCode :: String -> Runtime StmtReturn
-evalCode text = do
+evalCode :: EvalCallType -> String -> Runtime StmtReturn
+evalCode callType text = do
   currentStrictness <- return . cxtStrictness =<< getGlobalContext
   case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
-    Right prog -> runInEvalContext prog
+    Right prog -> runInEvalContext callType prog
 
 -- ref 10.4.2
-runInEvalContext :: Program -> Runtime StmtReturn
-runInEvalContext (Program strictness stmts) = do
-      newCxt <- maybeNewContext strictness =<< getGlobalContext -- 3
-      withNewContext newCxt $ do                                -- 4
+runInEvalContext :: EvalCallType -> Program -> Runtime StmtReturn
+runInEvalContext callType (Program strictness stmts) = do
+      let cxt = if callType == DirectEvalCall then getGlobalContext else initialCxt
+      newCxt <- maybeNewContext strictness =<< cxt
+      withNewContext newCxt $ do
         performDBI DBIEval strictness stmts
         withStrictness strictness (runStmts stmts)
 
@@ -99,7 +100,7 @@ runtime p = do
 runtime' :: Runtime a -> IO (Either JSError a)
 runtime' p = runtime (initGlobals evalCode >> p)
 
-initGlobals :: (String -> Runtime StmtReturn) -> Runtime ()
+initGlobals :: (EvalCallType -> String -> Runtime StmtReturn) -> Runtime ()
 initGlobals evalCode = do
   objProto <- createGlobalObjectPrototype
   modify $ \st -> st { globalObjectPrototype = Just objProto }
