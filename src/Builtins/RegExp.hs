@@ -35,7 +35,9 @@ regExpFunction _this args =
     case (r, flags) of
       (VRegExp{}, VUndef) -> return pattern
       _                   -> do
+        prototype <- objFindPrototype "RegExp"
         this <- newObject
+           >>= objSetPrototype prototype
         regExpConstructor (VObj this) args
 
 regExpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
@@ -63,7 +65,7 @@ regExpConstructor this args =
 
 
 regExpExec, regExpTest, regExpToString :: JSFunction
-regExpExec = error "regExpExec"
+regExpExec _ _ = return VNull
 regExpTest = error "regExpTest"
 regExpToString this _args = do
   VRegExp p f <- getPrimitiveRegex this
