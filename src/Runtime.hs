@@ -108,8 +108,22 @@ objFunction _this args =
      then VObj <$> newObject
      else VObj <$> toObject (head args)
 
+-- ref 15.2.2.1
 objConstructor :: JSVal -> [JSVal] -> Runtime JSVal
-objConstructor _this _args = VObj <$> newObject
+objConstructor _this args = let v = first1 args in do
+  case v of
+    VObj _ -> return v
+    VNull  -> makeNew
+    VUndef -> makeNew
+    _      -> VObj <$> toObject v
+  where
+    makeNew = do
+      prototype <- objFindPrototype "Object"
+      obj <- newObject
+        >>= objSetPrototype prototype
+        >>= setClass "Object"
+        >>= objSetExtensible True
+      return $ VObj obj
 
 numConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 numConstructor this args = do

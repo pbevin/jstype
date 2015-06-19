@@ -412,6 +412,12 @@ spec = do
                   "  console.log(obj.prop);" ]
       runJStr prog `shouldReturn` Right "abc\n"
 
+  describe "Object constructor" $ do
+    it "calls toObject() on primitive values" $ do
+      jsEvalExpr "new Object(42).toString()" `shouldReturn` VStr "42"
+      jsEvalExpr "new Object(42).valueOf()" `shouldReturn` VNum 42
+
+
   describe "Array" $ do
     it "is NaN when coerced to Number" $ do
       runJStr "console.log('1', +[1,2,3])" `shouldReturn` Right "1 NaN\n"
