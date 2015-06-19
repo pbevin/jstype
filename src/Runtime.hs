@@ -50,6 +50,7 @@ createGlobalObjectPrototype =
             >>= addMethod "hasOwnProperty" 1 objHasOwnProperty
             >>= addMethod "valueOf" 0 objValueOf
             >>= addMethod "isPrototypeOf" 1 objIsPrototypeOf
+            >>= addMethod "propertyIsEnumerable" 1 objPropertyIsEnumerable
 
 createGlobalThis :: Runtime (Shared JSObj)
 createGlobalThis = do
@@ -678,6 +679,14 @@ objIsPrototypeOf this args =
         v' <- objPrototype <$> deref v
         result <- findPrototype o v'
         return $ VBool result
+
+-- ref 15.2.4.7
+objPropertyIsEnumerable :: JSFunction
+objPropertyIsEnumerable this args = let v = first1 args in do
+  p <- toString v
+  o <- toObject this
+  desc <- objGetOwnProperty p o
+  return . VBool . maybe False propIsEnumerable $ desc
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
 objId (VObj (Shared _ oid)) _args = return $ VNum $ fromIntegral oid
