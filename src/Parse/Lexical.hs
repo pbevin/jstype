@@ -4,7 +4,7 @@ import Text.Parsec hiding (many, optional, (<|>), crlf)
 import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
-import Data.Char (isSpace, chr, ord, digitToInt)
+import Data.Char
 import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
@@ -28,11 +28,22 @@ parens = surround "(" ")"
 braces = surround "{" "}"
 brackets = surround "[" "]"
 
-identifierName :: JSParser Ident
-identifierName = lexeme $ (:) <$> identifierStart <*> many (identifierPart)
+unicode :: (Char -> Bool) -> JSParser Char
+unicode p = satisfy p <|> escaped
   where
-    identifierStart = oneOf identStart <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
-    identifierPart = oneOf identLetter <|> (char '\\' >> char 'u' >> unicodeIdentifierEscape)
+    escaped = do
+      char '\\'
+      char 'u'
+      ch <- unicodeEscape
+      guard (p ch)
+      return ch
+
+identifierStart, identifierPart :: Char -> Bool
+identifierStart ch = ch == '$' || ch == '_' || isLetter ch
+identifierPart  ch = identifierStart ch || isDigit ch
+
+identifierName :: JSParser Ident
+identifierName = lexeme $ (:) <$> unicode identifierStart <*> many (unicode identifierPart)
 
 identifier :: JSParser Ident
 identifier = try $ do
@@ -224,12 +235,6 @@ hexToChar = chr . fst . head . readHex
 
 octToChar :: String -> Char
 octToChar = chr . fst . head . readOct
-
-unicodeIdentifierEscape :: JSParser Char
-unicodeIdentifierEscape = do
-  ch <- unicodeEscape
-  guard $ ch `elem` identLetter
-  return ch
 
 mapToUtf16 :: String -> String
 mapToUtf16 = concatMap toUtf16

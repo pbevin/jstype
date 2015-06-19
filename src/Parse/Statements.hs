@@ -119,8 +119,7 @@ varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma)
 varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
 varAssign = do
   name <- identifier
-  ifStrict $ unless (legalIdentifier name) $ do
-    fail "Assignment of eval in strict mode"
+  ifStrict $ guard (legalIdentifier name)
   assign name <|> return (name, Nothing)
     where assign x = do
             tok "="
@@ -416,15 +415,12 @@ simple = parens expr
      <|> regexLiteral
      <|> this
      <|> literal
-     <|> num
-     <|> var
+     <|> Num <$> numericLiteral
+     <|> ReadVar <$> identifier
      <|> Str <$> quotedString
 
 this :: JSParser Expr
 this = try $ keyword "this" >> return This
-
-var :: JSParser Expr
-var = ReadVar <$> identifier
 
 arrayLiteral :: JSParser Expr
 arrayLiteral = ArrayLiteral <$> brackets arrayContents
@@ -543,9 +539,6 @@ tostr p = do
   c <- p
   return [c]
 
-
-num :: JSParser Expr
-num = Num <$> numericLiteral
 
 literal :: JSParser Expr
 literal = try $ (keyword "true"  >> return (Boolean True))

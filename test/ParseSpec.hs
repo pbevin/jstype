@@ -527,6 +527,10 @@ spec = do
       testParse "function \\u005f\\u005f\\u0066\\u0075\\u006e\\u0063(){ }"
         `shouldBe` testParse "function __func() { }"
 
+      testParse "var \\u0078 = 1" `shouldBe` testParse "var x = 1"
+      testParse "var \\u0418 = 1" `shouldBe`
+        Program NotStrict [ VarDecl s [("И", Just $ Num 1)] ]
+
   describe "Punctuation" $ do
     it "cannot be made of unicode" $ do
       unparseable "\\u007B\\u007D"
