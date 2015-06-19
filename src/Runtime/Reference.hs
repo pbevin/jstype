@@ -127,7 +127,7 @@ createMutableBinding n d (ObjEnvRec obj _) = void $ addOwnPropertyDescriptor n (
 -- ref 10.2.1.2.3
 setMutableBinding :: Ident -> JSVal -> Bool -> EnvRec -> Runtime ()
 setMutableBinding name val d (DeclEnvRec m) = modifyRef m (propMapInsert' name (dataPD val True True True) d)
-setMutableBinding name val d (ObjEnvRec obj _) = void $ addOwnPropertyDescriptor name (dataPD val True True d) obj
+setMutableBinding name val d (ObjEnvRec obj _) = void $ objPut name val d obj
 
 -- ref 10.2.1.1.4
 -- ref 10.2.1.2.4
