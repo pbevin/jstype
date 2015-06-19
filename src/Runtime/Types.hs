@@ -181,6 +181,9 @@ instance Eq JSVal where
   VObj a == VObj b               = a == b
   VBool a == VBool b             = a == b
   VNative a _ _ == VNative b _ _ = a == b -- XXX
+  VUndef == VUndef               = True
+  VNull == VNull                 = True
+  VRegExp a b == VRegExp a' b'   = a == a' && b == b'
   _a == _b = False
 
 

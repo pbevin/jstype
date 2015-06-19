@@ -27,6 +27,7 @@ makeRegExpClass = do
 
   return obj
 
+-- ref 15.10.3.1
 regExpFunction :: JSFunction
 regExpFunction _this args =
   let (pattern, flags) = first2 args
@@ -40,28 +41,54 @@ regExpFunction _this args =
            >>= objSetPrototype prototype
         regExpConstructor (VObj this) args
 
+-- ref 15.10.4.1
 regExpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 regExpConstructor this args =
   let (pattern, flags) = first2 args
-      initializeObject obj p f = do
-        prototype <- objFindPrototype "RegExp"
-        setClass "RegExp" obj
-          >>= objSetPrimitive (VRegExp p $ flagsToString f)
-          >>= addOwnProperty "prototype" (VObj prototype)
-          >>= addOwnProperty "source" (VStr p)
-          >>= addOwnProperty "global" (VBool $ global f)
-          >>= addOwnProperty "ignoreCase" (VBool $ ignoreCase f)
-          >>= addOwnProperty "multiline" (VBool $ multiline f)
-        return $ VObj obj
   in case this of
     VObj objRef -> do
-      p <- toString pattern
-      f <- parseFlags <$> toString flags
+      obj <- objectWithClass "RegExp" pattern
+      (p, f) <- case obj of
+        Nothing -> makeRE pattern flags
+        Just obj ->
+          case flags of
+            VUndef -> do
+              v <- objPrimitiveValue <$> deref (toObj pattern)
+              case v of
+                Just (VRegExp p f) -> return (p, parseFlags f)
+                _                  -> makeRE pattern flags
+            _ -> raiseTypeError ("copying RegExp with " ++ show flags)
+
       maybe (raiseSyntaxError "Bad RegExp flags") (initializeObject objRef p) f
     _ -> raiseTypeError "Bad type for RegExp constructor"
 
+  where
+    initializeObject :: Shared JSObj -> String -> RegExpFlags -> Runtime JSVal
+    initializeObject obj p f = do
+      prototype <- objFindPrototype "RegExp"
+      setClass "RegExp" obj
+        >>= objSetPrimitive (VRegExp p $ flagsToString f)
+        >>= addOwnProperty "prototype"  (VObj prototype)
+        >>= addOwnProperty "source"     (VStr p)
+        >>= addOwnProperty "global"     (VBool $ global f)
+        >>= addOwnProperty "ignoreCase" (VBool $ ignoreCase f)
+        >>= addOwnProperty "multiline"  (VBool $ multiline f)
+      return $ VObj obj
 
+objectWithClass :: String -> JSVal -> Runtime (Maybe (Shared JSObj))
+objectWithClass name val = case val of
+  VObj obj -> do
+    cls <- objClass <$> deref obj
+    if cls == name
+    then return . Just $ obj
+    else return Nothing
+  _ -> return Nothing
 
+makeRE :: JSVal -> JSVal -> Runtime (String, Maybe RegExpFlags)
+makeRE pattern flags = do
+  p <- toString pattern
+  f <- toString flags
+  return (p, parseFlags f)
 
 
 regExpExec, regExpTest, regExpToString :: JSFunction

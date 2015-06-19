@@ -8,6 +8,13 @@ import Eval
 spec :: Spec
 spec = do
   describe "RegExp constructor" $ do
+    it "copies pattern and flags from an existing regexp" $ do
+      jsEvalExpr "new RegExp(/abc/g).source" `shouldReturn` VStr "abc"
+      jsEvalExpr "new RegExp(/abc/g).global" `shouldReturn` VBool True
+      jsEvalExpr "new RegExp(/abc/g).multiline" `shouldReturn` VBool False
+      jsEvalExpr "new RegExp(/abc/g).ignoreCase" `shouldReturn` VBool False
+      jsEvalExpr "new RegExp(/abc/g).toString()" `shouldReturn` VStr "/abc/g"
+
     it "sets the source" $ do
       jsEvalExpr "/abc/.source" `shouldReturn` VStr "abc"
       jsEvalExpr "/(.*)/.source" `shouldReturn` VStr "(.*)"
@@ -27,4 +34,3 @@ spec = do
     it "returns the flags in toString()" $ do
       jsEvalExpr "/abc/mgi.toString()" `shouldReturn` VStr "/abc/gim"
       jsEvalExpr "/abc/g.toString()" `shouldReturn` VStr "/abc/g"
-
