@@ -1,7 +1,6 @@
 module Runtime.Reference where
 
 import Control.Monad.Except
-import Control.Monad.Trans.Either
 import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Object
