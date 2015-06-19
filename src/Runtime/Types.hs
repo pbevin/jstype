@@ -7,7 +7,6 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Text.Show.Functions
-import Text.Regex.PCRE
 import qualified Data.Map as M
 import Data.Maybe
 import Data.IORef
@@ -25,7 +24,7 @@ data JSVal = VNum JSNum
            | VNative String Int (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv EnvRec
-           | VRegExp String String Regex
+           | VRegExp String String
 
 instance Show JSVal where
   show (VNum a)         = "VNum " ++ show a
@@ -38,7 +37,7 @@ instance Show JSVal where
   show (VNative n _ _)  = "VNative " ++ n
   show (VStacktrace st) = "VStacktrace " ++ show st
   show (VEnv env)       = "VEnv " ++ show env
-  show (VRegExp p f _)  = "VRegExp " ++ show p ++ " " ++ show f
+  show (VRegExp p f)    = "VRegExp " ++ show p ++ " " ++ show f
 
 isObj :: JSVal -> Bool
 isObj (VObj _) = True

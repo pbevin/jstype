@@ -3,7 +3,7 @@
 module Builtins.RegExp where
 
 import Control.Monad.Except
-import Text.Regex.PCRE.String
+import Text.Regex.Posix
 import Runtime
 
 makeRegExpClass :: Runtime (Shared JSObj)
@@ -34,40 +34,65 @@ regExpFunction _this args =
     r <- getPrimitiveRegex pattern `catchError` const (return pattern)
     case (r, flags) of
       (VRegExp{}, VUndef) -> return pattern
-      otherwise -> do
+      _                   -> do
         this <- newObject
         regExpConstructor (VObj this) args
 
 regExpConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 regExpConstructor this args =
   let (pattern, flags) = first2 args
+      initializeObject obj p f = do
+        prototype <- objFindPrototype "RegExp"
+        setClass "RegExp" obj
+          >>= objSetPrimitive (VRegExp p $ flagsToString f)
+          >>= addOwnProperty "prototype" (VObj prototype)
+          >>= addOwnProperty "source" (VStr p)
+          >>= addOwnProperty "global" (VBool $ global f)
+          >>= addOwnProperty "ignoreCase" (VBool $ ignoreCase f)
+          >>= addOwnProperty "multiline" (VBool $ multiline f)
+        return $ VObj obj
   in case this of
-
     VObj objRef -> do
       p <- toString pattern
-      liftIO (compile 0 0 p) >>= \case
-        Left (_offset, err) -> raiseSyntaxError err
-        Right re -> do
-          prototype <- objFindPrototype "RegExp"
-          setClass "RegExp" objRef
-            >>= addOwnProperty "prototype" (VObj prototype)
-            >>= objSetPrimitive (VRegExp p "" re)
-
-          return $ VObj objRef
+      f <- parseFlags <$> toString flags
+      maybe (raiseSyntaxError "Bad RegExp flags") (initializeObject objRef p) f
     _ -> raiseTypeError "Bad type for RegExp constructor"
+
+
+
+
 
 regExpExec, regExpTest, regExpToString :: JSFunction
 regExpExec = error "regExpExec"
 regExpTest = error "regExpTest"
-regExpToString this args = do
-  VRegExp p f _ <- getPrimitiveRegex this
-  return . VStr $ "/" ++ p ++ "/"
+regExpToString this _args = do
+  VRegExp p f <- getPrimitiveRegex this
+  return . VStr $ "/" ++ p ++ "/" ++ f
 
 getPrimitiveRegex :: JSVal -> Runtime JSVal
 getPrimitiveRegex v =
   case v of
     VObj o ->
       objPrimitiveValue <$> deref o >>= \case
-        Just v@(VRegExp{}) -> return v
-        otherwise          -> raiseTypeError "Not a regexp"
+        Just r@(VRegExp{}) -> return r
+        _                  -> raiseTypeError "Not a regexp"
     _ -> raiseTypeError "Not a regexp"
+
+
+
+
+
+
+data RegExpFlags = RegExpFlags { global :: Bool, ignoreCase :: Bool, multiline :: Bool }
+parseFlags :: String -> Maybe RegExpFlags
+parseFlags flags = RegExpFlags <$> g <*> i <*> m
+  where g = checkFor 'g'
+        i = checkFor 'i'
+        m = checkFor 'm'
+        checkFor f = case length $ filter (== f) flags of
+          0 -> Just False
+          1 -> Just True
+          _ -> Nothing
+
+flagsToString :: RegExpFlags -> String
+flagsToString f = map fst . filter snd $ [ ('g', global f), ('i', ignoreCase f), ('m', multiline f) ]

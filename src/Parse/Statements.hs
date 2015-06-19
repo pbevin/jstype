@@ -520,7 +520,7 @@ regexLiteral = do
   return $ RegularExpression (first ++ concat rest) flags
 
 regexFirstChar, regexChar, regexBackslash, regexClass :: JSParser String
-regexFirstChar = tostr (noneOf "*\\/[\n")
+regexFirstChar = tostr (noneOf "*\\/[\n\r\x2028\x2029")
              <|> regexBackslash
              <|> regexClass
 

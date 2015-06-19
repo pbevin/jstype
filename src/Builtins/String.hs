@@ -2,9 +2,8 @@
 
 module Builtins.String where
 
-import Text.Regex.PCRE.String
+import Text.Regex.Posix ((=~), MatchOffset, MatchLength)
 import qualified Data.Text as T
-import Data.Array
 import Data.Text (Text)
 import Data.Char
 import Safe
@@ -37,7 +36,7 @@ makeStringClass = do
 
 -- ref 15.5.1.1
 strFunction :: JSFunction
-strFunction this args =
+strFunction _this args =
   let value = firstArg (VStr "") args
   in VStr <$> toString value
 
@@ -57,12 +56,14 @@ strConstructor this args =
                             >>= addOwnProperty "constructor" stringObject
                             >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
+    _ -> raiseTypeError "Bad type for String constructor"
 
 -- ref 15.5.4.2
 stringToString :: JSFunction
 stringToString this _args = do
   case this of
     VObj obj -> objGetPrimitive obj
+    _        -> raiseTypeError "Bad type in String.prototype.toString()"
 
 -- ref 15.5.4.4, incomplete
 charAt :: JSFunction
@@ -112,8 +113,8 @@ strGetOwnProperty p s = do
         VStr str <- objGetPrimitive s
         if length str <= index
         then return Nothing
-        else let s = VStr [str !! index]
-             in return $ Just $ dataPD s False False False
+        else let ch = VStr [str !! index]
+             in return $ Just $ dataPD ch False False False
 
 replace :: JSFunction
 replace this args =
@@ -147,9 +148,10 @@ search this args = do
 
   o <- toObject =<< regExpFunction VUndef [regexp]
   objPrimitiveValue <$> (deref o) >>= \case
-    Just (VRegExp _ _ re) -> do
-      liftIO (execute re string) >>= \case
-        Left err -> raiseSyntaxError (show err)
-        Right Nothing -> return (VNum $ -1)
-        Right (Just arr) -> return (VNum . fromIntegral . fst . (! 0) $ arr)
+    Just (VRegExp p _f) -> do
+      let (offset, _) = string =~ p :: (MatchOffset, MatchLength)
+      return (VNum . fromIntegral $ offset)
+
+--         Right Nothing -> return (VNum $ -1)
+--         Right (Just arr) -> return (VNum . fromIntegral . fst . (! 0) $ arr)
     _ -> raiseSyntaxError "No regexp found"

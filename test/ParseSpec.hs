@@ -211,9 +211,6 @@ spec = do
       it "parses an array literal with only elision" $ do
         parseExpr "[,,]" `shouldBe` ArrayLiteral [Nothing,Nothing]
 
-    it "parses regular expression literals" $ do
-      parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"
-
     it "parses a unary operator" $ do
       parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
@@ -566,3 +563,13 @@ spec = do
 
     it "refuses to parse a number in strict mode" $ do
       unparseableInStrictMode "010"
+
+  describe "Regular expression parsing" $ do
+    it "parses regular expression literals" $ do
+      parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"
+
+    it "does not allow a newline character in the first position" $ do
+      unparseable "/\n/i"
+      unparseable "/\r/i"
+      unparseable "/\x2028/i"
+      unparseable "/\x2029/i"
