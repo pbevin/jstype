@@ -138,8 +138,8 @@ spec = do
       unparseable "'a\\09b'"
 
     it "allows line breaks in strings when preceded by backslash" $ do
-      parseExpr "\"abc\\\ndef\"" `shouldBe` Str "abc\ndef"
-      parseExpr "'abc\\\ndef'" `shouldBe` Str "abc\ndef"
+      parseExpr "\"abc\\\ndef\"" `shouldBe` Str "abcdef"
+      parseExpr "'abc\\\ndef'" `shouldBe` Str "abcdef"
 
     it "disallows actual line breaks in strings" $ do
       unparseable "'abc\ndef'"

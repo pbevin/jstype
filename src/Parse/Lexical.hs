@@ -202,6 +202,7 @@ escapeSequence = do
 
 escape :: Char -> JSParser (String,String)
 escape ch
+  | isLineBreak ch = anyChar >>= \ch -> return (['\\', ch], "")
   | ch == '0' = try octalEscape <|> (char '0' >> lookAhead (noneOf "0123456789") >> return ("0", "\0"))
   | ch == 'u' = char 'u' >> replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
   | ch `elem` "01234567" = octalEscape
