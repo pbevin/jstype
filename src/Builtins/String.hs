@@ -5,8 +5,9 @@ module Builtins.String where
 import Text.Regex.Posix ((=~), MatchOffset, MatchLength)
 import qualified Data.Text as T
 import Data.Text (Text)
+import qualified Data.Set as S
 import Data.Maybe
-import Data.Char
+import Data.Char hiding (isSpace)
 import Safe
 import Runtime
 import Parse
@@ -180,5 +181,16 @@ trim :: JSFunction
 trim this _args = do
   checkObjectCoercible "Cannot call trim() method" this
   s <- toString this
-  return . VStr . T.unpack . T.strip . T.pack $ s
+  return . VStr . T.unpack . T.dropAround isSpace . T.pack $ s
 
+
+spaceChars :: S.Set Char
+spaceChars = S.fromList (lineBreaks ++ iso8859Spaces ++ unicodeSpaces)
+  where lineBreaks    = [ '\n', '\r', '\x2028', '\x2029' ]
+        iso8859Spaces = [ '\t', '\v', '\f', ' ', '\xa0'  ]
+        unicodeSpaces = map chr [ 0x2000..0x200a ] ++
+                        [ '\x1680', '\x180e', '\x202f' ] ++
+                        [ '\x205f', '\x3000', '\xfeff' ]
+
+isSpace :: Char -> Bool
+isSpace ch = ch `S.member` spaceChars
