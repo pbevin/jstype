@@ -121,6 +121,8 @@ toObject val = case val of
   VBool _       -> wrapPrimitive "Boolean" val
   VNum _        -> wrapPrimitive "Number" val
   VNative n l f -> wrapNative n l f
+  VNull         -> raiseProtoError TypeError "null has no properties"
+  VUndef        -> raiseProtoError TypeError "undefined has no properties"
   _             -> toString val >>= toObject . VStr
 
 wrapPrimitive :: String -> JSVal -> Runtime (Shared JSObj)
