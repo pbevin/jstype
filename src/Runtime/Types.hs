@@ -50,6 +50,10 @@ fromObj :: JSVal -> Maybe (Shared JSObj)
 fromObj (VObj v) = Just v
 fromObj _ = Nothing
 
+fromObject :: a -> (JSObj -> a) -> JSVal -> Runtime a
+fromObject _ f (VObj obj) = f <$> deref obj
+fromObject a _ _          = return a
+
 ifUndefined :: JSVal -> JSVal -> JSVal
 ifUndefined dflt VUndef = dflt
 ifUndefined _ val       = val

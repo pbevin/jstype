@@ -5,6 +5,7 @@ module Builtins.String where
 import Text.Regex.Posix ((=~), MatchOffset, MatchLength)
 import qualified Data.Text as T
 import Data.Text (Text)
+import Data.Maybe
 import Data.Char
 import Safe
 import Runtime
@@ -18,6 +19,7 @@ makeStringClass = do
     >>= setClass "String"
     >>= addMethod "constructor"  1 strConstructor
     >>= addMethod "toString"     0 stringToString
+    >>= addMethod "valueOf"      0 stringValueOf
     >>= addMethod "charAt"       1 charAt
     >>= addMethod "charCodeAt"   1 charCodeAt
     >>= addMethod "indexOf"      1 indexOf
@@ -67,9 +69,17 @@ strConstructor this args =
 -- ref 15.5.4.2
 stringToString :: JSFunction
 stringToString this _args = do
-  case this of
-    VObj obj -> objGetPrimitive obj
-    _        -> raiseTypeError "Bad type in String.prototype.toString()"
+  maybe error return =<< case this of
+   VStr _   -> return (Just this)
+   VObj obj -> objPrimitiveValue <$> deref obj >>= \case
+     Just (VStr s) -> return . Just . VStr $ s
+     _             -> return Nothing
+   _ -> return Nothing
+  where error = raiseTypeError "Bad type for String constructor"
+
+-- ref 15.5.4.3
+stringValueOf :: JSFunction
+stringValueOf = stringToString
 
 -- ref 15.5.4.4
 charAt :: JSFunction
