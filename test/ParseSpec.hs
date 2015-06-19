@@ -540,3 +540,29 @@ spec = do
         Program NotStrict [
           SwitchStatement s (ReadVar "e") $
             ([ CaseClause (Num 1) [ ExprStmt s (Assign (ReadVar "a") "=" (Num 2)), BreakStatement s Nothing ] ], Nothing, [] ) ]
+
+  describe "number parsing" $ do
+    it "can parse a decimal int" $ do
+      parseExpr "123" `shouldBe` Num 123
+
+    it "can parse a decimal with a fraction" $ do
+      parseExpr "123.456" `shouldBe` Num 123.456
+      parseExpr "0.00" `shouldBe` Num 0
+
+    it "can parse a decimal with only a fraction" $ do
+      parseExpr ".000" `shouldBe` Num 0
+      parseExpr ".001" `shouldBe` Num 0.001
+
+    it "can parse a hex number" $ do
+      map parseExpr [ "0x2e", "0x2E", "0X2e", "0X2E" ]
+        `shouldBe`  [ Num 46, Num 46, Num 46, Num 46 ]
+
+    it "does not parse a hex number without any digits" $ do
+      unparseable "0x"
+      unparseable "0X"
+
+    it "can parse an octal number" $ do
+      parseExpr "010" `shouldBe` Num 8
+
+    it "refuses to parse a number in strict mode" $ do
+      unparseableInStrictMode "010"

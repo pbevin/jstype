@@ -4,7 +4,7 @@ import Text.Parsec hiding (many, optional, (<|>), crlf)
 import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
-import Data.Char (isSpace, chr)
+import Data.Char (isSpace, chr, digitToInt)
 import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
@@ -120,21 +120,21 @@ numberText :: JSParser String
 numberText = fst <$> np
 
 np :: JSParser (String, String)
-np = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
-  where decimal  = many1 digit
+np = lexeme (octalNumber <|> hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
+  where decimalInt  = string "0" <|> (:) <$> oneOf "123456789" <*> many digit
         fracPart = do
-          dec <- char '.' >> optional decimal
+          dec <- char '.' >> optional (many1 digit)
           return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
 
-        expPart  = (:) <$> oneOf "eE" <*> plusminus decimal
+        expPart  = (:) <$> oneOf "eE" <*> plusminus (many1 digit)
 
         numberWithoutDecimal = do
-          b <- char '.' >> decimal
+          b <- char '.' >> many1 digit
           c <- fromMaybe "" <$> optional expPart
           return ('.' : (b ++ c), "0." ++ (b ++ c))
 
         numberWithDecimal = do
-          a <- decimal
+          a <- decimalInt
           mb <- optional fracPart
           c <- fromMaybe "" <$> optional expPart
           case mb of
@@ -143,8 +143,14 @@ np = lexeme (hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
 
         hexNumber = do
           a <- try $ (char '0' >> oneOf "xX")
-          b <- many hexDigit
+          b <- many1 hexDigit
           return $ dup $ '0':a:b
+
+        octalNumber = ifNotStrict $ try $ do
+          char '0' >> many1 octDigit >>= \oct -> return (oct, octToDec oct)
+
+        octToDec :: String -> String
+        octToDec = show . foldl (\x e -> 8*x + digitToInt e) 0
 
         dup x = (x,x)
         applyTo = fmap

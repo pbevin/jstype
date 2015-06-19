@@ -99,6 +99,12 @@ ifStrict p = do
     Strict -> void p
     NotStrict -> return ()
 
+ifNotStrict :: JSParser a -> JSParser a
+ifNotStrict p = do
+  getStrictness >>= \case
+    Strict    -> fail "Not allowed in strict mode"
+    NotStrict -> p
+
 failIfStrict :: JSParser ()
 failIfStrict = ifStrict (fail "")
 
