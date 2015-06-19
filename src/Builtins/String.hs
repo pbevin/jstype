@@ -29,10 +29,16 @@ makeStringClass = do
     >>= addMethod "replace"      2 replace
     >>= addMethod "search"       1 search
 
-  functionObject "String" stringPrototype
+  functionPrototype <- objFindPrototype "Function"
+
+  newObject
+    >>= setClass "String"
+    >>= objSetPrototype functionPrototype
     >>= setCallMethod strFunction
     >>= setCstrMethod (strConstructor)
     >>= addMethod "fromCharCode" 1 fromCharCode
+    >>= addOwnConstant "length" (VNum 1)
+    >>= addOwnConstant "prototype" (VObj stringPrototype)
 
 -- ref 15.5.1.1
 strFunction :: JSFunction
@@ -51,8 +57,8 @@ strConstructor this args =
       str <- toString value
       setClass "String" obj >>= objSetPrototype prototype
                             >>= objSetExtensible True
-                            >>= objSetPrimitive value
-                            >>= addOwnProperty "length" (VNum $ fromIntegral $ length str)
+                            >>= objSetPrimitive (VStr str)
+                            >>= addOwnConstant "length" (VNum $ fromIntegral $ length str)
                             >>= addOwnProperty "constructor" stringObject
                             >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
