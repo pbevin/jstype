@@ -585,7 +585,7 @@ newObjectFromConstructor fun args = case fun of
         objCstr (VObj funref) (VObj obj) args >>= \case
           VObj o -> return o
           _ -> return obj
-      _ -> raiseError $ "Can't invoke constructor " ++ name
+      _ -> raiseProtoError TypeError $ "Can't invoke constructor " ++ name
     fromObj :: Maybe (PropDesc JSVal) -> Runtime (Maybe (Shared JSObj))
     fromObj Nothing = return Nothing
     fromObj (Just desc) = do
