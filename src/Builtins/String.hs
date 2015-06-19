@@ -30,6 +30,7 @@ makeStringClass = do
     >>= addMethod "toUpperCase"  0 toUpperCase
     >>= addMethod "replace"      2 replace
     >>= addMethod "search"       1 search
+    >>= addMethod "trim"         0 trim
 
   functionPrototype <- objFindPrototype "Function"
 
@@ -160,6 +161,7 @@ replace this args =
       _  -> Just (pre, needle, T.drop (T.length needle) post)
       where (pre, post) = T.breakOn needle haystack
 
+-- ref 15.5.4.12
 search :: JSFunction
 search this args = do
   let regexp = first1 args
@@ -170,7 +172,13 @@ search this args = do
     Just (VRegExp p _f) -> do
       let (offset, _) = string =~ p :: (MatchOffset, MatchLength)
       return (VNum . fromIntegral $ offset)
-
---         Right Nothing -> return (VNum $ -1)
---         Right (Just arr) -> return (VNum . fromIntegral . fst . (! 0) $ arr)
     _ -> raiseSyntaxError "No regexp found"
+
+
+-- ref 15.5.4.20
+trim :: JSFunction
+trim this _args = do
+  checkObjectCoercible "Cannot call trim() method" this
+  s <- toString this
+  return . VStr . T.unpack . T.strip . T.pack $ s
+
