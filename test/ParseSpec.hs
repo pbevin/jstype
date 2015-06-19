@@ -454,6 +454,9 @@ spec = do
       testParse "Number[\t'PI'\t]" `shouldBe` testParse "Number['PI']"
 
   describe "Strict mode" $ do
+    it "disallows the with statement" $ do
+      unparseableInStrictMode "with(obj) { }"
+
     it "disallows modifications of eval and arguments" $ do
       unparseableInStrictMode "++eval"
       unparseableInStrictMode "--eval"

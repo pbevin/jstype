@@ -139,8 +139,8 @@ returnStmt = ifInsideFunction $ do
                         else pure Nothing
 
 withStmt :: JSParser Statement
-withStmt = keyword "with" >>
-             WithStatement <$> srcLoc <*> parens expr <*> statement
+withStmt = ifNotStrict $
+  keyword "with" >> WithStatement <$> srcLoc <*> parens expr <*> statement
 
 switchStmt :: JSParser Statement
 switchStmt = keyword "switch" >>
