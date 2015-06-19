@@ -27,6 +27,8 @@ makeStringClass = do
     >>= addMethod "lastIndexOf"  1 lastIndexOf
     >>= addMethod "split"        2 split
     >>= addMethod "substring"    2 substring
+    >>= addMethod "toLocaleLowerCase"  0 toLowerCase
+    >>= addMethod "toLocaleUpperCase"  0 toUpperCase
     >>= addMethod "toLowerCase"  0 toLowerCase
     >>= addMethod "toUpperCase"  0 toUpperCase
     >>= addMethod "replace"      2 replace
@@ -112,11 +114,19 @@ split _this _args = return VUndef
 substring :: JSFunction
 substring _this _args = return VUndef
 
+-- ref 15.5.4.16
 toLowerCase :: JSFunction
-toLowerCase _this _args = return VUndef
+toLowerCase = withT T.toLower
 
+-- ref 15.5.4.18
 toUpperCase :: JSFunction
-toUpperCase _this _args = return VUndef
+toUpperCase = withT T.toUpper
+
+withT :: (T.Text -> T.Text) -> JSFunction
+withT f this _args = do
+  checkObjectCoercible "Cannot get string value" this
+  s <- toString this
+  return . VStr . T.unpack . f . T.pack $ s
 
 fromCharCode :: JSFunction
 fromCharCode _this args = VStr . map (chr . fromIntegral) <$> mapM toUInt16 args
