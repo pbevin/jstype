@@ -49,3 +49,13 @@ spec = do
     it "returns the empty string when out of range" $ do
       jsEvalExpr "'abc'.charAt(3)" `shouldReturn` VStr ""
       jsEvalExpr "'abc'.charAt(-1)" `shouldReturn` VStr ""
+
+
+  describe "String.prototype.lastIndexOf" $ do
+    it "finds the rightmost match if one exists" $ do
+      jsEvalExpr "'abcabc'.lastIndexOf('b')" `shouldReturn` VNum 4
+      jsEvalExpr "'abcabc'.lastIndexOf('a')" `shouldReturn` VNum 3
+      jsEvalExpr "'abcabc'.lastIndexOf('cab')" `shouldReturn` VNum 2
+
+    it "returns -1 if it does not find a match" $ do
+      jsEvalExpr "'abcabc'.lastIndexOf('x')" `shouldReturn` VNum (-1)

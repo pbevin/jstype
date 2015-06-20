@@ -7,7 +7,8 @@ instance Eq JSNum where
 fromJSNum :: JSNum -> Double
 fromJSNum (JSNum a) = a
 
-jsNaN :: JSNum
+jsInfinity, jsNaN :: JSNum
+jsInfinity = JSNum (1/0)
 jsNaN = JSNum $ 0 / 0
 
 jsMaxValue :: JSNum
@@ -19,6 +20,11 @@ jsMinValue = JSNum $ minPositiveFloat 1.0
 jsInt :: Int -> JSNum
 jsInt n = JSNum (fromIntegral n)
 
+isJsNaN :: JSNum -> Bool
+isJsNaN (JSNum a) = isNaN a
+
+jsToInt :: JSNum -> Int
+jsToInt (JSNum a) = fromIntegral . round $ a
 
 instance Num JSNum where
   (JSNum a) + (JSNum b) = JSNum (a + b)

@@ -102,11 +102,42 @@ charAtMethod name f this args =
     position <- toInt pos
     return . f . atMay str $ position
 
+-- ref 15.5.4.7
 indexOf :: JSFunction
-indexOf _this _args = return VUndef
+indexOf this args = do
+  let (searchStr, position) = first2 args
+
+  checkObjectCoercible "Cannot get string value" this
+  s               <- toString this
+  searchString    <- toString searchStr
+  pos             <- toInt position
+  let len          = length s
+      start        = min (max pos 0) len
+      searchLen    = length searchString
+      needle       = T.pack searchString
+      haystack     = T.drop start (T.pack s)
+      (pre, match) = T.breakOn needle haystack
+      index        = if match == "" then -1 else start + T.length pre
+  return . VNum . fromIntegral $ index
+
 
 lastIndexOf :: JSFunction
-lastIndexOf _this _args = return VUndef
+lastIndexOf this args = do
+  let (searchStr, position) = first2 args
+
+  checkObjectCoercible "Cannot get string value" this
+  s               <- toString this
+  searchString    <- toString searchStr
+  pos0            <- toNumber position
+  let len          = length s
+      pos          = if isJsNaN pos0 then len + 1 else jsToInt pos0
+      start        = min (max pos 0) len
+      searchLen    = length searchString
+      needle       = T.pack searchString
+      haystack     = T.take start (T.pack s)
+      (pre, match) = T.breakOnEnd needle haystack
+      index        = if pre == "" then -1 else T.length pre - T.length needle
+  return . VNum . fromIntegral $ index
 
 split :: JSFunction
 split _this _args = return VUndef

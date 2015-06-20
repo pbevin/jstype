@@ -83,9 +83,6 @@ spec = do
       JSNum (-101) `fmod` JSNum (-51) `shouldBe` JSNum (-50)
 
     it "is valid for edge cases" $ do
-      let jsInfinity = JSNum (1/0)
-          jsNaN = JSNum (0/0)
-          isJsNaN (JSNum a) = isNaN a
       jsNaN `fmod` jsInfinity `shouldSatisfy` isJsNaN
       1 `fmod` (-jsInfinity) `shouldBe` 1
 
