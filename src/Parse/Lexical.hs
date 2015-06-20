@@ -9,6 +9,7 @@ import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
 import Expr
+import Unicode
 import Parse.State
 
 import Debug.Trace
@@ -73,7 +74,7 @@ comment = void parseComment
         blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
 
 whiteSpace :: JSParser ()
-whiteSpace = void $ many (lineBreak <|> void (satisfy isSpace) <|> comment)
+whiteSpace = void $ many (lineBreak <|> void (satisfy isJsSpace) <|> comment)
 
 linebreaks :: String
 linebreaks = [ '\n', '\r', '\x2028', '\x2029' ]

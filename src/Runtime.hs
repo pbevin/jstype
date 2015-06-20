@@ -25,6 +25,7 @@ import Runtime.PropDesc as X
 import Runtime.Function as X
 import Runtime.Prototype as X
 import Runtime.PropertyDescriptor as X
+import Unicode as X
 import JSNum as X
 import Parse
 import Expr
