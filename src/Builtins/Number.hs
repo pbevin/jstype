@@ -7,8 +7,9 @@ import Runtime
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do
   numberPrototype <- makePrototype "Number"
-    >>= addMethod "toFixed" 1 toFixed
-    >>= addMethod "constructor" 1 numberConstructor
+    >>= addMethod "Number.toFixed"     1 toFixed
+    >>= addMethod "Number.constructor" 1 numberConstructor
+    >>= addMethod "Number.toString"    0 numberToString
 
   functionObject "Number" numberPrototype
     >>= setCallMethod numberFunction
@@ -31,6 +32,18 @@ toFixed this args = do
   x <- toNumber this
   return $ VStr $ printf fmt (fromJSNum x)
 
+numberToString :: JSFunction
+numberToString this _args =
+  case this of
+    VNum num -> return . VStr $ show num
+    VObj obj -> do
+      cls <- objClass <$> deref obj
+      if cls == "Number"
+      then VStr . maybe "" showVal . objPrimitiveValue <$> deref obj
+      else error
+    _ -> error
+  where error = raiseTypeError "Not a number"
+
 
 numberFunction :: JSFunction
 numberFunction this args =
@@ -48,7 +61,6 @@ numberConstructor this args =
       str <- VStr <$> toString num
       setClass "Number" obj
         >>= setPrimitiveValue num
-        >>= setPrimitiveToString str
         >>= objSetPrototype prototype
       return (VObj obj)
     _ -> raiseError $ "Number constructor called with this = " ++ show this
