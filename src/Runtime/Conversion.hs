@@ -131,7 +131,7 @@ wrapPrimitive typeName val = do
   typeRef <- toObj <$> getGlobalProperty typeName
   obj <- deref typeRef
   case cstrMethod obj of
-    Nothing -> raiseProtoError TypeError "Can't create string!"
+    Nothing -> raiseProtoError TypeError $ "Can't create " ++ typeName ++ " object"
     Just cstr -> toObj <$> cstr (VObj this) [val]
 
 wrapNative :: String -> Int -> JSFunction -> Runtime (Shared JSObj)

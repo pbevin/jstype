@@ -2,12 +2,14 @@ module Builtins.Boolean (makeBooleanClass) where
 
 import Safe
 import Runtime
+import Data.Maybe
 
 
 makeBooleanClass :: Runtime (Shared JSObj)
 makeBooleanClass = do
   booleanPrototype <- makePrototype "Boolean"
     >>= addMethod "constructor" 1 booleanConstructor
+    >>= addMethod "toString"    1 booleanToString
 
   functionPrototype <- findPrototypeForClass "Function"
 
@@ -33,8 +35,17 @@ booleanConstructor this args =
       prototype <- objFindPrototype "Boolean"
       let prim = VBool (toBoolean val)
       setClass "Boolean" obj
-        >>= setPrimitiveValue prim
-        >>= setPrimitiveToString (VStr $ showVal prim)
+        >>= objSetPrimitive prim
         >>= objSetPrototype prototype
       return (VObj obj)
     _ -> raiseError $ "Boolean constructor called with this = " ++ show this
+
+
+booleanToString :: JSFunction
+booleanToString this _args = do
+  assertType TypeBoolean this
+  b <- case this of
+    VBool _ -> return this
+    VObj obj ->
+      fromMaybe (VBool False) . objPrimitiveValue <$> deref obj
+  return . VStr $ showVal b

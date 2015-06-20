@@ -66,6 +66,19 @@ isPrimitive (VNum _)  = True
 isPrimitive (VStr _)  = True
 isPrimitive _         = False
 
+assertType :: JSType -> JSVal -> Runtime ()
+assertType TypeBoolean (VBool _) = return ()
+assertType TypeString  (VStr _)  = return ()
+assertType TypeNumber  (VNum _)  = return ()
+assertType ty (VObj obj) = do
+  cls <- objClass <$> deref obj
+  case (ty, cls) of
+    (TypeBoolean, "Boolean") -> return ()
+    (TypeString, "String") -> return ()
+    (TypeNumber, "Number") -> return ()
+    _ -> raiseProtoError TypeError "Wrong type"
+
+
 data JSObj = JSObj {
   objClass :: String,
   ownProperties :: PropertyMap,

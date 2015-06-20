@@ -3,13 +3,15 @@ module Builtins.Number (makeNumberClass) where
 import Safe
 import Text.Printf
 import Runtime
+import Data.Maybe
 
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do
   numberPrototype <- makePrototype "Number"
-    >>= addMethod "Number.toFixed"     1 toFixed
-    >>= addMethod "Number.constructor" 1 numberConstructor
-    >>= addMethod "Number.toString"    0 numberToString
+    >>= addMethod "toFixed"     1 toFixed
+    >>= addMethod "constructor" 1 numberConstructor
+    >>= addMethod "toString"    0 numberToString
+    >>= addMethod "valueOf"     0 numberValueOf
 
   functionObject "Number" numberPrototype
     >>= setCallMethod numberFunction
@@ -35,11 +37,23 @@ toFixed this args = do
 numberToString :: JSFunction
 numberToString this _args =
   case this of
-    VNum num -> return . VStr $ show num
+    VNum num -> return . VStr . showVal $ this
     VObj obj -> do
       cls <- objClass <$> deref obj
       if cls == "Number"
       then VStr . maybe "" showVal . objPrimitiveValue <$> deref obj
+      else error
+    _ -> error
+  where error = raiseTypeError "Not a number"
+
+numberValueOf :: JSFunction
+numberValueOf this _args =
+  case this of
+    VNum num -> return this
+    VObj obj -> do
+      cls <- objClass <$> deref obj
+      if cls == "Number"
+      then fromMaybe (VNum 0) . objPrimitiveValue <$> deref obj
       else error
     _ -> error
   where error = raiseTypeError "Not a number"
@@ -60,7 +74,7 @@ numberConstructor this args =
       num <- VNum <$> toNumber val
       str <- VStr <$> toString num
       setClass "Number" obj
-        >>= setPrimitiveValue num
+        >>= objSetPrimitive num
         >>= objSetPrototype prototype
       return (VObj obj)
     _ -> raiseError $ "Number constructor called with this = " ++ show this

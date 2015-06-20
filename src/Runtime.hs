@@ -89,10 +89,16 @@ createGlobalThis = do
     >>= addOwnProperty "Object" (VObj object)
     >>= addOwnProperty "Function" (VObj function)
 
+-- ref 15.2.4.2
 objToString :: JSFunction
-objToString this _args = do
-  cls <- objClass <$> deref (toObj this)
-  return $ VStr ("[object " ++ cls ++ "]")
+objToString this _args =
+  case this of
+    VUndef -> return . VStr $ "[object Undefined]"
+    VNull  -> return . VStr $ "[object Null]"
+    _ -> do
+      o   <- toObject this
+      cls <- objClass <$> deref o
+      return $ VStr ("[object " ++ cls ++ "]")
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
@@ -132,7 +138,7 @@ numConstructor this args = do
                   else toNumber (head args)
   case this of
     VObj obj -> do
-      VObj <$> (setClass "Number" obj >>= setPrimitiveValue num)
+      VObj <$> (setClass "Number" obj >>= objSetPrimitive num)
     _ -> raiseError $ "numConstructor called with this = " ++ show this
 
 

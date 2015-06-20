@@ -21,3 +21,16 @@ spec = do
     it "has no enumerable properties" $
       -- test case: 8.6.1_A2
       runJStr "for (n in Number) { console.log(n); }" `shouldReturn` Right ""
+
+  describe "Number.prototype.toString()" $ do
+    it "prints an integer" $ do
+      jsEvalExpr "(42).toString()" `shouldReturn` VStr "42"
+
+    it "prints a float" $ do
+      jsEvalExpr "(42.8).toString()" `shouldReturn` VStr "42.8"
+
+    it "prints a boxed integer" $ do
+      jsEvalExpr "new Number(42).toString()" `shouldReturn` VStr "42"
+
+    it "prints a boxed float" $ do
+      jsEvalExpr "new Number(42.8).toString()" `shouldReturn` VStr "42.8"

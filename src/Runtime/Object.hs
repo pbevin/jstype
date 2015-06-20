@@ -264,15 +264,6 @@ setFormalParameters params = updateObj $ \obj -> obj { objFormalParameters = Jus
 setCode :: Program -> ObjectModifier
 setCode prog = updateObj $ \obj -> obj { objCode = Just prog }
 
-setPrimitiveValue :: JSVal -> ObjectModifier
-setPrimitiveValue = updateObj . objSetProperty "valueOf" . wrapValInNativeFunc
-  where wrapValInNativeFunc :: JSVal -> JSVal
-        wrapValInNativeFunc v = VNative "generated/valueOf" 0 $ \_this _args -> return v
-
-setPrimitiveToString :: JSVal -> ObjectModifier
-setPrimitiveToString val = updateObj $ \obj -> objSetProperty "toString" (VNative "generated/toString" 0 f) obj
-  where f _this _args = return val
-
 objSetPrototype :: Shared JSObj -> ObjectModifier
 objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just prototype }
 
