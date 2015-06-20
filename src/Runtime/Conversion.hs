@@ -11,6 +11,7 @@ import Runtime.Types
 import Runtime.Object
 import Runtime.NumberToString
 import Runtime.PropertyDescriptor
+import Runtime.Shared
 import Parse
 
 

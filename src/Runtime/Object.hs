@@ -9,6 +9,7 @@ import Control.Applicative
 import Data.Maybe
 import Runtime.Types
 import Runtime.Global
+import Runtime.Shared
 import Runtime.PropMap
 import Runtime.PropertyDescriptor
 import Expr
@@ -327,3 +328,41 @@ objFindPrototype name =
 --                                 Nothing -> return VUndef
 --                                 Just f -> f this
 --   | otherwise               = return VUndef
+
+defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
+defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
+  Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
+  Just m -> m name desc strict objRef
+
+objGet :: String -> Shared JSObj -> Runtime JSVal
+objGet p obj = do
+  getMethod <$> deref obj >>= \case
+    Nothing -> raiseError $ "No get method for " ++ show obj
+    Just f -> f p obj
+
+objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+objGetOwnProperty p obj = do
+  getOwnPropertyMethod <$> deref obj >>= \case
+    Nothing -> raiseError $ "No getOwnProperty method for " ++ show obj
+    Just f -> f p obj
+
+isCallable :: JSVal -> Runtime (Maybe JSFunction)
+isCallable (VObj obj) = callMethod <$> deref obj
+isCallable _ = return Nothing
+
+
+fromObject :: a -> (JSObj -> a) -> JSVal -> Runtime a
+fromObject _ f (VObj obj) = f <$> deref obj
+fromObject a _ _          = return a
+
+assertType :: JSType -> JSVal -> Runtime ()
+assertType TypeBoolean (VBool _) = return ()
+assertType TypeString  (VStr _)  = return ()
+assertType TypeNumber  (VNum _)  = return ()
+assertType ty (VObj obj) = do
+  cls <- objClass <$> deref obj
+  case (ty, cls) of
+    (TypeBoolean, "Boolean") -> return ()
+    (TypeString, "String") -> return ()
+    (TypeNumber, "Number") -> return ()
+    _ -> raiseProtoError TypeError "Wrong type"

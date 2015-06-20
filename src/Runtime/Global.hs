@@ -2,8 +2,10 @@ module Runtime.Global where
 
 import GHC.Stack
 import Control.Monad.State
+import qualified Data.Map as M
 import Data.Maybe
 import Runtime.Types
+import Runtime.PropMap
 import Expr
 
 type SourceName = String

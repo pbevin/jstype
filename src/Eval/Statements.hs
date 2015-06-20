@@ -367,7 +367,7 @@ evalBinaryOp op e1 e2 = do
 
 evalUnOp :: Ident -> Expr -> Runtime JSVal
 evalUnOp op e = f e
-  where 
+  where
     f = case op of
           "++"   -> modifyingOp (+ 1) (+ 1)
           "--"   -> modifyingOp (subtract 1) (subtract 1)
@@ -512,3 +512,13 @@ evalTypeof val = do
           TypeString    -> "string"
           _ -> showVal resolved
     return $ VStr result
+
+
+newEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)
+newEnv rec parent = do
+  shareLexEnv $ LexEnv rec (Just parent)
+
+newEnvRec :: Runtime EnvRec
+newEnvRec = do
+  m <- sharePropertyMap emptyPropMap
+  return (DeclEnvRec m)

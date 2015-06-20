@@ -10,6 +10,7 @@ import Runtime.Error
 import Runtime.Conversion
 import Runtime.PropMap
 import Runtime.PropertyDescriptor
+import Runtime.Shared
 import Expr
 
 -- ref 8.7.1

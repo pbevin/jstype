@@ -50,10 +50,6 @@ fromObj :: JSVal -> Maybe (Shared JSObj)
 fromObj (VObj v) = Just v
 fromObj _ = Nothing
 
-fromObject :: a -> (JSObj -> a) -> JSVal -> Runtime a
-fromObject _ f (VObj obj) = f <$> deref obj
-fromObject a _ _          = return a
-
 ifUndefined :: JSVal -> JSVal -> JSVal
 ifUndefined dflt VUndef = dflt
 ifUndefined _ val       = val
@@ -65,18 +61,6 @@ isPrimitive (VBool _) = True
 isPrimitive (VNum _)  = True
 isPrimitive (VStr _)  = True
 isPrimitive _         = False
-
-assertType :: JSType -> JSVal -> Runtime ()
-assertType TypeBoolean (VBool _) = return ()
-assertType TypeString  (VStr _)  = return ()
-assertType TypeNumber  (VNum _)  = return ()
-assertType ty (VObj obj) = do
-  cls <- objClass <$> deref obj
-  case (ty, cls) of
-    (TypeBoolean, "Boolean") -> return ()
-    (TypeString, "String") -> return ()
-    (TypeNumber, "Number") -> return ()
-    _ -> raiseProtoError TypeError "Wrong type"
 
 
 data JSObj = JSObj {
@@ -115,28 +99,6 @@ emptyObject = JSObj {
   objCode = Nothing,
   objExtensible = True
 }
-
-defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
-defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
-  Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
-  Just m -> m name desc strict objRef
-
-objGet :: String -> Shared JSObj -> Runtime JSVal
-objGet p obj = do
-  getMethod <$> deref obj >>= \case
-    Nothing -> raiseError $ "No get method for " ++ show obj
-    Just f -> f p obj
-
-objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
-objGetOwnProperty p obj = do
-  getOwnPropertyMethod <$> deref obj >>= \case
-    Nothing -> raiseError $ "No getOwnProperty method for " ++ show obj
-    Just f -> f p obj
-
-isCallable :: JSVal -> Runtime (Maybe JSFunction)
-isCallable (VObj obj) = callMethod <$> deref obj
-isCallable _ = return Nothing
-
 
 
 data JSRef = JSRef {
@@ -209,15 +171,6 @@ sameValue (VObj x) (VObj y) = x == y
 sameValue x y = x == y
 
 
-newEnv :: EnvRec -> JSEnv -> Runtime JSEnv
-newEnv rec parent = do
-  share $ LexEnv rec (Just parent)
-
-newEnvRec :: Runtime EnvRec
-newEnvRec = do
-  m <- share emptyPropMap
-  return (DeclEnvRec m)
-
 type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc])
              | JSProtoError (ErrorType, String)
@@ -235,29 +188,18 @@ data Result a = CTNormal   { rval :: Maybe a }
 
 
 -- Shared type
-type ObjID = Int
-data Shared a = Shared (IORef a) ObjID deriving Eq
+type ObjId = Int
+data Shared a = Shared {
+   g :: ObjId -> Runtime (Maybe a),
+   m :: (a->a)->ObjId -> Runtime (),
+   objid :: ObjId
+   }
 
 instance Show (Shared a) where
-  show (Shared _ objId) = "(shared #" ++ show objId ++ ")"
+  show a = "(shared #" ++ show (objid a) ++ ")"
 
-nextID :: Runtime Int
-nextID = do
-  global <- get
-  let objId = 1 + globalNextID global
-  put global { globalNextID = objId }
-  return objId
-
-share :: Show a => a -> Runtime (Shared a)
-share a = do
-  objId <- nextID
-  Shared <$> liftIO (newIORef a) <*> pure objId
-deref :: Shared a -> Runtime a
-deref (Shared a _) = liftIO $ readIORef a
-modifyRef :: Shared a -> (a -> a) -> Runtime ()
-modifyRef (Shared a _) f = liftIO $ modifyIORef a f
-modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
-modifyRef' a f = modifyRef a f >> return a
+instance Eq (Shared a) where
+  a == b = objid a == objid b
 
 newtype Runtime a = JS {
   unJS :: ExceptT JSError (WriterT String (StateT JSGlobal IO)) a
@@ -293,11 +235,15 @@ data JSGlobal = JSGlobal {
   globalEvaluator :: Maybe (EvalCallType -> String -> Runtime StmtReturn),
   globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
   globalEnvironment :: Maybe (Shared LexEnv),
-  globalContext   :: Maybe JSCxt
+  globalContext   :: Maybe JSCxt,
+  globalObjStore  :: M.Map ObjId JSObj,
+  globalPropMapStore  :: M.Map ObjId PropertyMap,
+  globalLexEnvStore  :: M.Map ObjId LexEnv
+
 }
 
 emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing Nothing
+emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing Nothing M.empty M.empty M.empty
 
 
 raiseError :: String -> Runtime a

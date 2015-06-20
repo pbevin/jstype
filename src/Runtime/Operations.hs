@@ -15,6 +15,7 @@ import JSNum
 import Runtime.Types
 import Runtime.Conversion
 import Runtime.Object
+import Runtime.Shared
 import Runtime.PropMap
 
 evalBinOp :: String -> JSVal -> JSVal -> Runtime JSVal

@@ -5,6 +5,7 @@ import Safe
 import Runtime.Types
 import Runtime.Object
 import Runtime.Error
+import Runtime.Shared
 import Runtime.Conversion
 
 

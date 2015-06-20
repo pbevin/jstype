@@ -18,6 +18,7 @@ import Runtime.Object as X
 import Runtime.Operations as X
 import Runtime.Conversion as X
 import Runtime.Global as X
+import Runtime.Shared as X
 import Runtime.Error as X
 import Runtime.Arguments as X
 import Runtime.PropMap as X
@@ -42,7 +43,7 @@ initialCxt = do
 initialEnv :: Runtime JSEnv
 initialEnv = do
   global <- getGlobalObject
-  share $ LexEnv (ObjEnvRec global False) Nothing
+  shareLexEnv $ LexEnv (ObjEnvRec global False) Nothing
 
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
@@ -474,13 +475,13 @@ getIdentifierReference (Just lexRef) name strict = do
 -- ref 10.2.2.2
 newDeclarativeEnvironment :: Maybe JSEnv -> Runtime JSEnv
 newDeclarativeEnvironment e = do
-  envRec <- share emptyPropMap
-  share $ LexEnv (DeclEnvRec envRec) e
+  envRec <- sharePropertyMap emptyPropMap
+  shareLexEnv $ LexEnv (DeclEnvRec envRec) e
 
 
 -- ref 10.2.2.3
 newObjectEnvironment :: Shared JSObj -> Maybe JSEnv -> Bool -> Runtime JSEnv
-newObjectEnvironment obj oldEnv provideThis = share $ LexEnv (ObjEnvRec obj provideThis) oldEnv
+newObjectEnvironment obj oldEnv provideThis = shareLexEnv $ LexEnv (ObjEnvRec obj provideThis) oldEnv
 
 
 -- ref 11.13.1
@@ -710,7 +711,7 @@ objPropertyIsEnumerable this args = let v = first1 args in do
   return . VBool . maybe False propIsEnumerable $ desc
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
-objId (VObj (Shared _ oid)) _args = return $ VNum $ fromIntegral oid
+objId (VObj obj) _args = return $ VNum $ fromIntegral (objid obj)
 objId x _ = raiseTypeError $ "No objId for " ++ show x
 
 -- ref 15.2.4.5
