@@ -10,6 +10,7 @@ makeBooleanClass = do
   booleanPrototype <- makePrototype "Boolean"
     >>= addMethod "constructor" 1 booleanConstructor
     >>= addMethod "toString"    1 booleanToString
+    >>= addMethod "valueOf"     1 booleanToString
 
   functionPrototype <- findPrototypeForClass "Function"
 
@@ -42,10 +43,13 @@ booleanConstructor this args =
 
 
 booleanToString :: JSFunction
-booleanToString this _args = do
+booleanToString this args = VStr . showVal <$> booleanValueOf this args
+
+booleanValueOf :: JSFunction
+booleanValueOf this _args = do
   assertType TypeBoolean this
   b <- case this of
     VBool _ -> return this
     VObj obj ->
       fromMaybe (VBool False) . objPrimitiveValue <$> deref obj
-  return . VStr $ showVal b
+  return b
