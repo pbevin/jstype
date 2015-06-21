@@ -61,7 +61,7 @@ createGlobalObjectPrototype =
 createGlobalThis :: Shared JSObj -> Runtime (Shared JSObj)
 createGlobalThis objectPrototype = do
   functionPrototype <- mkObject $ do
-    onCall (\_this _args -> return VUndef)
+    internal callMethod (\_this _args -> return VUndef)
     property "length" (VNum 0)
     method "call" 1 funCallMethod
     method "bind" 1 funBind
@@ -73,24 +73,28 @@ createGlobalThis objectPrototype = do
     property "prototype" (VObj functionPrototype)
     property "name" (VStr "Function")
     property "length" (VNum 1) -- ref 15.3.3.2
-    onCall (funFunction functionPrototype)
-    onHasInstance funHasInstance
-    onCstr funConstructor
+    internal callMethod $ funFunction functionPrototype
+    internal cstrMethod funConstructor
+    internal hasInstanceMethod funHasInstance
 
-  object <- functionObject "Object" objectPrototype
-    >>= addMethod "getOwnPropertyDescriptor" 2 getOwnPropertyDescriptor
-    >>= addMethod "getOwnPropertyNames"      1 getOwnPropertyNames
-    >>= addMethod "defineProperty"           3 objDefineProperty
-    >>= addMethod "preventExtensions"        1 objPreventExtensions
-    >>= addMethod "getPrototypeOf"           1 objGetPrototypeOf
-    >>= setCallMethod objFunction
-    >>= setCstrMethod objConstructor
+  object <- mkObject $ do
+    className "Function"
+    property "prototype" (VObj objectPrototype)
+    internal hasInstanceMethod funHasInstance
+    internal callMethod objFunction
+    internal cstrMethod objConstructor
+    method "getOwnPropertyDescriptor" 2 getOwnPropertyDescriptor
+    method "getOwnPropertyNames"      1 getOwnPropertyNames
+    method "defineProperty"           3 objDefineProperty
+    method "preventExtensions"        1 objPreventExtensions
+    method "getPrototypeOf"           1 objGetPrototypeOf
+
   addOwnProperty "prototype" (VObj objectPrototype) object
   addOwnProperty "constructor" (VObj object) objectPrototype
 
-  newObject
-    >>= addOwnProperty "Object" (VObj object)
-    >>= addOwnProperty "Function" (VObj function)
+  mkObject $ do
+    property "Object" (VObj object)
+    property "Function" (VObj function)
 
 -- ref 15.2.4.2
 objToString :: JSFunction
@@ -127,11 +131,11 @@ objConstructor _this args = let v = first1 args in do
     _      -> VObj <$> toObject v
   where
     makeNew = do
-      prototype <- objFindPrototype "Object"
-      obj <- newObject
-        >>= objSetPrototype prototype
-        >>= setClass "Object"
-        >>= objSetExtensible True
+      proto <- objFindPrototype "Object"
+      obj <- mkObject $ do
+        className "Object"
+        prototype proto
+        extensible
       return $ VObj obj
 
 numConstructor :: JSVal -> [JSVal] -> Runtime JSVal
@@ -153,12 +157,14 @@ createArray vals =
   let len = VNum $ fromIntegral $ length vals
       assigns = arrayAssigns vals
   in do cstr <- getGlobalProperty "Array"
-        arrayPrototype <- objGet "prototype" (toObj cstr)
-        obj <- newObject >>= setClass "Array"
-                         >>= objSetPrototype (toObj arrayPrototype)
-                         >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
-                         >>= addOwnPropertyDescriptor "length" (dataPD len True False False)
-                         >>= setArrayIndices assigns
+        arrayPrototype <- objFindPrototype "Array"
+        obj <- mkObject $ do
+          className "Array"
+          prototype arrayPrototype
+          descriptor "constructor" (dataPD cstr True False  True)
+          descriptor "length"      (dataPD len  True False False)
+
+        setArrayIndices assigns obj
         return $ VObj obj
 
 setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
