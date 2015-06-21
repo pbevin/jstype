@@ -4,13 +4,14 @@ module Runtime.FunctionSpec where
 
 import Test.Hspec
 
+import Control.Lens
 import Runtime
 import Eval
 import Expectations
 
 hasInstance :: Shared JSObj -> JSVal -> Runtime Bool
 hasInstance a b = do
-  hasInstanceMethod <$> deref a >>= \case
+  view hasInstanceMethod <$> deref a >>= \case
     Just method -> method a b
     Nothing -> error $ "No hasInstance method on " ++ show a
 

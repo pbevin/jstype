@@ -43,9 +43,12 @@ eraseSrcLoc (Program strictness stmts) =
         SwitchStatement _ a b  -> SwitchStatement s a $ fixCase b
         ThrowStatement _ a     -> ThrowStatement s a
         TryStatement _ a b c   -> TryStatement s a b c
+        Catch _ a b            -> Catch s a (overrideSrcLoc b)
+        Finally _ a            -> Finally s (overrideSrcLoc a)
         EmptyStatement _       -> EmptyStatement s
         DebuggerStatement _    -> DebuggerStatement s
         FunDecl _ a b c d      -> FunDecl s a b c $ overrideAll d
+
       fixExpr e = case e of
         FunExpr a b c body -> FunExpr a b c (overrideAll body)
         ObjectLiteral a   -> ObjectLiteral $ map (second f) a

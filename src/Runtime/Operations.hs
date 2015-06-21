@@ -2,6 +2,7 @@
 
 module Runtime.Operations where
 
+import Control.Lens hiding (op)
 import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative
@@ -12,7 +13,7 @@ import Data.Bits
 import Data.Maybe
 import Expr
 import JSNum
-import Runtime.Types
+import Runtime.Types hiding (rval)
 import Runtime.Conversion
 import Runtime.Object
 import Runtime.Shared
@@ -74,7 +75,7 @@ lessThan orderings a b = do
 
   where cmp :: Maybe Ordering -> Runtime JSVal
         cmp = return . VBool . cmp'
-        cmp' (Just a) = a `elem` orderings
+        cmp' (Just o) = o `elem` orderings
         cmp' Nothing = False
 
 -- ref 11.8.5 (3)
@@ -94,6 +95,7 @@ cmpNumbers x y = do
 
 cmpStrings :: JSVal -> JSVal -> Runtime (Maybe Ordering)
 cmpStrings (VStr x) (VStr y) = return $ Just $ compare x y
+cmpStrings _ _ = return (Just EQ)
 
 numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> Runtime JSVal
 numberOp op a b = do
@@ -183,7 +185,7 @@ jsInstanceOf val cls =
   let typeError = raiseProtoError TypeError "Expecting a function in instanceof"
   in case cls of
     VObj objRef -> do
-      hasInstanceMethod <$> deref objRef >>= \case
+      view hasInstanceMethod <$> deref objRef >>= \case
         Just method -> VBool <$> method objRef val
         Nothing     -> typeError
     _ -> typeError

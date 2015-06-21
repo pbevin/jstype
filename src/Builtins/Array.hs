@@ -27,9 +27,9 @@ makeArrayClass = do
 
 
 arrayFunction :: Shared JSObj -> JSFunction
-arrayFunction prototype _this args = do
+arrayFunction proto _this args = do
   obj <- newObject >>= setClass "Array"
-                   >>= objSetPrototype prototype
+                   >>= objSetPrototype proto
   arrayConstructor (VObj obj) args
 
 arrayConstructor :: JSFunction

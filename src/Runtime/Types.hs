@@ -1,7 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell #-}
 
 module Runtime.Types (module Runtime.Types, liftIO) where
 
+import Control.Lens
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
@@ -64,40 +65,41 @@ isPrimitive _         = False
 
 
 data JSObj = JSObj {
-  objClass :: String,
-  ownProperties :: PropertyMap,
-  objPrototype :: Maybe (Shared JSObj),
-  callMethod :: Maybe JSFunction,
-  cstrMethod :: Maybe JSFunction,
-  getMethod :: Maybe (String -> Shared JSObj -> Runtime JSVal),
-  getOwnPropertyMethod :: Maybe (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
-  hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
-  defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
-  objPrimitiveValue :: Maybe JSVal,
-  objParameterMap :: Maybe (Shared JSObj),
-  objScope :: Maybe (Shared LexEnv),
-  objFormalParameters :: Maybe ([Ident]),
-  objCode :: Maybe Program,
-  objExtensible :: Bool
+  _objClass :: String,
+  _ownProperties :: PropertyMap,
+  _objPrototype :: Maybe (Shared JSObj),
+  _callMethod :: Maybe JSFunction,
+  _cstrMethod :: Maybe JSFunction,
+  _getMethod :: Maybe (String -> Shared JSObj -> Runtime JSVal),
+  _getOwnPropertyMethod :: Maybe (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
+  _hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
+  _defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
+  _objPrimitiveValue :: Maybe JSVal,
+  _objParameterMap :: Maybe (Shared JSObj),
+  _objScope :: Maybe (Shared LexEnv),
+  _objFormalParameters :: Maybe ([Ident]),
+  _objCode :: Maybe Program,
+  _objExtensible :: Bool
 } deriving Show
+
 
 emptyObject :: JSObj
 emptyObject = JSObj {
-  objClass = "Object",
-  ownProperties = emptyPropMap,
-  objPrototype = Nothing,
-  callMethod = Nothing,
-  cstrMethod = Nothing,
-  getMethod = Nothing,
-  getOwnPropertyMethod = Nothing,
-  hasInstanceMethod = Nothing,
-  defineOwnPropertyMethod = Nothing,
-  objPrimitiveValue = Nothing,
-  objParameterMap = Nothing,
-  objScope = Nothing,
-  objFormalParameters = Nothing,
-  objCode = Nothing,
-  objExtensible = True
+  _objClass = "Object",
+  _ownProperties = emptyPropMap,
+  _objPrototype = Nothing,
+  _callMethod = Nothing,
+  _cstrMethod = Nothing,
+  _getMethod = Nothing,
+  _getOwnPropertyMethod = Nothing,
+  _hasInstanceMethod = Nothing,
+  _defineOwnPropertyMethod = Nothing,
+  _objPrimitiveValue = Nothing,
+  _objParameterMap = Nothing,
+  _objScope = Nothing,
+  _objFormalParameters = Nothing,
+  _objCode = Nothing,
+  _objExtensible = True
 }
 
 
@@ -190,8 +192,8 @@ data Result a = CTNormal   { rval :: Maybe a }
 -- Shared type
 type ObjId = Int
 data Shared a = Shared {
-   g :: ObjId -> Runtime (Maybe a),
-   m :: (a->a)->ObjId -> Runtime (),
+   _g :: ObjId -> Runtime (Maybe a),
+   _m :: (a->a)->ObjId -> Runtime (),
    objid :: ObjId
    }
 
@@ -278,3 +280,6 @@ newtype PropDesc a = PropDesc (M.Map String (Property a)) deriving Show
 instance Monoid (PropDesc a) where
   mempty = PropDesc (M.empty)
   mappend (PropDesc m1) (PropDesc m2) = PropDesc (M.union m2 m1)
+
+
+makeLenses ''JSObj

@@ -16,11 +16,11 @@ sharePropertyMap :: PropertyMap -> Runtime (Shared PropertyMap)
 sharePropertyMap = shareShared globalPropMapStore (\g s -> g { globalPropMapStore = s })
 
 deref :: Shared a -> Runtime a
-deref a = g a (objid a) >>= maybe (error $ "Not found " ++ show (objid a)) return
+deref a = _g a (objid a) >>= maybe (error $ "Not found " ++ show (objid a)) return
 modifyRef :: Shared a -> (a -> a) -> Runtime ()
-modifyRef a f = m a f (objid a)
+modifyRef a f = _m a f (objid a)
 modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
-modifyRef' a f = m a f (objid a) >> return a
+modifyRef' a f = _m a f (objid a) >> return a
 
 
 getShared :: (JSGlobal -> M.Map ObjId a) -> ObjId -> Runtime (Maybe a)

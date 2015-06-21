@@ -2,6 +2,8 @@
 
 module Builtins.String where
 
+import Prelude hiding (error)
+import Control.Lens hiding (pre, index)
 import Text.Regex.Posix ((=~), MatchOffset, MatchLength)
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -58,10 +60,10 @@ strConstructor this args =
   let value = firstArg  (VStr "") args
   in case this of
     VObj obj -> do
-      prototype <- objFindPrototype "String"
+      proto <- objFindPrototype "String"
       stringObject <- getGlobalProperty "String"
       str <- toString value
-      setClass "String" obj >>= objSetPrototype prototype
+      setClass "String" obj >>= objSetPrototype proto
                             >>= objSetExtensible True
                             >>= objSetPrimitive (VStr str)
                             >>= addOwnConstant "length" (VNum $ fromIntegral $ length str)
@@ -75,7 +77,7 @@ stringToString :: JSFunction
 stringToString this _args = do
   maybe error return =<< case this of
    VStr _   -> return (Just this)
-   VObj obj -> objPrimitiveValue <$> deref obj >>= \case
+   VObj obj -> view objPrimitiveValue <$> deref obj >>= \case
      Just (VStr s) -> return . Just . VStr $ s
      _             -> return Nothing
    _ -> return Nothing
@@ -210,7 +212,7 @@ search this args = do
   string <- toString this
 
   o <- toObject =<< regExpFunction VUndef [regexp]
-  objPrimitiveValue <$> (deref o) >>= \case
+  view objPrimitiveValue <$> (deref o) >>= \case
     Just (VRegExp p _f) -> do
       let (offset, _) = string =~ p :: (MatchOffset, MatchLength)
       return (VNum . fromIntegral $ offset)

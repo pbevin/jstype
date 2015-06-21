@@ -43,10 +43,10 @@ arraySort this args =
           
 
     slurp :: Int -> Shared JSObj -> Runtime [Maybe JSVal]
-    slurp len obj = sequence $ toList $ Seq.fromFunction len (readFromObj obj)
+    slurp len obj = sequence $ toList $ Seq.fromFunction len readFromObj
       where
-        readFromObj :: Shared JSObj -> Int -> Runtime (Maybe JSVal)
-        readFromObj obj i = objGetMaybe (show i) obj
+        readFromObj :: Int -> Runtime (Maybe JSVal)
+        readFromObj i = objGetMaybe (show i) obj
 
     spew :: Int -> Shared JSObj -> [Maybe JSVal] -> Runtime ()
     spew len obj vals = do
@@ -60,8 +60,8 @@ arraySort this args =
 type MComparator m a = a -> a -> m Ordering
 
 sortByM :: (Monad m, Functor m) => MComparator m a -> [a] -> m [a]
-sortByM cmp []  = return []
-sortByM cmp [x] = return [x]
+sortByM _ []   = return []
+sortByM _ [x]  = return [x]
 sortByM cmp xs = do
   let (ys, zs) = partition xs
   ys' <- sortByM cmp ys
@@ -74,4 +74,4 @@ sortByM cmp xs = do
           case comparison of
             LT -> (a:) <$> merge as (b:bs)
             _  -> (b:) <$> merge (a:as) bs
-        partition xs = splitAt (length xs `quot` 2) xs
+        partition as = splitAt (length as `quot` 2) as

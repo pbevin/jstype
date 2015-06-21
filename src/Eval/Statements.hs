@@ -2,6 +2,7 @@
 
 module Eval.Statements where
 
+import Control.Lens hiding (strict, Getter, Setter)
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
@@ -169,7 +170,7 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
     then return $ CTNormal Nothing
     else do
       obj <- toObject exprValue
-      keys <- propMapKeys . ownProperties <$> deref obj
+      keys <- propMapKeys . view ownProperties <$> deref obj
       keepGoing obj keys Nothing where
         keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
         keepGoing _ [] v = return $ CTNormal v
@@ -325,7 +326,7 @@ evalNewExpr :: Expr -> [Expr] -> Runtime JSVal
 evalNewExpr f args = do
   fun <- runExprStmt f >>= getValue
   argList <- evalArguments args
-  assertFunction (show f) cstrMethod fun  -- XXX need to get the name here
+  assertFunction (show f) (view cstrMethod) fun  -- XXX need to get the name here
   liftM VObj (newObjectFromConstructor fun argList)
 
 -- ref 11.13.1 (simple assignment)
@@ -499,7 +500,7 @@ evalTypeof val = do
     resolved <- getValue val
     result <- case resolved of
       VObj objRef ->
-        callMethod <$> deref objRef >>= \case
+        (^.callMethod) <$> deref objRef >>= \case
           Nothing -> return "object"
           Just _  -> return "function"
       VNative{}   -> return "function"

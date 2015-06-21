@@ -1,6 +1,8 @@
 {-# Language LambdaCase #-}
 
 module Runtime (module Runtime, module X) where
+
+import Control.Lens hiding (strict)
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
@@ -98,7 +100,7 @@ objToString this _args =
     VNull  -> return . VStr $ "[object Null]"
     _ -> do
       o   <- toObject this
-      cls <- objClass <$> deref o
+      cls <- view objClass <$> deref o
       return $ VStr ("[object " ++ cls ++ "]")
 
 objPrimitive :: JSFunction
@@ -231,7 +233,7 @@ funBind this args = do
 
       funPrototype <- objFindPrototype "Function"
 
-      targetCstr   <- cstrMethod <$> deref target
+      targetCstr   <- view cstrMethod <$> deref target
       targetClass  <- objClassName target
       targetLength <- objGet "length" target >>= toInt
 
@@ -329,7 +331,7 @@ funGet p f = do
   then return val
   else case val of
     VObj obj -> do
-      prog <- objCode <$> deref obj
+      prog <- view objCode <$> deref obj
       case prog of
         Just (Program Strict _) ->
           raiseTypeError "Cannot access caller property"
@@ -351,7 +353,7 @@ funcCall name func paramList strict body this args =
   in do
     cxt <- getGlobalContext
 
-    scope <- objScope <$> deref (toObj func)
+    scope <- view objScope <$> deref (toObj func)
     localEnv <- newDeclarativeEnvironment scope
     env <- envRec <$> deref localEnv
     zipWithM_ (addToNewEnv env) paramList (args ++ repeat VUndef)
@@ -532,7 +534,7 @@ callFunction ref argList = do
   case evalCallType ref func of
     DirectEvalCall -> objEval DirectEvalCall thisValue argList
     _              -> do
-      assertFunction name callMethod func
+      assertFunction name (^.callMethod) func
       objCall func thisValue argList
 
   where
@@ -601,12 +603,12 @@ newObjectFromConstructor fun args = case fun of
         VObj obj -> return $ Just obj
         _        -> return Nothing
     setPrototype :: Maybe (Shared JSObj) -> Shared JSObj -> Runtime (Shared JSObj)
-    setPrototype mp = updateObj $ \obj -> obj { objPrototype = mp }
+    setPrototype mp = updateObj $ set objPrototype mp
 
 objCall :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCall func this args = case func of
   VNative _ _ f -> f this args
-  VObj objref -> deref objref >>= \obj -> case callMethod obj of
+  VObj objref -> view callMethod <$> deref objref >>= \case
     Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
   VUndef -> raiseReferenceError "Function is undefined"
@@ -615,7 +617,7 @@ objCall func this args = case func of
 objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCstr func this args = case func of
   VNative _ _ f -> f this args
-  VObj objref -> deref objref >>= \obj -> case cstrMethod obj of
+  VObj objref -> view cstrMethod <$> deref objref >>= \case
     Nothing -> raiseError "Can't create object: function has no cstrMethod"
     Just method -> method this args
   VUndef -> raiseError "Undefined function"
@@ -627,7 +629,7 @@ objGetPrototypeOf :: JSFunction
 objGetPrototypeOf _this args =
   let o = first1 args
   in case o of
-    VObj obj -> maybe VUndef VObj . objPrototype <$> deref obj
+    VObj obj -> maybe VUndef VObj . view objPrototype <$> deref obj
     _        -> raiseTypeError "Object.getPrototypeOf called on non-object"
 
 -- ref 15.2.3.3
@@ -647,7 +649,7 @@ getOwnPropertyNames _this args =
   let o = first1 args
   in case o of
     VObj obj -> do
-      ks <- propMapKeys . ownProperties <$> deref obj
+      ks <- propMapKeys . view ownProperties <$> deref obj
       createArray $ map (Just . VStr) ks
 
 
@@ -691,13 +693,13 @@ objIsPrototypeOf this args =
         if o == v
         then return True
         else do
-          v' <- objPrototype <$> deref v
+          v' <- view objPrototype <$> deref v
           findPrototype o v'
   in do
     case arg of
       VObj v -> do
         o <- toObject this
-        v' <- objPrototype <$> deref v
+        v' <- view objPrototype <$> deref v
         result <- findPrototype o v'
         return $ VBool result
 

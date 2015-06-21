@@ -1,6 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 module Runtime.ObjectBuilder where
 
+import Control.Lens
 import Control.Monad.State
 import Data.Maybe
 import Runtime.Types
@@ -22,25 +23,26 @@ method :: PropertyName -> Int -> JSFunction -> Builder ()
 method name arity fn = property name (VNative name arity fn)
 
 prototype :: Shared JSObj -> Builder ()
-prototype proto = modify $ \obj -> obj { objPrototype = Just proto }
+prototype proto = modify $ set objPrototype (Just proto)
 
 onCall :: JSFunction -> Builder ()
-onCall f = modify $ \obj -> obj { callMethod = Just f }
+onCall f = modify $ set callMethod (Just f)
 
 onCstr :: JSFunction -> Builder ()
-onCstr f = modify $ \obj -> obj { cstrMethod = Just f }
+onCstr f = modify $ set cstrMethod (Just f)
 
 onHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> Builder ()
-onHasInstance f = modify $ \obj -> obj { hasInstanceMethod = Just f }
+onHasInstance f = modify $ set hasInstanceMethod (Just f)
 
 className :: String -> Builder ()
-className name = modify $ \obj -> obj { objClass = name }
+className name = modify $ set objClass name
 
 
 finish :: JSObj -> Runtime JSObj
 finish obj =
-  if isJust (objPrototype obj)
+  if isJust (obj^.objPrototype)
   then return obj
   else do
    globalPrototype <- globalObjectPrototype <$> get
-   return $ obj { objPrototype = globalPrototype }
+   return $ obj & objPrototype .~ globalPrototype
+

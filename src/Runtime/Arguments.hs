@@ -2,6 +2,8 @@
 
 module Runtime.Arguments (createArgumentsObject) where
 
+import Prelude hiding (map)
+import Control.Lens hiding (strict)
 import Control.Monad (forM_, when, void)
 import Data.Maybe
 import Runtime.Object
@@ -20,7 +22,6 @@ createArgumentsObject func names args env strict =
       thrower _  = raiseTypeError "Cannot access property"
       sthrower _ = thrower
   in do
-    object <- getGlobalProperty "Object"
     objectPrototype <- getGlobalObjectPrototype
 
     map <- newObject
@@ -35,9 +36,9 @@ createArgumentsObject func names args env strict =
       defineOwnProperty (show indx) (dataPD val True True True) False obj
 
       when (strict == NotStrict && name /= "") $
-        let getter _      = getBindingValue name strict env
-            setter this a = setMutableBinding name a (strict == Strict) env
-            desc          = accessorPD (Just getter) (Just setter) True True
+        let getter _       = getBindingValue name strict env
+            setter _this a = setMutableBinding name a (strict == Strict) env
+            desc           = accessorPD (Just getter) (Just setter) True True
         in void $ defineOwnProperty (show indx) desc False map
 
     case strict of
@@ -55,7 +56,7 @@ createArgumentsObject func names args env strict =
 argGet :: Shared JSObj -> String -> Shared JSObj -> Runtime JSVal
 argGet map p obj = do
   objGetOwnProperty p map >>= \case
-    Just v  -> objGetObj p map
+    Just _  -> objGetObj p map
     Nothing -> objGetObj p obj
 
 argGetOwnProperty :: Shared JSObj -> String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -67,7 +68,7 @@ argGetOwnProperty map p obj = do
       d' <- objGetOwnProperty p map
       case d' of
         Nothing -> return desc
-        Just v  -> do
+        Just _  -> do
           val <- objGet p map
           return $ Just $ (d `mappend` valuePD val)
 

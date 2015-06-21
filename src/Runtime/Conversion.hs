@@ -2,6 +2,7 @@
 
 module Runtime.Conversion where
 
+import Control.Lens
 import Data.Maybe
 import Data.Word
 import Data.Int
@@ -131,7 +132,7 @@ wrapPrimitive typeName val = do
   this <- newObject
   typeRef <- toObj <$> getGlobalProperty typeName
   obj <- deref typeRef
-  case cstrMethod obj of
+  case view cstrMethod obj of
     Nothing -> raiseProtoError TypeError $ "Can't create " ++ typeName ++ " object"
     Just cstr -> toObj <$> cstr (VObj this) [val]
 

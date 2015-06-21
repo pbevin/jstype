@@ -1,5 +1,6 @@
 module Builtins.Number (makeNumberClass) where
 
+import Control.Lens
 import Safe
 import Text.Printf
 import Runtime
@@ -39,9 +40,9 @@ numberToString this _args =
   case this of
     VNum num -> return . VStr . showVal $ this
     VObj obj -> do
-      cls <- objClass <$> deref obj
+      cls <- view objClass <$> deref obj
       if cls == "Number"
-      then VStr . maybe "" showVal . objPrimitiveValue <$> deref obj
+      then VStr . maybe "" showVal . view objPrimitiveValue <$> deref obj
       else error
     _ -> error
   where error = raiseTypeError "Not a number"
@@ -51,9 +52,9 @@ numberValueOf this _args =
   case this of
     VNum num -> return this
     VObj obj -> do
-      cls <- objClass <$> deref obj
+      cls <- view objClass <$> deref obj
       if cls == "Number"
-      then fromMaybe (VNum 0) . objPrimitiveValue <$> deref obj
+      then fromMaybe (VNum 0) . view objPrimitiveValue <$> deref obj
       else error
     _ -> error
   where error = raiseTypeError "Not a number"
@@ -72,7 +73,6 @@ numberConstructor this args =
     VObj obj -> do
       prototype <- objFindPrototype "Number"
       num <- VNum <$> toNumber val
-      str <- VStr <$> toString num
       setClass "Number" obj
         >>= objSetPrimitive num
         >>= objSetPrototype prototype

@@ -1,5 +1,6 @@
 module Builtins.Boolean (makeBooleanClass) where
 
+import Control.Lens
 import Safe
 import Runtime
 import Data.Maybe
@@ -51,5 +52,5 @@ booleanValueOf this _args = do
   b <- case this of
     VBool _ -> return this
     VObj obj ->
-      fromMaybe (VBool False) . objPrimitiveValue <$> deref obj
+      fromMaybe (VBool False) . view objPrimitiveValue <$> deref obj
   return b

@@ -2,6 +2,7 @@
 
 module Builtins.RegExp where
 
+import Control.Lens
 import Control.Monad.Except
 import Text.Regex.Posix
 import Runtime
@@ -36,9 +37,9 @@ regExpFunction _this args =
     case (r, flags) of
       (VRegExp{}, VUndef) -> return pattern
       _                   -> do
-        prototype <- objFindPrototype "RegExp"
-        this <- newObject
-           >>= objSetPrototype prototype
+        proto <- objFindPrototype "RegExp"
+        this  <- newObject
+           >>= objSetPrototype proto
         regExpConstructor (VObj this) args
 
 -- ref 15.10.4.1
@@ -50,10 +51,10 @@ regExpConstructor this args =
       obj <- objectWithClass "RegExp" pattern
       (p, f) <- case obj of
         Nothing -> makeRE pattern flags
-        Just obj ->
+        Just _ ->
           case flags of
             VUndef -> do
-              v <- objPrimitiveValue <$> deref (toObj pattern)
+              v <- view objPrimitiveValue <$> deref (toObj pattern)
               case v of
                 Just (VRegExp p f) -> return (p, parseFlags f)
                 _                  -> makeRE pattern flags
@@ -65,10 +66,10 @@ regExpConstructor this args =
   where
     initializeObject :: Shared JSObj -> String -> RegExpFlags -> Runtime JSVal
     initializeObject obj p f = do
-      prototype <- objFindPrototype "RegExp"
+      proto <- objFindPrototype "RegExp"
       setClass "RegExp" obj
         >>= objSetPrimitive (VRegExp p $ flagsToString f)
-        >>= addOwnProperty "prototype"  (VObj prototype)
+        >>= addOwnProperty "prototype"  (VObj proto)
         >>= addOwnProperty "source"     (VStr p)
         >>= addOwnProperty "global"     (VBool $ global f)
         >>= addOwnProperty "ignoreCase" (VBool $ ignoreCase f)
@@ -78,7 +79,7 @@ regExpConstructor this args =
 objectWithClass :: String -> JSVal -> Runtime (Maybe (Shared JSObj))
 objectWithClass name val = case val of
   VObj obj -> do
-    cls <- objClass <$> deref obj
+    cls <- view objClass <$> deref obj
     if cls == name
     then return . Just $ obj
     else return Nothing
@@ -102,7 +103,7 @@ getPrimitiveRegex :: JSVal -> Runtime JSVal
 getPrimitiveRegex v =
   case v of
     VObj o ->
-      objPrimitiveValue <$> deref o >>= \case
+      view objPrimitiveValue <$> deref o >>= \case
         Just r@(VRegExp{}) -> return r
         _                  -> raiseTypeError "Not a regexp"
     _ -> raiseTypeError "Not a regexp"

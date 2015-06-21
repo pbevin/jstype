@@ -1,6 +1,7 @@
 module Runtime.Reference where
 
-import Control.Monad.Except
+import Control.Lens hiding (enum, strict)
+import Control.Monad hiding (guard)
 import Data.Maybe
 import qualified Data.Map as M
 import Runtime.Object
@@ -48,8 +49,8 @@ putValue ref@(JSRef base name strict) w
             else exit
 
           putPropertyReference :: JSRef -> JSVal -> Runtime ()
-          putPropertyReference (JSRef (VObj objRef) name strict) val =
-            objPut name val (strict == Strict) objRef
+          putPropertyReference (JSRef (VObj objRef) refName refStrict) val =
+            objPut refName val (refStrict == Strict) objRef
 
           putPropertyReference _other value = withGuard $ do
             o <- toObject base
@@ -115,7 +116,7 @@ isReference _ = False
 -- ref 10.2.1.2.1
 hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
-hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . ownProperties) $ deref obj
+hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . view ownProperties) $ deref obj
 
 -- ref 10.2.1.1.2
 -- ref 10.2.1.2.2
@@ -134,7 +135,7 @@ setMutableBinding name val d (ObjEnvRec obj _) = void $ objPut name val d obj
 getBindingValue :: Ident -> Strictness -> EnvRec -> Runtime JSVal
 getBindingValue n s env = case env of
   DeclEnvRec m -> lk VUndef n =<< deref m -- XXX VUndef for this
-  ObjEnvRec obj _ -> lk (VObj obj) n . ownProperties =<< deref obj
+  ObjEnvRec obj _ -> lk (VObj obj) n . view ownProperties =<< deref obj
   where
     lk this k m = case propMapLookup k m of
       Nothing   -> return VUndef
@@ -158,18 +159,18 @@ toPropertyDescriptor (VObj objRef) = do
   conf <- toBoolean <$> objGet "configurable" objRef
   value <- objGet "value" objRef
   writable <- toBoolean <$> objGet "writable" objRef
-  get <- objGet "get" objRef >>= mkGetter
-  set <- objGet "set" objRef >>= mkSetter
+  getter <- objGet "get" objRef >>= mkGetter
+  setter <- objGet "set" objRef >>= mkSetter
 
-  if isJust get || isJust set
-  then return $ accessorPD get set enum conf
+  if isJust getter || isJust setter
+  then return $ accessorPD getter setter enum conf
   else return $ dataPD value writable enum conf
 
 toPropertyDescriptor other = raiseProtoError TypeError $ "Can't convert " ++ show other ++ " to type descritor"
 
 mkGetter :: JSVal -> Runtime (Maybe (JSVal -> Runtime JSVal))
 mkGetter (VObj obj) = do
-  call <- callMethod <$> deref obj
+  call <- (^.callMethod) <$> deref obj
   case call of
     Nothing -> return Nothing
     Just f -> return $ Just (\this -> f this [])
@@ -178,7 +179,7 @@ mkGetter _ = return Nothing
 
 mkSetter :: JSVal -> Runtime (Maybe (JSVal -> JSVal -> Runtime ()))
 mkSetter (VObj obj) = do
-  call <- callMethod <$> deref obj
+  call <- (^.callMethod) <$> deref obj
   case call of
     Just setter -> return $ Just (\this val -> void $ setter this [val])
     Nothing -> raiseProtoError TypeError $ "Setter not defined"
@@ -190,5 +191,5 @@ getValueFrom base d
   | isAccessorDescriptor (Just d) =
     case propGetter d of
       Nothing -> return VUndef
-      Just g -> g base
+      Just get -> get base
   | otherwise = return VUndef

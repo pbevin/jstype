@@ -2,6 +2,7 @@
 
 module Runtime.Object where
 
+import Control.Lens
 import Data.Functor
 import Control.Monad.Except
 import Control.Monad.State
@@ -19,16 +20,16 @@ import Debug.Trace
 newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- globalObjectPrototype <$> get
-  share $ defaultObject { objPrototype = prototype }
+  share $ set objPrototype prototype defaultObject
 
 defaultObject :: JSObj
-defaultObject = emptyObject { defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
-                              getOwnPropertyMethod = Just objGetOwnPropertyObj,
-                              getMethod = Just objGetObj }
+defaultObject = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                              _getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                              _getMethod = Just objGetObj }
 
 -- ref 8.12.1
 objGetOwnPropertyObj :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
-objGetOwnPropertyObj name objRef = liftM (propMapLookup name . ownProperties) (deref objRef)
+objGetOwnPropertyObj name objRef = liftM (propMapLookup name . view ownProperties) (deref objRef)
 
 -- ref 8.12.2
 objGetProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
@@ -37,7 +38,7 @@ objGetProperty name objRef = do
   case prop of
     Just _ -> return prop
     Nothing -> do
-      proto <- liftM objPrototype $ deref objRef
+      proto <- view objPrototype <$> deref objRef
       case proto of
         Just p -> objGetProperty name p
         Nothing -> return Nothing
@@ -73,10 +74,10 @@ objCanPut p o = do
       then return $ isJust (propSetter d)
       else return $ propIsWritable d
     Nothing ->
-      objPrototype <$> deref o >>= \case
-        Nothing -> objExtensible <$> deref o
+      view objPrototype <$> deref o >>= \case
+        Nothing -> view objExtensible <$> deref o
         Just _ -> do
-          isExtensible <- objExtensible <$> deref o
+          isExtensible <- view objExtensible <$> deref o
           inherited <- objGetProperty p o
           case inherited of
             Nothing -> return isExtensible
@@ -128,7 +129,7 @@ objDefaultValue hint objRef = case hint of
   HintString -> call "toString" `orElse` call "valueOf"
   HintNumber -> call "valueOf" `orElse` call "toString"
   HintNone   -> do
-    cls <- objClass <$> deref objRef
+    cls <- view objClass <$> deref objRef
     if cls == "Date"
     then objDefaultValue HintString objRef
     else objDefaultValue HintNumber objRef
@@ -145,7 +146,12 @@ objDefaultValue hint objRef = case hint of
             Just r -> return r
             Nothing -> do
               o <- deref objRef
-              raiseProtoError TypeError $ "Cannot get default value for object of type " ++ (objClass o) ++ " with properties " ++ show (ownProperties o)
+              raiseProtoError TypeError $
+                unwords
+                  [ "Cannot get default value for object of type",
+                   (o^.objClass),
+                   "with properties",
+                   show $ o^.ownProperties ]
     call :: String -> Runtime (Maybe JSVal)
     call method = do
       m <- objGet method objRef
@@ -153,7 +159,7 @@ objDefaultValue hint objRef = case hint of
         VNative _ _ f -> do
           Just <$> f (VObj objRef) []
         VObj mRef -> do
-          mm <- callMethod <$> deref mRef
+          mm <- view callMethod <$> deref mRef
           case mm of
             Nothing -> return Nothing
             Just f -> do
@@ -233,7 +239,7 @@ getGlobalProperty name = do
   getGlobalObject >>= objGet name
 
 objClassName :: Shared JSObj -> Runtime String
-objClassName objRef = liftM objClass (deref objRef)
+objClassName objRef = view objClass <$> (deref objRef)
 
 
 valClassName :: JSVal -> Runtime String
@@ -241,34 +247,34 @@ valClassName (VObj objRef) = objClassName objRef
 valClassName _ = return "Object"
 
 setClass :: String -> ObjectModifier
-setClass cls = updateObj $ \obj -> obj { objClass = cls }
+setClass cls = updateObj $ set objClass cls
 
 setCallMethod :: JSFunction -> ObjectModifier
-setCallMethod f = updateObj $ \obj -> obj { callMethod = Just f }
+setCallMethod f = updateObj $ set callMethod (Just f)
 
 setCstrMethod :: JSFunction -> ObjectModifier
-setCstrMethod f = updateObj $ \obj -> obj { cstrMethod = Just f }
+setCstrMethod f = updateObj $ set cstrMethod (Just f)
 
 setGetMethod :: (String -> Shared JSObj -> Runtime JSVal) -> ObjectModifier
-setGetMethod f = updateObj $ \obj -> obj { getMethod = Just f }
+setGetMethod f = updateObj $ set getMethod (Just f)
 
 setGetOwnPropertyMethod :: (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))) -> ObjectModifier
-setGetOwnPropertyMethod f = updateObj $ \obj -> obj { getOwnPropertyMethod = Just f }
+setGetOwnPropertyMethod f = updateObj $ set getOwnPropertyMethod (Just f)
 
 setDefineOwnPropertyMethod :: (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool) -> ObjectModifier
-setDefineOwnPropertyMethod f = updateObj $ \obj -> obj { defineOwnPropertyMethod = Just f }
+setDefineOwnPropertyMethod f = updateObj $ set defineOwnPropertyMethod (Just f)
 
 setScope :: Shared LexEnv -> ObjectModifier
-setScope scope = updateObj $ \obj -> obj { objScope = Just scope }
+setScope scope = updateObj $ set objScope (Just scope)
 
 setFormalParameters :: [Ident] -> ObjectModifier
-setFormalParameters params = updateObj $ \obj -> obj { objFormalParameters = Just params }
+setFormalParameters params = updateObj $ set objFormalParameters (Just params)
 
 setCode :: Program -> ObjectModifier
-setCode prog = updateObj $ \obj -> obj { objCode = Just prog }
+setCode prog = updateObj $ set objCode (Just prog)
 
 objSetPrototype :: Shared JSObj -> ObjectModifier
-objSetPrototype prototype = updateObj $ \obj -> obj { objPrototype = Just prototype }
+objSetPrototype prototype = updateObj $ set objPrototype (Just prototype)
 
 
 addOwnProperty :: String -> JSVal -> ObjectModifier
@@ -290,28 +296,28 @@ objSetProperty :: String -> JSVal -> JSObj -> JSObj
 objSetProperty name value obj = objSetPropertyDescriptor name (dataPD value True False True) obj
 
 objSetPropertyDescriptor :: String -> PropDesc JSVal -> JSObj -> JSObj
-objSetPropertyDescriptor name desc obj = obj { ownProperties = propMapInsert name desc (ownProperties obj) }
+objSetPropertyDescriptor name desc = over ownProperties (propMapInsert name desc)
 
 objDeleteProperty :: String -> JSObj -> JSObj
-objDeleteProperty name obj = obj { ownProperties = propMapDelete name (ownProperties obj) }
+objDeleteProperty name = over ownProperties (propMapDelete name)
 
 objSetExtensible :: Bool -> ObjectModifier
-objSetExtensible extensible = updateObj $ \obj -> obj { objExtensible = extensible }
+objSetExtensible extensible = updateObj $ set objExtensible extensible
 
 objIsExtensible :: Shared JSObj -> Runtime Bool
-objIsExtensible objRef = objExtensible <$> deref objRef
+objIsExtensible objRef = view objExtensible <$> deref objRef
 
 objSetPrimitive :: JSVal -> ObjectModifier
-objSetPrimitive val = updateObj $ \obj -> obj { objPrimitiveValue = Just val }
+objSetPrimitive val = updateObj $ set objPrimitiveValue (Just val)
 
 objGetPrimitive :: Shared JSObj -> Runtime JSVal
-objGetPrimitive objRef = fromMaybe VUndef . objPrimitiveValue <$> deref objRef
+objGetPrimitive objRef = fromMaybe VUndef . view objPrimitiveValue <$> deref objRef
 
 objSetParameterMap :: Shared JSObj -> ObjectModifier
-objSetParameterMap m = updateObj $ \obj -> obj { objParameterMap = Just m }
+objSetParameterMap m = updateObj $ set objParameterMap (Just m)
 
 objSetHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> ObjectModifier
-objSetHasInstance method = updateObj $ \obj -> obj { hasInstanceMethod = Just method }
+objSetHasInstance method = updateObj $ set hasInstanceMethod (Just method)
 
 objFindPrototype :: String -> Runtime (Shared JSObj)
 objFindPrototype name =
@@ -332,24 +338,24 @@ objFindPrototype name =
 --   | otherwise               = return VUndef
 
 defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
-defineOwnProperty name desc strict objRef = (defineOwnPropertyMethod <$> deref objRef) >>= \case
+defineOwnProperty name desc strict objRef = (view defineOwnPropertyMethod <$> deref objRef) >>= \case
   Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
   Just m -> m name desc strict objRef
 
 objGet :: String -> Shared JSObj -> Runtime JSVal
 objGet p obj = do
-  getMethod <$> deref obj >>= \case
+  view getMethod <$> deref obj >>= \case
     Nothing -> raiseError $ "No get method for " ++ show obj
     Just f -> f p obj
 
 objGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 objGetOwnProperty p obj = do
-  getOwnPropertyMethod <$> deref obj >>= \case
+  view getOwnPropertyMethod <$> deref obj >>= \case
     Nothing -> raiseError $ "No getOwnProperty method for " ++ show obj
     Just f -> f p obj
 
 isCallable :: JSVal -> Runtime (Maybe JSFunction)
-isCallable (VObj obj) = callMethod <$> deref obj
+isCallable (VObj obj) = view callMethod <$> deref obj
 isCallable _ = return Nothing
 
 
@@ -362,7 +368,7 @@ assertType TypeBoolean (VBool _) = return ()
 assertType TypeString  (VStr _)  = return ()
 assertType TypeNumber  (VNum _)  = return ()
 assertType ty (VObj obj) = do
-  cls <- objClass <$> deref obj
+  cls <- view objClass <$> deref obj
   case (ty, cls) of
     (TypeBoolean, "Boolean") -> return ()
     (TypeString, "String") -> return ()

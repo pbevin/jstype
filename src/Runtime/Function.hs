@@ -2,6 +2,7 @@ module Runtime.Function where
 
 import Safe
 
+import Control.Lens
 import Runtime.Types
 import Runtime.Object
 import Runtime.Error
@@ -34,7 +35,7 @@ funHasInstance f val = case val of
 
     searchPrototypes :: JSVal -> Shared JSObj -> Runtime Bool
     searchPrototypes o v = do
-      v' <- objPrototype <$> deref v
+      v' <- view objPrototype <$> deref v
       case v' of
         Nothing -> return False
         Just p  -> do
