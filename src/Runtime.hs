@@ -26,6 +26,7 @@ import Runtime.PropDesc as X
 import Runtime.Function as X
 import Runtime.Prototype as X
 import Runtime.PropertyDescriptor as X
+import Runtime.ObjectBuilder as X
 import Unicode as X
 import JSNum as X
 import Parse
@@ -47,36 +48,34 @@ initialEnv = do
 
 createGlobalObjectPrototype :: Runtime (Shared JSObj)
 createGlobalObjectPrototype =
-  newObject >>= addOwnProperty "prototype" VUndef
-            >>= addMethod "toString" 0 objToString
-            >>= addMethod "hasOwnProperty" 1 objHasOwnProperty
-            >>= addMethod "valueOf" 0 objValueOf
-            >>= addMethod "isPrototypeOf" 1 objIsPrototypeOf
-            >>= addMethod "propertyIsEnumerable" 1 objPropertyIsEnumerable
+  mkObject $ do
+    property "prototype" VUndef
+    method "toString" 0 objToString
+    method "hasOwnProperty" 1 objHasOwnProperty
+    method "valueOf" 0 objValueOf
+    method "isPrototypeOf" 1 objIsPrototypeOf
+    method "propertyIsEnumerable" 1 objPropertyIsEnumerable
 
-createGlobalThis :: Runtime (Shared JSObj)
-createGlobalThis = do
-  prototype <- getGlobalObjectPrototype
+createGlobalThis :: Shared JSObj -> Runtime (Shared JSObj)
+createGlobalThis objectPrototype = do
+  functionPrototype <- mkObject $ do
+    onCall (\_this _args -> return VUndef)
+    property "length" (VNum 0)
+    method "call" 1 funCallMethod
+    method "bind" 1 funBind
+    method "apply" 2 funApply
 
-  functionPrototype <- newObject
-    >>= setCallMethod (\_this _args -> return VUndef)
-    >>= addOwnProperty "length" (VNum 0)
-    >>= addMethod "call" 1 funCallMethod
-    >>= addMethod "bind" 1 funBind
-    >>= addMethod "apply" 2 funApply
+  function <- mkObject $ do
+    prototype functionPrototype
+    className "Function"
+    property "prototype" (VObj functionPrototype)
+    property "name" (VStr "Function")
+    property "length" (VNum 1) -- ref 15.3.3.2
+    onCall (funFunction functionPrototype)
+    onHasInstance funHasInstance
+    onCstr funConstructor
 
-  function <- newObject
-    >>= setClass "Function"
-    >>= addOwnProperty "prototype" (VObj functionPrototype)
-    >>= addOwnProperty "name" (VStr "Function")
-    >>= objSetHasInstance funHasInstance
-    >>= setCallMethod (funFunction functionPrototype)
-    >>= setCstrMethod funConstructor
-    >>= objSetPrototype functionPrototype
-    >>= addOwnProperty "prototype" (VObj functionPrototype)
-    >>= addOwnProperty "length" (VNum 1) -- ref 15.3.3.2
-
-  object <- functionObject "Object" prototype
+  object <- functionObject "Object" objectPrototype
     >>= addMethod "getOwnPropertyDescriptor" 2 getOwnPropertyDescriptor
     >>= addMethod "getOwnPropertyNames"      1 getOwnPropertyNames
     >>= addMethod "defineProperty"           3 objDefineProperty
@@ -84,8 +83,8 @@ createGlobalThis = do
     >>= addMethod "getPrototypeOf"           1 objGetPrototypeOf
     >>= setCallMethod objFunction
     >>= setCstrMethod objConstructor
-  addOwnProperty "prototype" (VObj prototype) object
-  addOwnProperty "constructor" (VObj object) prototype
+  addOwnProperty "prototype" (VObj objectPrototype) object
+  addOwnProperty "constructor" (VObj object) objectPrototype
 
   newObject
     >>= addOwnProperty "Object" (VObj object)

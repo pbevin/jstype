@@ -105,7 +105,7 @@ initGlobals evalCode = do
   objProto <- createGlobalObjectPrototype
   modify $ \st -> st { globalObjectPrototype = Just objProto }
 
-  newGlobalObject <- createGlobalThis
+  newGlobalObject <- createGlobalThis objProto
   modify $ \st -> st { globalObject = Just newGlobalObject,
                        globalEvaluator = Just evalCode,
                        globalRun = Just runStmts }

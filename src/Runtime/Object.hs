@@ -19,10 +19,12 @@ import Debug.Trace
 newObject :: Runtime (Shared JSObj)
 newObject = do
   prototype <- globalObjectPrototype <$> get
-  share $ emptyObject { objPrototype = prototype,
-                        defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
-                        getOwnPropertyMethod = Just objGetOwnPropertyObj,
-                        getMethod = Just objGetObj }
+  share $ defaultObject { objPrototype = prototype }
+
+defaultObject :: JSObj
+defaultObject = emptyObject { defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                              getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                              getMethod = Just objGetObj }
 
 -- ref 8.12.1
 objGetOwnPropertyObj :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
