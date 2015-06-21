@@ -6,30 +6,39 @@ import Runtime
 
 
 mathObject :: Runtime (Shared JSObj)
-mathObject = do
-  newObject >>= addReadOnlyConstants mathConstants
-            >>= addMethod "abs"    1 (mathFunc abs)
-            >>= addMethod "log"    1 (mathFunc log)
-            >>= addMethod "exp"    1 (mathFunc exp)
-            >>= addMethod "sin"    1 (mathFunc sin)
-            >>= addMethod "cos"    1 (mathFunc cos)
-            >>= addMethod "tan"    1 (mathFunc tan)
-            >>= addMethod "asin"   1 (mathFunc asin)
-            >>= addMethod "acos"   1 (mathFunc acos)
-            >>= addMethod "atan"   1 (mathFunc atan)
-            >>= addMethod "sqrt"   1 (mathFunc sqrt)
-            >>= addMethod "ceil"   1 (roundish ceiling)
-            >>= addMethod "round"  1 (roundish jsRound)
-            >>= addMethod "floor"  1 (roundish floor)
-            >>= addMethod "trunc"  1 (roundish truncate)
-            >>= addMethod "random" 0 (mathFunc $ const 4) -- xkcd #221
+mathObject = mkObject $ do
+  constant "PI"      $ (pi          :: Double)
+  constant "SQRT2"   $ (sqrt 2      :: Double)
+  constant "SQRT1_2" $ (sqrt 0.5    :: Double)
+  constant "E"       $ (exp 1       :: Double)
+  constant "LN2"     $ (log 2       :: Double)
+  constant "LN10"    $ (log 10      :: Double)
+  constant "LOG10E"  $ (1 / log 10  :: Double)
+  constant "LOG2E"   $ (1 / log 2   :: Double)
 
-            >>= addMethod "max"    2 (mathMaxFunc max $ -inf)
-            >>= addMethod "min"    2 (mathMaxFunc min    inf)
+  native "abs"    1 (abs  :: Double -> Double)
+  native "log"    1 (log  :: Double -> Double)
+  native "exp"    1 (exp  :: Double -> Double)
+  native "sin"    1 (sin  :: Double -> Double)
+  native "cos"    1 (cos  :: Double -> Double)
+  native "tan"    1 (tan  :: Double -> Double)
+  native "asin"   1 (asin :: Double -> Double)
+  native "acos"   1 (acos :: Double -> Double)
+  native "atan"   1 (atan :: Double -> Double)
+  native "sqrt"   1 (sqrt :: Double -> Double)
 
-            >>= addMethod "pow"    2 (mathFunc2 pow)
-            >>= addMethod "atan2"  2 (mathFunc2 atan2')
-            >>= addMethod "hypot"  2 (mathFunc2 hypot)
+  method "ceil"   1 (roundish ceiling)
+  method "round"  1 (roundish jsRound)
+  method "floor"  1 (roundish floor)
+  method "trunc"  1 (roundish truncate)
+  method "random" 0 (mathFunc $ const 4) -- xkcd #221
+
+  method "max"    2 (mathMaxFunc max $ -inf)
+  method "min"    2 (mathMaxFunc min    inf)
+
+  method "pow"    2 (mathFunc2 pow)
+  method "atan2"  2 (mathFunc2 atan2')
+  method "hypot"  2 (mathFunc2 hypot)
 
 mathConstants :: [(String, JSNum)]
 mathConstants = allToJSNum [ ("PI", pi),
