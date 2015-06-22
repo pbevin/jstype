@@ -92,7 +92,7 @@ arrayPush this args = do
   obj <- toObject this
   lenVal <- objGet "length" obj
   n <- toInt lenVal
-  n' <- VNum . jsInt <$> placeValues obj n args
+  n' <- VNum . fromIntegral <$> placeValues obj n args
   objPut "length" n' True obj
   return n'
 

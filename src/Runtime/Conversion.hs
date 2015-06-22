@@ -27,7 +27,7 @@ toBoolean :: JSVal -> Bool
 toBoolean VUndef    = False
 toBoolean VNull     = False
 toBoolean (VBool b) = b
-toBoolean (VNum n)  = n /= 0 && not (isNaN $ fromJSNum n)
+toBoolean (VNum n)  = n /= 0 && not (isNaN n)
 toBoolean (VStr "") = False
 toBoolean _         = True
 
@@ -43,8 +43,8 @@ toNumber _ = return 7
 
 strToNumber :: String -> JSNum
 strToNumber str = case str of
-  "Infinity"  -> JSNum (1/0)
-  "-Infinity" -> JSNum (-1/0)
+  "Infinity"  -> jsInf
+  "-Infinity" -> negate jsInf
   _           -> parseNumber str
 
 isString :: JSVal -> Bool
@@ -53,7 +53,7 @@ isString _ = False
 
 showVal :: JSVal -> String
 showVal (VStr s) = s
-showVal (VNum (JSNum n)) = numberToString n
+showVal (VNum n) = numberToString n
 showVal (VBool a) = if a then "true" else "false"
 showVal (VRef ref) = "(reference " ++ show ref ++ ")"
 showVal VUndef = "undefined"
@@ -101,7 +101,7 @@ toString VUndef    = return "undefined"
 toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
-toString (VNum n)  = return $ numberToString $ fromJSNum n
+toString (VNum n)  = return $ numberToString n
 toString v@(VObj _) = toPrimitive HintString v >>= toString
 toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other

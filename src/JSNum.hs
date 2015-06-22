@@ -1,53 +1,14 @@
 module JSNum where
 
-newtype JSNum = JSNum Double deriving (Show, Read)
-instance Eq JSNum where
-  JSNum a == JSNum b = a == b
+type JSNum = Double
 
-fromJSNum :: JSNum -> Double
-fromJSNum (JSNum a) = a
+jsMaxValue, jsMinValue :: JSNum
+jsMaxValue = maxNonInfiniteFloat 1.0
+jsMinValue = minPositiveFloat 1.0
 
-jsInfinity, jsNaN :: JSNum
-jsInfinity = JSNum (1/0)
-jsNaN = JSNum $ 0 / 0
-
-jsMaxValue :: JSNum
-jsMaxValue = JSNum $ maxNonInfiniteFloat 1.0
-
-jsMinValue :: JSNum
-jsMinValue = JSNum $ minPositiveFloat 1.0
-
-jsInt :: Int -> JSNum
-jsInt n = JSNum (fromIntegral n)
-
-isJsNaN :: JSNum -> Bool
-isJsNaN (JSNum a) = isNaN a
-
-jsToInt :: JSNum -> Int
-jsToInt (JSNum a) = fromIntegral . round $ a
-
-instance Num JSNum where
-  (JSNum a) + (JSNum b) = JSNum (a + b)
-  (JSNum a) - (JSNum b) = JSNum (a - b)
-  (JSNum a) * (JSNum b) = JSNum (a * b)
-  fromInteger n = JSNum $ fromInteger n
-  abs (JSNum a) = JSNum $ abs a
-  signum (JSNum a) = JSNum $ signum a
-  negate (JSNum a) = JSNum (negate a)
-
-instance Fractional JSNum where
-  (JSNum a) / (JSNum b) = JSNum (a / b)
-  fromRational r = JSNum $ fromRational r
-
-instance Ord JSNum where
-  compare (JSNum a) (JSNum b) = compare a b
-
-instance Real JSNum where
-  toRational (JSNum a) = toRational a
-
-instance RealFrac JSNum where
-  properFraction (JSNum a) = let (x, y) = properFraction a in (x, JSNum y)
-
+jsNaN, jsInf :: JSNum
+jsNaN = 0/0
+jsInf = 1/0
 
 -- http://stackoverflow.com/a/1780724/183140
 maxNonInfiniteFloat :: RealFloat a => a -> a

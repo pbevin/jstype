@@ -18,7 +18,7 @@ import JSNum
 -- ref 10.6
 createArgumentsObject :: JSVal -> [String] -> [JSVal] -> EnvRec -> Strictness -> Runtime JSVal
 createArgumentsObject func names args env strict =
-  let len = JSNum (fromIntegral $ length args)
+  let len = fromIntegral $ length args
       thrower _  = raiseTypeError "Cannot access property"
       sthrower _ = thrower
   in do

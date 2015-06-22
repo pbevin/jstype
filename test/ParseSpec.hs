@@ -8,7 +8,6 @@ import Test.Hspec
 import Expr
 import Parse
 import Eval
-import JSNum
 
 s :: SrcLoc
 s = SrcLoc "" 0 0 Nothing
@@ -81,22 +80,22 @@ spec :: Spec
 spec = do
   describe "ParseExpr" $ do
     it "parses a number" $ do
-      parseExpr "1" `shouldBe` Num (JSNum 1)
-      parseExpr "1.3" `shouldBe` Num (JSNum 1.3)
-      parseExpr "1.3e3" `shouldBe` Num (JSNum 1300)
-      parseExpr "1.4E3" `shouldBe` Num (JSNum 1400)
-      parseExpr "1.5e+3" `shouldBe` Num (JSNum 1500)
-      parseExpr "1.6e-3" `shouldBe` Num (JSNum 0.0016)
-      parseExpr "3e3" `shouldBe` Num (JSNum 3000)
-      parseExpr ".5" `shouldBe` Num (JSNum 0.5)
-      parseExpr "5." `shouldBe` Num (JSNum 5)
-      parseExpr "5.e1" `shouldBe` Num (JSNum 50)
+      parseExpr "1" `shouldBe` Num 1
+      parseExpr "1.3" `shouldBe` Num 1.3
+      parseExpr "1.3e3" `shouldBe` Num 1300
+      parseExpr "1.4E3" `shouldBe` Num 1400
+      parseExpr "1.5e+3" `shouldBe` Num 1500
+      parseExpr "1.6e-3" `shouldBe` Num 0.0016
+      parseExpr "3e3" `shouldBe` Num 3000
+      parseExpr ".5" `shouldBe` Num 0.5
+      parseExpr "5." `shouldBe` Num 5
+      parseExpr "5.e1" `shouldBe` Num 50
 
     it "doesn't mistake other things for numbers" $ do
       parseExpr "e1" `shouldBe` ReadVar "e1"
 
     it "parses a negative number" $ do
-      parseExpr "-1" `shouldBe` UnOp "-" (Num (JSNum 1))
+      parseExpr "-1" `shouldBe` UnOp "-" (Num 1)
 
     it "parses literals" $ do
       parseExpr "true" `shouldBe` Boolean True
@@ -218,7 +217,7 @@ spec = do
       parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
     it "parses a unop assignment" $ do
-      parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num (JSNum 1)))
+      parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num 1))
 
     it "parses a chained assignment" $ do
       parseExpr "x = x = 1" `shouldBe` Assign (ReadVar "x") "=" (Assign (ReadVar "x") "=" (Num 1))
@@ -237,11 +236,11 @@ spec = do
       evaluate (parseExpr "a++ +++b") `shouldThrow` anyException
 
     it "parses a unop assignment without spaces" $ do
-      parseExpr "e=-1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num (JSNum 1)))
+      parseExpr "e=-1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num 1))
 
     it "parses a binop" $ do
-      parseExpr "1+2" `shouldBe` BinOp "+" (Num (JSNum 1)) (Num (JSNum 2))
-      parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (Num (JSNum 1)) (Num (JSNum 2))
+      parseExpr "1+2" `shouldBe` BinOp "+" (Num 1) (Num 2)
+      parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (Num 1) (Num 2)
 
     it "parses a chained binop" $ do
       parseExpr "a+b+c" `shouldBe` BinOp "+" (BinOp "+" (ReadVar "a") (ReadVar "b")) (ReadVar "c")

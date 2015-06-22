@@ -12,7 +12,7 @@ class Adaptable a where
 
 instance Adaptable a => Adaptable ((->) Double a) where
   adapt f this []         = adapt (f 0) this []
-  adapt f this (d : args) = do a <- fromJSNum <$> toNumber d
+  adapt f this (d : args) = do a <- toNumber d
                                adapt (f a) this args
 
 instance Adaptable a => Adaptable (String -> a) where
@@ -21,8 +21,8 @@ instance Adaptable a => Adaptable (String -> a) where
                                adapt (f a) this args
 
 instance Adaptable Double where
-  adapt d _ _ = return . VNum . JSNum $ d
+  adapt d _ _ = return $ VNum d
 
 instance Adaptable Int where
-  adapt d _ _ = return . VNum . JSNum . fromIntegral $ d
+  adapt d _ _ = return . VNum $ fromIntegral d
 

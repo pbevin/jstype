@@ -166,7 +166,7 @@ instance Eq JSVal where
 
 -- 9.12
 sameValue :: JSVal -> JSVal -> Bool
-sameValue (VNum (JSNum x)) (VNum (JSNum y))
+sameValue (VNum x) (VNum y)
   | isNaN x && isNaN y = True
   | otherwise          =  x == y
 sameValue (VObj x) (VObj y) = x == y

@@ -430,13 +430,13 @@ parseFloat _this args =
 objIsNaN :: JSFunction
 objIsNaN _this args =
   let arg = first1 args
-  in VBool . isNaN . fromJSNum <$> toNumber arg
+  in VBool . isNaN <$> toNumber arg
 
 objIsFinite :: JSFunction
 objIsFinite this args =
   let arg = first1 args
   in VBool . isFinite <$> toNumber arg
-    where isFinite (JSNum x)
+    where isFinite x
             | isNaN x   = False
             | x == 1/0  = False
             | x == -1/0 = False

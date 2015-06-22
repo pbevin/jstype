@@ -132,7 +132,7 @@ lastIndexOf this args = do
   searchString    <- toString searchStr
   pos0            <- toNumber position
   let len          = length s
-      pos          = if isJsNaN pos0 then len + 1 else jsToInt pos0
+      pos          = if isNaN pos0 then len + 1 else round pos0
       start        = min (max pos 0) len
       searchLen    = length searchString
       needle       = T.pack searchString

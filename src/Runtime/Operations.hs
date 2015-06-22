@@ -82,7 +82,7 @@ lessThan orderings a b = do
 cmpNumbers :: JSVal -> JSVal -> Runtime (Maybe Ordering)
 cmpNumbers x y = do
   f <$> toNumber x <*> toNumber y where
-    f (JSNum nx) (JSNum ny)
+    f nx ny
       | isNaN nx = Nothing
       | isNaN ny = Nothing
       | nx == ny = Just EQ
@@ -104,7 +104,7 @@ numberOp op a b = do
   VNum <$> liftNum op a' b'
 
 fmod :: JSNum -> JSNum -> JSNum
-fmod (JSNum n') (JSNum d') = JSNum $ fmod' (abs n') (abs d') * signum n'
+fmod n' d' = fmod' (abs n') (abs d') * signum n'
   where fmod' n d
           | isNaN n      = 0/0
           | isNaN n      = 0/0

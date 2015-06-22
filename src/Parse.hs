@@ -43,8 +43,8 @@ parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
 
 parseNumber :: String -> JSNum
 parseNumber str = case jsParse numberParser NotStrict False "" str of
-  Right (Just num) -> JSNum num
-  Right Nothing    -> JSNum 0
+  Right (Just num) -> num
+  Right Nothing    -> 0
   Left err         -> jsNaN
 
 jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a

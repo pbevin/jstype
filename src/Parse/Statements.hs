@@ -546,4 +546,4 @@ literal = try $ (keyword "true"  >> return (Boolean True))
             <|> (keyword "null"  >> return LiteralNull)
 
 numericLiteral :: JSParser JSNum
-numericLiteral = liftM JSNum number
+numericLiteral = number

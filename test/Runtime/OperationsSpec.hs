@@ -77,14 +77,14 @@ spec = do
 
   describe "fmod" $ do
     it "is handles + and - in both positions" $ do
-      JSNum 101 `fmod` JSNum 51 `shouldBe` JSNum 50
-      JSNum 101 `fmod` JSNum (-51) `shouldBe` JSNum 50
-      JSNum (-101) `fmod` JSNum 51 `shouldBe` JSNum (-50)
-      JSNum (-101) `fmod` JSNum (-51) `shouldBe` JSNum (-50)
+      101  `fmod`   51  `shouldBe`   50
+      101  `fmod` (-51) `shouldBe`   50
+      -101 `fmod`   51  `shouldBe`  -50
+      -101 `fmod` (-51) `shouldBe`  -50
 
     it "is valid for edge cases" $ do
-      jsNaN `fmod` jsInfinity `shouldSatisfy` isJsNaN
-      1 `fmod` (-jsInfinity) `shouldBe` 1
+      jsNaN `fmod` jsInf    `shouldSatisfy` isNaN
+      1     `fmod` (-jsInf) `shouldBe` 1
 
   describe "bitwise" $ do
     it "can logical-and two numbers" $ do

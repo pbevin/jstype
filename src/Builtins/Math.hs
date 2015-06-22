@@ -33,30 +33,12 @@ mathObject = mkObject $ do
   method "trunc"  1 (roundish truncate)
   method "random" 0 (mathFunc $ const 4) -- xkcd #221
 
-  method "max"    2 (mathMaxFunc max $ -inf)
-  method "min"    2 (mathMaxFunc min    inf)
+  method "max"    2 (mathMaxFunc max $ -jsInf)
+  method "min"    2 (mathMaxFunc min    jsInf)
 
   method "pow"    2 (mathFunc2 pow)
   method "atan2"  2 (mathFunc2 atan2')
   method "hypot"  2 (mathFunc2 hypot)
-
-mathConstants :: [(String, JSNum)]
-mathConstants = allToJSNum [ ("PI", pi),
-                             ("SQRT2", sqrt 2),
-                             ("SQRT1_2", sqrt 0.5),
-                             ("E", exp 1),
-                             ("LN2", log 2),
-                             ("LN10", log 10),
-                             ("LOG10E", 1 / log 10),
-                             ("LOG2E", 1 / log 2) ]
-  where allToJSNum = map (second JSNum)
-
-
-inf :: Double
-inf = 1/0
-
-nan :: Double
-nan = 0/0
 
 
 atan2' :: Double -> Double -> Double
@@ -69,7 +51,7 @@ atan2' y x
 
 roundish :: (Double -> Integer) -> JSFunction
 roundish f = mathFunc g
-  where g x = if isNaN x then nan else fromInteger $ f x
+  where g x = if isNaN x then jsNaN else fromInteger $ f x
 
 -- Haskell's round is different from Javascript's in its handling
 -- of x.5 - Haskell rounds it to the nearest *even* number, and
@@ -79,12 +61,12 @@ jsRound x = floor (x+0.5)
 
 
 mathFunc :: (Double -> Double) -> JSFunction
-mathFunc f _this args = liftM (VNum . JSNum . f . fromJSNum) $ toNumber (head args)
+mathFunc f _this args = liftM (VNum . f) $ toNumber (head args)
 
 mathFunc2 :: (Double -> Double -> Double) -> JSFunction
 mathFunc2 f _this args = do
   [x, y] <- mapM toNumber [a, b]
-  return $ VNum $ JSNum $ f (fromJSNum x) (fromJSNum y)
+  return $ VNum $ f x y
     where (a, b) = case args of
                       []      -> (VNum 0, VNum 0)
                       [x]     -> (x, VNum 0)
@@ -93,13 +75,12 @@ mathFunc2 f _this args = do
 mathMaxFunc :: (JSNum -> JSNum -> JSNum) -> Double -> JSFunction
 mathMaxFunc f ifEmpty _this args = do
   numbers <- mapM toNumber args
-  return $ VNum $ foldl (handleNaN f) (JSNum ifEmpty) numbers
+  return $ VNum $ foldl (handleNaN f) ifEmpty numbers
   where handleNaN :: (JSNum -> JSNum -> JSNum) -> JSNum -> JSNum -> JSNum
-        handleNaN g a b = if isJsNaN a || isJsNaN b then JSNum nan else g a b
-        isJsNaN (JSNum x) = x /= x
+        handleNaN g a b = if isNaN a || isNaN b then jsNaN else g a b
 
 hypot :: Double -> Double -> Double
-hypot a b = if isInfinite a || isInfinite b then inf else sqrt (a*a + b*b)
+hypot a b = if isInfinite a || isInfinite b then jsInf else sqrt (a*a + b*b)
 
 pow :: RealFloat a => a -> a -> a
 pow x y

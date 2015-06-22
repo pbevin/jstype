@@ -21,9 +21,9 @@ makeNumberClass = do
     >>= addReadOnlyConstants numberConstants
 
 numberConstants :: [(String, JSNum)]
-numberConstants = [ ("NaN", JSNum $ 0/0),
-                    ("POSITIVE_INFINITY", JSNum $ 1/0),
-                    ("NEGATIVE_INFINITY", JSNum $ -1/0),
+numberConstants = [ ("NaN", jsNaN),
+                    ("POSITIVE_INFINITY",  jsInf),
+                    ("NEGATIVE_INFINITY", -jsInf),
                     ("MAX_VALUE", jsMaxValue),
                     ("MIN_VALUE", jsMinValue) ]
 
@@ -33,7 +33,7 @@ toFixed this args = do
   fractionDigits <- toInt (first1 args)
   let fmt = "%." ++ show fractionDigits ++ "f"
   x <- toNumber this
-  return $ VStr $ printf fmt (fromJSNum x)
+  return $ VStr $ printf fmt x
 
 numberToString :: JSFunction
 numberToString this _args =
