@@ -15,13 +15,53 @@ executable repl
   hs-source-dirs: src, repl
   main-is: Main.hs
   default-language: Haskell2010
-  build-depends: base, parsec, text, mtl >= 2.2.1, safe, lens, containers, QuickCheck, regex-posix, array, haskeline, pretty
-  ghc-options: -j4 -fprof-auto
+  build-depends:
+    base,
+    parsec,
+    text,
+    mtl >= 2.2.1,
+    safe,
+    lens,
+    containers,
+    QuickCheck,
+    regex-posix,
+    array,
+    haskeline,
+    pretty
+
+  ghc-prof-options:
+    -O2
+    -threaded
+    -fprof-auto
+    "-with-rtsopts=-N -p -s -h -i0.1"
+
+  ghc-options:
+    -j4
 
 test-suite spec
   type: exitcode-stdio-1.0
   hs-source-dirs: src, test
   main-is: Main.hs
   default-language: Haskell2010
-  build-depends: base, parsec, text, mtl >= 2.2.1, safe, lens, containers, QuickCheck, regex-posix, array, hspec, pretty
-  ghc-options: -j4
+  build-depends:
+    base,
+    parsec,
+    text,
+    mtl >= 2.2.1,
+    safe,
+    lens,
+    containers,
+    QuickCheck,
+    regex-posix,
+    array,
+    hspec,
+    pretty
+
+  ghc-prof-options:
+    -O2
+    -threaded
+    -fprof-auto
+    "-with-rtsopts=-N -p -s -h -i0.1"
+    
+  ghc-options:
+    -j4

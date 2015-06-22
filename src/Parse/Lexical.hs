@@ -5,6 +5,7 @@ import Control.Monad (replicateM, liftM, void, when, guard)
 import Control.Applicative
 import Data.List (nub, sortBy)
 import Data.Char
+import qualified Data.Map as M
 import Numeric (readHex, readOct)
 import Parse.Types
 import Data.Maybe
@@ -13,6 +14,29 @@ import Unicode
 import Parse.State
 
 import Debug.Trace
+
+
+data Trie = Trie Bool (M.Map Char Trie) deriving (Show, Eq)
+
+emptyTrie :: Trie
+emptyTrie = Trie False M.empty
+
+insertTrie :: String -> Trie -> Trie
+insertTrie []     (Trie _    m) = Trie True m
+insertTrie (x:xs) (Trie isOp m) =
+  Trie isOp $ M.alter (Just . maybe (trieFromString xs) (insertTrie xs)) x m
+
+trieFromString :: String -> Trie
+trieFromString = foldr addToTrie (Trie True M.empty)
+  where
+    addToTrie x trie = Trie False (M.singleton x trie)
+
+trieFromList :: [String] -> Trie
+trieFromList = foldr insertTrie emptyTrie
+
+
+
+
 
 sameLine :: SourcePos -> SourcePos -> Bool
 sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
@@ -93,8 +117,8 @@ lineBreak = let crlf = try (string "\r\n") <?> "newline"
 nextLine :: SourcePos -> SourcePos
 nextLine pos = incSourceLine (setSourceColumn pos 1) 1
 
-allOps :: [String]
-allOps = sortBy reverseLength $ nub allJsOps
+allOps :: Trie
+allOps = trieFromList allJsOps
   where allJsOps = assignOps jsLang ++ unaryOps jsLang ++ binaryOps jsLang ++ postfixOps jsLang
 
 reverseLength :: String -> String -> Ordering
@@ -110,10 +134,18 @@ keyword :: String -> JSParser ()
 keyword = reserved
 
 resOp :: JSParser String
-resOp = do
-  op <- choice (map (try . string) allOps)
-  whiteSpace
-  return op
+resOp = go allOps <* whiteSpace
+  where
+    go :: Trie -> JSParser String
+    go ops@(Trie isOp longer) = do
+      ch <- lookAhead anyChar
+      case (isOp, M.lookup ch longer) of
+        (True,  Just t)  -> try (recurse ch t) <|> return ""
+        (False, Just t)  -> recurse ch t
+        (True,  Nothing) -> return ""
+        (False, Nothing) -> fail ""
+    recurse :: Char -> Trie -> JSParser String
+    recurse ch t = anyChar >> (ch:) <$> go t
 
 skip :: String -> JSParser ()
 skip = void . tok
