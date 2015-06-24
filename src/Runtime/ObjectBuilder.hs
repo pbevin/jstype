@@ -8,6 +8,7 @@ import Runtime.Types
 import Runtime.Shared
 import Runtime.PropertyDescriptor
 import Runtime.Adaptable
+import Runtime.Function
 import Runtime.Object
 
 type PropertyName = String
@@ -37,6 +38,13 @@ method name arity fn = property name (VNative name arity fn)
 
 native :: Adaptable a => PropertyName -> Int -> a -> Builder ()
 native name arity f = liftR (return $ adapt f) >>= method name arity
+
+isFunctionObject :: Builder ()
+isFunctionObject = do
+  functionPrototype <- liftR $ objFindPrototype "Function"
+  className "Function"
+  prototype functionPrototype
+  internal hasInstanceMethod funHasInstance
 
 
 

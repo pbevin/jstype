@@ -13,6 +13,7 @@ import Runtime.Conversion
 
 functionObject :: String -> Shared JSObj -> Runtime (Shared JSObj)
 functionObject name prototype =
+
   newObject
     >>= setClass "Function"
     >>= addOwnProperty "prototype" (VObj prototype)
