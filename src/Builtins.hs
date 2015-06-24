@@ -12,6 +12,7 @@ import Builtins.Number
 import Builtins.Math
 import Builtins.Date
 import Builtins.RegExp
+import Builtins.ParseInt
 
 configureBuiltins :: Shared JSObj -> Runtime ()
 configureBuiltins obj = do
@@ -47,32 +48,34 @@ configureBuiltins obj = do
   console <- newObject
     >>= addMethod      "log"                 1 jsConsoleLog
 
-  addMethod            "escape"              1 objEscape obj
-    >>= addMethod      "eval"                1 (objEval IndirectEvalCall)
-    >>= addMethod      "isNaN"               1 objIsNaN
-    >>= addMethod      "isFinite"            1 objIsFinite
-    >>= addMethod      "parseInt"            1 parseInt
-    >>= addMethod      "parseFloat"          1 parseFloat
-    >>= addOwnProperty "console"        ( VObj console          )
-    >>= addOwnProperty "String"         ( VObj string           )
-    >>= addOwnProperty "Number"         ( VObj number           )
-    >>= addOwnProperty "Boolean"        ( VObj boolean          )
-    >>= addOwnProperty "Array"          ( VObj array            )
-    >>= addOwnProperty "Date"           ( VObj date             )
-    >>= addOwnProperty "RegExp"         ( VObj regexp           )
-    >>= addOwnProperty "Error"          ( VObj errorObj         )
-    >>= addOwnProperty "EvalError"      ( VObj evalError        )
-    >>= addOwnProperty "RangeError"     ( VObj rangeError       )
-    >>= addOwnProperty "ReferenceError" ( VObj referenceError   )
-    >>= addOwnProperty "SyntaxError"    ( VObj syntaxError      )
-    >>= addOwnProperty "TypeError"      ( VObj typeError        )
-    >>= addOwnProperty "URIError"       ( VObj uriError         )
-    >>= addOwnProperty "Math"           ( VObj math             )
-    >>= addOwnProperty "JSON"           ( VObj json             )
-    >>= addOwnConstant "Infinity"       ( VNum $ 1 / 0          )
-    >>= addOwnConstant "NaN"            ( VNum $ jsNaN          )
-    >>= addOwnConstant "undefined"      ( VUndef                )
-    >>= addOwnConstant "null"           ( VNull                 )
+  overObject obj $ do
+
+    method      "escape"              1 objEscape
+    method      "eval"                1 (objEval IndirectEvalCall)
+    method      "isNaN"               1 objIsNaN
+    method      "isFinite"            1 objIsFinite
+    native      "parseInt"            2 parseInt
+    method      "parseFloat"          1 parseFloat
+    property "console"        ( VObj console          )
+    property "String"         ( VObj string           )
+    property "Number"         ( VObj number           )
+    property "Boolean"        ( VObj boolean          )
+    property "Array"          ( VObj array            )
+    property "Date"           ( VObj date             )
+    property "RegExp"         ( VObj regexp           )
+    property "Error"          ( VObj errorObj         )
+    property "EvalError"      ( VObj evalError        )
+    property "RangeError"     ( VObj rangeError       )
+    property "ReferenceError" ( VObj referenceError   )
+    property "SyntaxError"    ( VObj syntaxError      )
+    property "TypeError"      ( VObj typeError        )
+    property "URIError"       ( VObj uriError         )
+    property "Math"           ( VObj math             )
+    property "JSON"           ( VObj json             )
+    constant "Infinity"       ( VNum $ 1 / 0          )
+    constant "NaN"            ( VNum $ jsNaN          )
+    constant "undefined"      ( VUndef                )
+    constant "null"           ( VNull                 )
 
   return ()
 
@@ -93,28 +96,6 @@ errorSubtype name parentPrototype = do
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
 
--- ref 15.1.2.1
-objEval :: EvalCallType -> JSFunction
-objEval callType _this args = case args of
-  [] -> return VUndef
-  (prog:_) -> do
-    text <- toString prog
-    result <- jsEvalCode callType text
-    case result of
-      CTNormal (Just v) -> return v
-      CTThrow  (Just v) -> do
-        stackTrace <- getStackTrace v
-        throwError $ JSError (v, stackTrace)
-      _ -> return VUndef
-
--- ref 15.1.2.2
-parseInt :: JSFunction
-parseInt _this args =
-  let arg = first1 args
-  in do
-    str <- toString arg
-    return $ VNum $ parseNumber str
-
 -- ref 15.1.2.3
 parseFloat :: JSFunction
 parseFloat _this args =
@@ -122,12 +103,6 @@ parseFloat _this args =
   in do
     str <- toString arg
     return $ VNum $ parseNumber str
-
--- ref 15.1.2.4
-objIsNaN :: JSFunction
-objIsNaN _this args =
-  let arg = first1 args
-  in VBool . isNaN <$> toNumber arg
 
 objIsFinite :: JSFunction
 objIsFinite this args =

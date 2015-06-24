@@ -32,7 +32,7 @@ import Runtime.PropertyDescriptor as X
 import Runtime.ObjectBuilder as X
 import Unicode as X
 import JSNum as X
-import Parse
+import Parse as X
 import Expr
 import Core
 
@@ -529,11 +529,30 @@ assertFunction name m val =
 
   where error reason = raiseTypeError $ unwords [name, reason]
 
+-- ref 15.1.2.1
+objEval :: EvalCallType -> JSFunction
+objEval callType _this args = case args of
+  [] -> return VUndef
+  (prog:_) -> do
+    text <- toString prog
+    result <- jsEvalCode callType text
+    case result of
+      CTNormal (Just v) -> return v
+      CTThrow  (Just v) -> do
+        stackTrace <- getStackTrace v
+        throwError $ JSError (v, stackTrace)
+      _ -> return VUndef
+
 -- ref 15.1.2.1.1
 evalCallType :: JSVal -> JSVal -> EvalCallType
 evalCallType (VRef (JSRef (VEnv env) "eval" _)) (VNative "eval" _ _) = DirectEvalCall
 evalCallType _ _                                                     = IndirectEvalCall
 
+-- ref 15.1.2.4
+objIsNaN :: JSFunction
+objIsNaN _this args =
+  let arg = first1 args
+  in VBool . isNaN <$> toNumber arg
 
 -- ref 13.2.2, incomplete
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)

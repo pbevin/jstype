@@ -22,6 +22,12 @@ liftR m = B (lift m)
 mkObject :: Builder a -> Runtime (Shared JSObj)
 mkObject a = share =<< finish =<< snd <$> runStateT (unbuild a) defaultObject
 
+overObject :: Shared JSObj -> Builder a -> Runtime ()
+overObject obj a = do
+  newObj <- fmap snd $ runStateT (unbuild a) =<< deref obj
+  modifyRef obj (const newObj)
+  return ()
+
 property :: PropertyName -> JSVal -> Builder ()
 property name val = modify $ objSetProperty name val
 
@@ -71,4 +77,3 @@ finish obj =
   else do
    globalPrototype <- globalObjectPrototype <$> get
    return $ obj & objPrototype .~ globalPrototype
-
