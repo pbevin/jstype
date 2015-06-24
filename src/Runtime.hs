@@ -396,52 +396,6 @@ getStackTrace (VObj obj) = do
     _ -> []
 getStackTrace _ = return []
 
--- ref 15.1.2.1
-objEval :: EvalCallType -> JSFunction
-objEval callType _this args = case args of
-  [] -> return VUndef
-  (prog:_) -> do
-    text <- toString prog
-    result <- jsEvalCode callType text
-    case result of
-      CTNormal (Just v) -> return v
-      CTThrow  (Just v) -> do
-        stackTrace <- getStackTrace v
-        throwError $ JSError (v, stackTrace)
-      _ -> return VUndef
-
--- ref 15.1.2.2
-parseInt :: JSFunction
-parseInt _this args =
-  let arg = first1 args
-  in do
-    str <- toString arg
-    return $ VNum $ parseNumber str
-
--- ref 15.1.2.3
-parseFloat :: JSFunction
-parseFloat _this args =
-  let arg = first1 args
-  in do
-    str <- toString arg
-    return $ VNum $ parseNumber str
-
--- ref 15.1.2.4
-objIsNaN :: JSFunction
-objIsNaN _this args =
-  let arg = first1 args
-  in VBool . isNaN <$> toNumber arg
-
-objIsFinite :: JSFunction
-objIsFinite this args =
-  let arg = first1 args
-  in VBool . isFinite <$> toNumber arg
-    where isFinite x
-            | isNaN x   = False
-            | x == 1/0  = False
-            | x == -1/0 = False
-            | otherwise = True
-
 stackTrace :: JSError -> String
 stackTrace (JSError (err, stack)) = unlines $ show err : map show (reverse stack)
 stackTrace (JSProtoError (t, msg)) = show (show t ++ ": " ++ msg)
