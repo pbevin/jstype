@@ -1,3 +1,5 @@
 --ignore-dir=.cabal-sandbox
 --ignore-dir=dist
 --ignore-dir=test262
+--ignore-file=ext:prof
+--ignore-file=ext:hp

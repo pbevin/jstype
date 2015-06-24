@@ -62,6 +62,6 @@ test-suite spec
     -threaded
     -fprof-auto
     "-with-rtsopts=-N -p -s -h -i0.1"
-    
+
   ghc-options:
     -j4

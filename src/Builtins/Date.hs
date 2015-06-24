@@ -3,60 +3,70 @@ module Builtins.Date (makeDateClass) where
 import Runtime
 
 makeDatePrototype :: Runtime (Shared JSObj)
-makeDatePrototype =
-  makePrototype "Date"
-    >>= setCstrMethod dateConstructor
-    >>= addMethod "constructor"         1 dateConstructor
-    >>= addMethod "toString"            0 dateToString
-    >>= addMethod "valueOf"             0 dateValueOf
-    >>= addMethod "getTime"             0 dateGetTime
-    >>= addMethod "getFullYear"         0 dateGetFullYear
-    >>= addMethod "getUTCFullYear"      0 dateGetUTCFullYear
-    >>= addMethod "getMonth"            0 dateGetMonth
-    >>= addMethod "getUTCMonth"         0 dateGetUTCMonth
-    >>= addMethod "getDate"             0 dateGetDate
-    >>= addMethod "getUTCDate"          0 dateGetUTCDate
-    >>= addMethod "getDay"              0 dateGetDay
-    >>= addMethod "getUTCDay"           0 dateGetUTCDay
-    >>= addMethod "getHours"            0 dateGetHours
-    >>= addMethod "getUTCHours"         0 dateGetUTCHours
-    >>= addMethod "getMinutes"          0 dateGetMinutes
-    >>= addMethod "getUTCMinutes"       0 dateGetUTCMinutes
-    >>= addMethod "getSeconds"          0 dateGetSeconds
-    >>= addMethod "getUTCSeconds"       0 dateGetUTCSeconds
-    >>= addMethod "getMilliseconds"     0 dateGetMilliseconds
-    >>= addMethod "getUTCMilliseconds"  0 dateGetUTCMilliseconds
-    >>= addMethod "setTime"             1 dateSetTime
-    >>= addMethod "setFullYear"         1 dateSetFullYear
-    >>= addMethod "setUTCFullYear"      1 dateSetUTCFullYear
-    >>= addMethod "setMonth"            1 dateSetMonth
-    >>= addMethod "setUTCMonth"         1 dateSetUTCMonth
-    >>= addMethod "setDate"             1 dateSetDate
-    >>= addMethod "setUTCDate"          1 dateSetUTCDate
-    >>= addMethod "setDay"              1 dateSetDay
-    >>= addMethod "setUTCDay"           1 dateSetUTCDay
-    >>= addMethod "setHours"            1 dateSetHours
-    >>= addMethod "setUTCHours"         1 dateSetUTCHours
-    >>= addMethod "setMinutes"          1 dateSetMinutes
-    >>= addMethod "setUTCMinutes"       1 dateSetUTCMinutes
-    >>= addMethod "setSeconds"          1 dateSetSeconds
-    >>= addMethod "setUTCSeconds"       1 dateSetUTCSeconds
-    >>= addMethod "setMilliseconds"     1 dateSetMilliseconds
-    >>= addMethod "setUTCMilliseconds"  1 dateSetUTCMilliseconds
-    >>= addMethod "toLocaleString"      0 dateToLocaleString
-    >>= addMethod "toUTCString"         0 dateToUTCString
+makeDatePrototype = do
+  objectPrototype <- objFindPrototype "Object"
+
+  mkObject $ do
+    className "Date"
+    prototype objectPrototype
+    internal cstrMethod dateConstructor
+    method "toString"            0 dateToString
+    method "valueOf"             0 dateValueOf
+    method "getTime"             0 dateGetTime
+    method "getFullYear"         0 dateGetFullYear
+    method "getUTCFullYear"      0 dateGetUTCFullYear
+    method "getMonth"            0 dateGetMonth
+    method "getUTCMonth"         0 dateGetUTCMonth
+    method "getDate"             0 dateGetDate
+    method "getUTCDate"          0 dateGetUTCDate
+    method "getDay"              0 dateGetDay
+    method "getUTCDay"           0 dateGetUTCDay
+    method "getHours"            0 dateGetHours
+    method "getUTCHours"         0 dateGetUTCHours
+    method "getMinutes"          0 dateGetMinutes
+    method "getUTCMinutes"       0 dateGetUTCMinutes
+    method "getSeconds"          0 dateGetSeconds
+    method "getUTCSeconds"       0 dateGetUTCSeconds
+    method "getMilliseconds"     0 dateGetMilliseconds
+    method "getUTCMilliseconds"  0 dateGetUTCMilliseconds
+    method "setTime"             1 dateSetTime
+    method "setFullYear"         1 dateSetFullYear
+    method "setUTCFullYear"      1 dateSetUTCFullYear
+    method "setMonth"            1 dateSetMonth
+    method "setUTCMonth"         1 dateSetUTCMonth
+    method "setDate"             1 dateSetDate
+    method "setUTCDate"          1 dateSetUTCDate
+    method "setDay"              1 dateSetDay
+    method "setUTCDay"           1 dateSetUTCDay
+    method "setHours"            1 dateSetHours
+    method "setUTCHours"         1 dateSetUTCHours
+    method "setMinutes"          1 dateSetMinutes
+    method "setUTCMinutes"       1 dateSetUTCMinutes
+    method "setSeconds"          1 dateSetSeconds
+    method "setUTCSeconds"       1 dateSetUTCSeconds
+    method "setMilliseconds"     1 dateSetMilliseconds
+    method "setUTCMilliseconds"  1 dateSetUTCMilliseconds
+    method "toLocaleString"      0 dateToLocaleString
+    method "toUTCString"         0 dateToUTCString
 
 
 makeDateClass :: Runtime (Shared JSObj)
 makeDateClass = do
-  datePrototype <- makeDatePrototype
+  functionPrototype <- objFindPrototype "Function"
+  datePrototype     <- makeDatePrototype
 
-  functionObject "Date" datePrototype
-    >>= setCallMethod dateFunction
-    >>= setCstrMethod dateConstructor
-    >>= addOwnProperty "prototype" (VObj datePrototype)
-    >>= addMethod      "parse"     1 dateParse
-    >>= addMethod      "UTC"       1 dateUTC
+  obj <- mkObject $ do
+    className "Function"
+    prototype functionPrototype
+    property "prototype" (VObj datePrototype)
+    internal callMethod dateFunction
+    internal cstrMethod dateConstructor
+    internal hasInstanceMethod funHasInstance
+    method "parse" 1 dateParse
+    method "UTC"   1 dateUTC
+
+  addOwnProperty "constructor" (VObj obj) datePrototype
+  return obj
 
 dateFunction :: JSVal -> [JSVal] -> Runtime JSVal
 dateFunction _this _args = return $ VStr "[today's date]"
