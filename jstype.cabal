@@ -36,7 +36,6 @@ executable repl
     "-with-rtsopts=-N -p -s -h -i0.1"
 
   ghc-options:
-    -j4
 
 test-suite spec
   type: exitcode-stdio-1.0
@@ -64,4 +63,3 @@ test-suite spec
     "-with-rtsopts=-N -p -s -h -i0.1"
 
   ghc-options:
-    -j4
