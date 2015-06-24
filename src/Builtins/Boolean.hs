@@ -11,7 +11,7 @@ makeBooleanClass = do
   booleanPrototype <- makePrototype "Boolean"
     >>= addMethod "constructor" 1 booleanConstructor
     >>= addMethod "toString"    1 booleanToString
-    >>= addMethod "valueOf"     1 booleanToString
+    >>= addMethod "valueOf"     1 booleanValueOf
 
   functionPrototype <- findPrototypeForClass "Function"
 

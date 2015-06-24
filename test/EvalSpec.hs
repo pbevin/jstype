@@ -359,9 +359,16 @@ spec = do
   describe "Boolean" $ do
     it "can be called as a function" $ do
       jsEvalExpr "Boolean(true)" `shouldReturn` VBool True
+
     it "can be called as a constructor" $ do
       v <- jsEvalExpr "new Boolean(true)"
       v `shouldSatisfy` isObj
+
+    it "returns a boolean from valueOf()" $ do
+      jsEvalExpr "new Boolean(true).valueOf()" `shouldReturn` VBool True
+
+    it "can act as a number" $ do
+      jsEvalExpr "new Boolean(true) + 1" `shouldReturn` VNum 2
 
   describe "Directive Prologue" $ do
     it "is evaluated" $
