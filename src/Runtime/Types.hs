@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell, RankNTypes #-}
 
 module Runtime.Types (module Runtime.Types, liftIO) where
 
@@ -192,10 +192,9 @@ data Result a = CTNormal   { rval :: Maybe a }
 -- Shared type
 type ObjId = Int
 data Shared a = Shared {
-   _g :: ObjId -> Runtime (Maybe a),
-   _m :: (a->a)->ObjId -> Runtime (),
-   objid :: ObjId
-   }
+  _where :: Simple Lens JSGlobal (Maybe a),
+  objid :: ObjId
+}
 
 instance Show (Shared a) where
   show a = "(shared #" ++ show (objid a) ++ ")"
@@ -238,10 +237,9 @@ data JSGlobal = JSGlobal {
   globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
   globalEnvironment :: Maybe (Shared LexEnv),
   globalContext   :: Maybe JSCxt,
-  globalObjStore  :: M.Map ObjId JSObj,
-  globalPropMapStore  :: M.Map ObjId PropertyMap,
-  globalLexEnvStore  :: M.Map ObjId LexEnv
-
+  _globalObjStore  :: M.Map ObjId JSObj,
+  _globalPropMapStore  :: M.Map ObjId PropertyMap,
+  _globalLexEnvStore  :: M.Map ObjId LexEnv
 }
 
 emptyGlobal :: JSGlobal
@@ -283,3 +281,4 @@ instance Monoid (PropDesc a) where
 
 
 makeLenses ''JSObj
+makeLenses ''JSGlobal

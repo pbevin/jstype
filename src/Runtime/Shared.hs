@@ -1,5 +1,9 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Runtime.Shared (share, shareLexEnv, sharePropertyMap, deref, modifyRef, modifyRef') where
 
+import Control.Lens
+import Data.Map.Lens
 import Control.Monad.State
 import qualified Data.Map as M
 import Runtime.Global
@@ -7,39 +11,36 @@ import Runtime.Types
 
 
 share :: JSObj -> Runtime (Shared JSObj)
-share = shareShared globalObjStore (\g s -> g { globalObjStore = s })
+share = shareShared globalObjStore
 
 shareLexEnv :: LexEnv -> Runtime (Shared LexEnv)
-shareLexEnv = shareShared globalLexEnvStore (\g s -> g { globalLexEnvStore = s })
+shareLexEnv = shareShared globalLexEnvStore
 
 sharePropertyMap :: PropertyMap -> Runtime (Shared PropertyMap)
-sharePropertyMap = shareShared globalPropMapStore (\g s -> g { globalPropMapStore = s })
+sharePropertyMap = shareShared globalPropMapStore
 
 deref :: Shared a -> Runtime a
-deref a = _g a (objid a) >>= maybe (error $ "Not found " ++ show (objid a)) return
-modifyRef :: Shared a -> (a -> a) -> Runtime ()
-modifyRef a f = _m a f (objid a)
-modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
-modifyRef' a f = _m a f (objid a) >> return a
-
-
-getShared :: (JSGlobal -> M.Map ObjId a) -> ObjId -> Runtime (Maybe a)
-getShared store objid = do
-  theStore <- store <$> get
-  return $ M.lookup objid theStore
-
-modifyShared :: (JSGlobal -> M.Map ObjId a) -> (JSGlobal -> M.Map ObjId a -> JSGlobal) -> (a -> a) -> ObjId -> Runtime ()
-modifyShared store sstore f objid = do
+deref (Shared l objId) = do
   g <- get
-  put $ sstore g (M.alter (fmap f) objid (store g))
-  return ()
+  maybe (error $ "Not found " ++ show objId) return $ view l g
 
-shareShared :: Show a => (JSGlobal -> M.Map ObjId a) -> (JSGlobal -> M.Map ObjId a -> JSGlobal) -> a -> Runtime (Shared a)
-shareShared store sstore obj = do
+modifyRef :: Shared a -> (a -> a) -> Runtime ()
+modifyRef (Shared l objId) f = do
+  g <- get
+  put $ over l (fmap f) g
+
+modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
+modifyRef' shared f = modifyRef shared f >> return shared
+
+
+shareShared :: Show a => Simple Lens JSGlobal (M.Map ObjId a) -> a -> Runtime (Shared a)
+shareShared store obj = do
   objId <- nextID
   g <- get
-  put $ sstore g (M.insert objId obj (store g))
-  return $ Shared (getShared store) (modifyShared store sstore) objId
+  let m = view store g
+      newmap = M.insert objId obj m
+  put $ set store newmap g
+  return $ Shared (store.at objId) objId
 
 nextID :: Runtime ObjId
 nextID = do
