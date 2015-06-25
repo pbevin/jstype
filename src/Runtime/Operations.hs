@@ -21,28 +21,28 @@ import Runtime.PropMap
 
 evalBinOp :: String -> JSVal -> JSVal -> Runtime JSVal
 evalBinOp op = case op of
-  "==="        -> tripleEquals
-  "!=="        -> invert tripleEquals
-  "=="         -> doubleEquals
-  "!="         -> invert doubleEquals
-  "instanceof" -> jsInstanceOf
-  "in"         -> jsHasProperty
-  "+"          -> jsAdd
-  "-"          -> numberOp (-)
-  "*"          -> numberOp (*)
-  "/"          -> numberOp (/)
-  "%"          -> numberOp $ fmod
-  "<"          -> lessThan [LT]
-  ">"          -> lessThan [GT]
-  "<="         -> lessThan [LT, EQ]
-  ">="         -> lessThan [GT, EQ]
-  "&"          -> bitwise (.&.)           -- ref 11.10
-  "|"          -> bitwise (.|.)           -- ref 11.10
-  "^"          -> bitwise xor             -- ref 11.10
-  "<<"         -> lshift
-  ">>"         -> rshift
-  ">>>"        -> urshift
-  ","          -> commaOperator
+  "==="        -> {-# SCC binOp3q #-}         tripleEquals
+  "!=="        -> {-# SCC binOpN3q #-}        invert tripleEquals
+  "=="         -> {-# SCC binOpEq #-}         doubleEquals
+  "!="         -> {-# SCC binOpNeq #-}        invert doubleEquals
+  "instanceof" -> {-# SCC binOpInstanceof #-} jsInstanceOf
+  "in"         -> {-# SCC binOpIn #-}         jsHasProperty
+  "+"          -> {-# SCC binOpPlus #-}       jsAdd
+  "-"          -> {-# SCC binOpMinux #-}      numberOp (-)
+  "*"          -> {-# SCC binOpTimes #-}      numberOp (*)
+  "/"          -> {-# SCC binOpDivide #-}     numberOp (/)
+  "%"          -> {-# SCC binOpMod #-}        numberOp $ fmod
+  "<"          -> {-# SCC binOpLT #-}         lessThan [LT]
+  ">"          -> {-# SCC binOpGT #-}         lessThan [GT]
+  "<="         -> {-# SCC binOpLE #-}         lessThan [LT, EQ]
+  ">="         -> {-# SCC binOpGE #-}         lessThan [GT, EQ]
+  "&"          -> {-# SCC binOpAnd #-}        bitwise (.&.)           -- ref 11.10
+  "|"          -> {-# SCC binOpOr #-}         bitwise (.|.)           -- ref 11.10
+  "^"          -> {-# SCC binOpXor #-}        bitwise xor             -- ref 11.10
+  "<<"         -> {-# SCC binOpLshift #-}     lshift
+  ">>"         -> {-# SCC binOpRshift #-}     rshift
+  ">>>"        -> {-# SCC binOpURshift #-}    urshift
+  ","          -> {-# SCC binOpComma #-}      commaOperator
   _            -> noSuchBinop op
   where invert f x y = f x y >>= \case
                                   VUndef      -> return (VBool False)

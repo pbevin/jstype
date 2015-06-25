@@ -48,17 +48,17 @@ runStmt :: CoreStatement -> Runtime StmtReturn
 runStmt stmt = action `catchError` returnThrow stmt
   where
     action = case stmt of
-      CoreBind dbiType bindings stmt -> runCoreBinding dbiType bindings stmt
-      CoreBlock stmts                -> runCoreBlock stmts
-      CoreExpr _loc e                -> runCoreExpr e
-      CoreIf _loc e ifThen ifElse    -> runCoreIf e ifThen ifElse
-      CoreLoop _loc test inc body    -> runCoreLoop test inc body
-      CoreBreak _loc label           -> runCoreBreak label
-      CoreCont _loc label            -> runCoreCont label
-      CoreCase _loc e cases          -> runCoreCase e cases
-      CoreLabel _loc label body      -> runCoreLabel label body
-      Unconverted s                  -> runUnconvertedStmt s
-      otherwise                      -> error $ "Can't execute " ++ show otherwise
+      CoreBind dbiType bindings stmt -> {-# SCC coreBind #-}        runCoreBinding dbiType bindings stmt
+      CoreBlock stmts                -> {-# SCC coreBlock #-}       runCoreBlock stmts
+      CoreExpr _loc e                -> {-# SCC coreExpr #-}        runCoreExpr e
+      CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}          runCoreIf e ifThen ifElse
+      CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}        runCoreLoop test inc body
+      CoreBreak _loc label           -> {-# SCC coreBreak #-}       runCoreBreak label
+      CoreCont _loc label            -> {-# SCC coreCont #-}        runCoreCont label
+      CoreCase _loc e cases          -> {-# SCC coreCase #-}        runCoreCase e cases
+      CoreLabel _loc label body      -> {-# SCC coreLabel #-}       runCoreLabel label body
+      Unconverted s                  -> {-# SCC coreUnconverted #-} runUnconvertedStmt s
+      otherwise                      -> error $ "Can't execute " ++ show stmt
 
     returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
     returnThrow s (JSError (err, stack)) = do
@@ -274,35 +274,35 @@ runFinally (Finally _loc stmt) = runStmt (convert stmt)
 
 readVar :: Ident -> Runtime JSVal
 readVar name = do
-  cxt <- getGlobalContext
-  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
+  cxt <- {-# SCC getGlobalContext #-} getGlobalContext
+  VRef <$> {-# SCC getIdentifierReference #-} getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
 
 runExprStmt :: Expr -> Runtime JSVal
 runExprStmt expr = case expr of
-  Num n                 -> return $ VNum n
-  Str s                 -> return $ VStr s
-  Boolean b             -> return $ VBool b
-  LiteralNull           -> return VNull
-  LiteralUndefined      -> return VUndef
-  ReadVar name          -> readVar name
-  This                  -> thisBinding <$> getGlobalContext
-  ArrayLiteral vals     -> evalArrayLiteral vals
-  ObjectLiteral map     -> makeObjectLiteral map
-  RegularExpression r f -> makeRegularExpression r f
-  MemberDot e x         -> evalPropertyAccessorIdent e x
-  MemberGet e x         -> evalPropertyAccessor e x
-  FunCall f args        -> evalFunCall f args
-  Assign lhs op e       -> evalAssignment lhs op e
-  Cond e1 e2 e3         -> evalCond e1 e2 e3
-  BinOp "&&" e1 e2      -> evalAndAnd e1 e2
-  BinOp "||" e1 e2      -> evalOrOr e1 e2
-  BinOp op e1 e2        -> evalBinaryOp op e1 e2
-  UnOp "delete" e       -> runExprStmt e >>= evalDelete -- ref 11.4.1
-  UnOp "typeof" e       -> runExprStmt e >>= evalTypeof -- ref 11.4.3
-  UnOp op e             -> evalUnOp op e
-  PostOp op e           -> evalPostOp op e
-  NewExpr f args        -> evalNewExpr f args
-  FunExpr n ps st body  -> evalFunExpr n ps st body
+  Num n                 -> {-# SCC exprNum #-}       return $ VNum n
+  Str s                 -> {-# SCC exprStr #-}       return $ VStr s
+  Boolean b             -> {-# SCC exprBoolean #-}   return $ VBool b
+  LiteralNull           -> {-# SCC exprNull #-}      return VNull
+  LiteralUndefined      -> {-# SCC exprUndef #-}     return VUndef
+  ReadVar name          -> {-# SCC exprReadVar #-}   readVar name
+  This                  -> {-# SCC exprThis #-}      thisBinding <$> getGlobalContext
+  ArrayLiteral vals     -> {-# SCC exprArrayLit #-}  evalArrayLiteral vals
+  ObjectLiteral map     -> {-# SCC exprObjLit #-}    makeObjectLiteral map
+  RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
+  MemberDot e x         -> {-# SCC exprMemberDot #-} evalPropertyAccessorIdent e x
+  MemberGet e x         -> {-# SCC exprMemberGet #-} evalPropertyAccessor e x
+  FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
+  Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
+  Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
+  BinOp "&&" e1 e2      -> {-# SCC exprAndAnd #-}    evalAndAnd e1 e2
+  BinOp "||" e1 e2      -> {-# SCC exprOrOr #-}      evalOrOr e1 e2
+  BinOp op e1 e2        -> {-# SCC exprBinOp #-}     evalBinaryOp op e1 e2
+  UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt e >>= evalDelete -- ref 11.4.1
+  UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt e >>= evalTypeof -- ref 11.4.3
+  UnOp op e             -> {-# SCC exprUnary #-}     evalUnOp op e
+  PostOp op e           -> {-# SCC exprPostfix #-}   evalPostOp op e
+  NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
+  FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
 
 -- ref 11.2.1
 evalPropertyAccessor :: Expr -> Expr -> Runtime JSVal
