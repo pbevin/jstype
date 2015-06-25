@@ -36,6 +36,7 @@ executable repl
     "-with-rtsopts=-N -p -s -h -i0.1"
 
   ghc-options:
+    -O
     -j4
 
 test-suite spec
@@ -64,4 +65,5 @@ test-suite spec
     "-with-rtsopts=-N -p -s -h -i0.1"
 
   ghc-options:
+    -O
     -j4

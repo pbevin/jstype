@@ -5,7 +5,7 @@ module Runtime.Object where
 import Control.Lens
 import Data.Functor
 import Control.Monad.Except
-import Control.Monad.State
+import Control.Monad.Reader
 import Control.Applicative
 import Data.Maybe
 import Runtime.Types
@@ -19,8 +19,8 @@ import Debug.Trace
 
 newObject :: Runtime (Shared JSObj)
 newObject = do
-  prototype <- globalObjectPrototype <$> get
-  share $ set objPrototype prototype defaultObject
+  prototype <- asks globalObjectPrototype
+  share $ set objPrototype (Just prototype) defaultObject
 
 defaultObject :: JSObj
 defaultObject = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
@@ -338,9 +338,9 @@ objFindPrototype name =
 --   | otherwise               = return VUndef
 
 defineOwnProperty :: String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
-defineOwnProperty name desc strict objRef = (view defineOwnPropertyMethod <$> deref objRef) >>= \case
+defineOwnProperty name desc strictness objRef = (view defineOwnPropertyMethod <$> deref objRef) >>= \case
   Nothing -> raiseProtoError ReferenceError "No defineOwnProperty method"
-  Just m -> m name desc strict objRef
+  Just m -> m name desc strictness objRef
 
 objGet :: String -> Shared JSObj -> Runtime JSVal
 objGet p obj = do
@@ -374,3 +374,4 @@ assertType ty (VObj obj) = do
     (TypeString, "String") -> return ()
     (TypeNumber, "Number") -> return ()
     _ -> raiseProtoError TypeError "Wrong type"
+assertType _ _ = raiseProtoError TypeError "Wrong type!"

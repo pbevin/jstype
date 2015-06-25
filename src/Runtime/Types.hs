@@ -3,9 +3,8 @@
 module Runtime.Types (module Runtime.Types, liftIO) where
 
 import Control.Lens
-import Control.Monad.State
+import Control.Monad.RWS.Strict
 import Control.Monad.Except
-import Control.Monad.Writer
 import Control.Applicative
 import Text.Show.Functions
 import qualified Data.Map as M
@@ -192,7 +191,7 @@ data Result a = CTNormal   { rval :: Maybe a }
 -- Shared type
 type ObjId = Int
 data Shared a = Shared {
-  _where :: Simple Lens JSGlobal (Maybe a),
+  _where :: Simple Lens Store (Maybe a),
   objid :: ObjId
 }
 
@@ -203,11 +202,13 @@ instance Eq (Shared a) where
   a == b = objid a == objid b
 
 newtype Runtime a = JS {
-  unJS :: ExceptT JSError (WriterT String (StateT JSGlobal IO)) a
+  unJS :: ExceptT JSError (RWST JSGlobal String Store IO) a
 } deriving (Monad, MonadIO,
+            MonadReader JSGlobal,
             MonadWriter String,
+            MonadState Store,
+            MonadRWS JSGlobal String Store,
             MonadError JSError,
-            MonadState JSGlobal,
             MonadFix,
             Functor,
             Applicative)
@@ -219,8 +220,8 @@ instance Alternative Runtime where
 instance MonadPlus Runtime where
   mzero = throwError EarlyExit
 
-runRuntime :: Runtime a -> IO ((Either JSError a, String), JSGlobal)
-runRuntime a = runStateT (runWriterT $ runExceptT $ unJS a) emptyGlobal
+runRuntime :: JSGlobal -> Store -> Runtime a -> IO (Either JSError a, Store, String)
+runRuntime r s a = runRWST (runExceptT $ unJS a) r s
 
 withGuard :: Runtime () -> Runtime ()
 withGuard p = p `catchError` (\e -> if e == EarlyExit then return () else throwError e)
@@ -228,23 +229,21 @@ withGuard p = p `catchError` (\e -> if e == EarlyExit then return () else throwE
 exit :: Runtime a
 exit = throwError EarlyExit
 
-
 data JSGlobal = JSGlobal {
-  globalNextID    :: Int,
-  globalObject    :: Maybe (Shared JSObj),
-  globalObjectPrototype :: Maybe (Shared JSObj),
-  globalEvaluator :: Maybe (EvalCallType -> String -> Runtime StmtReturn),
-  globalRun       :: Maybe ([Statement] -> Runtime StmtReturn),
-  globalEnvironment :: Maybe (Shared LexEnv),
-  globalContext   :: Maybe JSCxt,
-  _globalObjStore  :: M.Map ObjId JSObj,
-  _globalPropMapStore  :: M.Map ObjId PropertyMap,
-  _globalLexEnvStore  :: M.Map ObjId LexEnv
+  globalObject          :: Shared JSObj,
+  globalObjectPrototype :: Shared JSObj,
+  globalEvaluator       :: EvalCallType -> String -> Runtime StmtReturn,
+  globalRun             :: [Statement] -> Runtime StmtReturn,
+  globalEnvironment     :: Shared LexEnv,
+  globalContext         :: JSCxt
 }
 
-emptyGlobal :: JSGlobal
-emptyGlobal = JSGlobal 1 Nothing Nothing Nothing Nothing Nothing Nothing M.empty M.empty M.empty
-
+data Store = Store {
+  storeNextID           :: Int,
+  _storeObjStore  :: M.Map ObjId JSObj,
+  _storePropMapStore  :: M.Map ObjId PropertyMap,
+  _storeLexEnvStore  :: M.Map ObjId LexEnv
+}
 
 raiseError :: String -> Runtime a
 raiseError s = throwError $ JSError (VStr s, [])
@@ -281,4 +280,4 @@ instance Monoid (PropDesc a) where
 
 
 makeLenses ''JSObj
-makeLenses ''JSGlobal
+makeLenses ''Store

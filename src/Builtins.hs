@@ -13,8 +13,9 @@ import Builtins.Math
 import Builtins.Date
 import Builtins.RegExp
 
-configureBuiltins :: Shared JSObj -> Runtime ()
-configureBuiltins obj = do
+configureBuiltins :: Runtime ()
+configureBuiltins = do
+  obj       <- getGlobalObject
   prototype <- getGlobalObjectPrototype
 
   array     <- makeArrayClass     -- 15.4

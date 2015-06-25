@@ -28,7 +28,7 @@ evalBinOp op = case op of
   "instanceof" -> {-# SCC binOpInstanceof #-} jsInstanceOf
   "in"         -> {-# SCC binOpIn #-}         jsHasProperty
   "+"          -> {-# SCC binOpPlus #-}       jsAdd
-  "-"          -> {-# SCC binOpMinux #-}      numberOp (-)
+  "-"          -> {-# SCC binOpMinus #-}      numberOp (-)
   "*"          -> {-# SCC binOpTimes #-}      numberOp (*)
   "/"          -> {-# SCC binOpDivide #-}     numberOp (/)
   "%"          -> {-# SCC binOpMod #-}        numberOp $ fmod

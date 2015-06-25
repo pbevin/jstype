@@ -6,18 +6,17 @@ import Control.Lens
 import Data.Map.Lens
 import Control.Monad.State
 import qualified Data.Map as M
-import Runtime.Global
 import Runtime.Types
 
 
 share :: JSObj -> Runtime (Shared JSObj)
-share = shareShared globalObjStore
+share = shareShared storeObjStore
 
 shareLexEnv :: LexEnv -> Runtime (Shared LexEnv)
-shareLexEnv = shareShared globalLexEnvStore
+shareLexEnv = shareShared storeLexEnvStore
 
 sharePropertyMap :: PropertyMap -> Runtime (Shared PropertyMap)
-sharePropertyMap = shareShared globalPropMapStore
+sharePropertyMap = shareShared storePropMapStore
 
 deref :: Shared a -> Runtime a
 deref (Shared l objId) = do
@@ -33,7 +32,7 @@ modifyRef' :: Shared a -> (a -> a) -> Runtime (Shared a)
 modifyRef' shared f = modifyRef shared f >> return shared
 
 
-shareShared :: Show a => Simple Lens JSGlobal (M.Map ObjId a) -> a -> Runtime (Shared a)
+shareShared :: Show a => Simple Lens Store (M.Map ObjId a) -> a -> Runtime (Shared a)
 shareShared store obj = do
   objId <- nextID
   g <- get
@@ -44,7 +43,7 @@ shareShared store obj = do
 
 nextID :: Runtime ObjId
 nextID = do
-  global <- get
-  let objId = 1 + globalNextID global
-  put global { globalNextID = objId }
+  store <- get
+  let objId = 1 + storeNextID store
+  put store { storeNextID = objId }
   return objId

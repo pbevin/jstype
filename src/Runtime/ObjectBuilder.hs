@@ -3,6 +3,7 @@ module Runtime.ObjectBuilder where
 
 import Control.Lens
 import Control.Monad.State
+import Control.Monad.Reader
 import Data.Maybe
 import Runtime.Types
 import Runtime.Shared
@@ -19,8 +20,17 @@ newtype Builder a = B { unbuild :: StateT JSObj Runtime a }
 liftR :: Runtime a -> Builder a
 liftR m = B (lift m)
 
+buildObject :: JSObj -> Builder a -> Runtime JSObj
+buildObject obj a = snd <$> runStateT (unbuild a) obj
+
 mkObject :: Builder a -> Runtime (Shared JSObj)
-mkObject a = share =<< finish =<< snd <$> runStateT (unbuild a) defaultObject
+mkObject a = share =<< finish =<< buildObject defaultObject a
+
+updateObject :: Shared JSObj -> Builder a -> Runtime ()
+updateObject obj a = do
+  o <- deref obj
+  newObj <- buildObject o a
+  modifyRef obj (const newObj)
 
 property :: PropertyName -> JSVal -> Builder ()
 property name val = modify $ objSetProperty name val
@@ -69,6 +79,5 @@ finish obj =
   if isJust (obj^.objPrototype)
   then return obj
   else do
-   globalPrototype <- globalObjectPrototype <$> get
-   return $ obj & objPrototype .~ globalPrototype
-
+   globalPrototype <- asks globalObjectPrototype
+   return $ obj & objPrototype .~ (Just globalPrototype)
