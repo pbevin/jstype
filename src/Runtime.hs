@@ -99,6 +99,26 @@ initialCxt = do
       global <- getGlobalObject
       shareLexEnv $ LexEnv (ObjEnvRec global False) Nothing
 
+stringifyException :: JSVal -> Runtime JSError
+stringifyException v = do
+  msg <- toString v
+  st <- getStackTrace v
+  return $ JSError (VStr msg, st)
+
+exceptionToVal :: ([SrcLoc] -> [SrcLoc]) -> JSError -> Runtime JSVal
+exceptionToVal f (JSError (err, stack)) = do
+  setStacktrace err (f stack)
+  return err
+exceptionToVal f (JSProtoError (t, msg)) = do
+  err <- createError t (VStr msg)
+  exceptionToVal f (JSError (err, []))
+
+setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
+setStacktrace v stack =
+  case v of
+    VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
+    _           -> return ()
+
 -- ref 15.2.4.2
 objToString :: JSFunction
 objToString this _args =

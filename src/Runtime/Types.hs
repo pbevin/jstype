@@ -251,7 +251,14 @@ raiseError s = throwError $ JSError (VStr s, [])
 raiseProtoError :: ErrorType -> String -> Runtime a
 raiseProtoError t msg = throwError $ JSProtoError (t, msg)
 
-data ErrorType = ReferenceError | SyntaxError | TypeError deriving (Show, Eq)
+data ErrorType = Error
+               | EvalError
+               | RangeError
+               | ReferenceError
+               | SyntaxError
+               | TypeError
+               | URIError
+               deriving (Show, Eq)
 data PrimitiveHint = HintNone | HintNumber | HintString deriving (Show, Eq)
 data EvalCallType = DirectEvalCall | IndirectEvalCall deriving (Show, Eq)
 

@@ -40,5 +40,11 @@ instance Adaptable Int where
 instance Adaptable JSVal where
   adapt v _ _ = return v
 
+instance Adaptable String where
+  adapt s _ _ = return . VStr $ s
+
 instance Adaptable (Maybe Double) where
   adapt d _ _ = return . VNum $ fromMaybe jsNaN d
+
+instance Adaptable (Runtime String) where
+  adapt v _ _ = VStr <$> v

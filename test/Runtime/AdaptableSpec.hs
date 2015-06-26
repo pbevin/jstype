@@ -1,13 +1,10 @@
 module Runtime.AdaptableSpec where
 
 import Test.Hspec
-import Eval
+import Expectations
 import Runtime
 
 
-
-run :: Runtime a -> IO a
-run a = runtime a >>= \(Right r) -> return r
 
 
 

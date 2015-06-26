@@ -34,10 +34,7 @@ runProg (Program strictness stmts) = do
 
   where
     throwValAsException :: JSVal -> Runtime a
-    throwValAsException v = do
-      msg <- toString v
-      st <- getStackTrace v
-      throwError $ JSError (VStr msg, st)
+    throwValAsException v = stringifyException v >>= throwError
 
 -- ref 12.1
 runStmts :: [Statement] -> Runtime StmtReturn
@@ -61,13 +58,9 @@ runStmt stmt = action `catchError` returnThrow stmt
       otherwise                      -> error $ "Can't execute " ++ show stmt
 
     returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
-    returnThrow s (JSError (err, stack)) = do
-      setStacktrace err (sourceLocation s : stack)
-      return $ CTThrow (Just err)
-    returnThrow s (JSProtoError (t, msg)) = do
-      err <- createError t (VStr msg)
-      returnThrow s (JSError (err, []))
-
+    returnThrow s err = do
+      val <- exceptionToVal (sourceLocation s :) err
+      return $ CTThrow (Just val)
 
 runCoreBinding :: DBIType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
 runCoreBinding dbiType bindings stmt = do
@@ -151,12 +144,6 @@ runCoreLabel :: Label -> CoreStatement -> Runtime StmtReturn
 runCoreLabel _ = runStmt
 
 
-
-setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
-setStacktrace v stack =
-  case v of
-    VObj objRef -> void $ addOwnProperty "stack" (VStacktrace stack) objRef
-    _           -> return ()
 
 runUnconvertedStmt :: Statement -> Runtime StmtReturn
 runUnconvertedStmt s = {-# SCC stmt #-} case s of

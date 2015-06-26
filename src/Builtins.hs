@@ -14,6 +14,7 @@ import Builtins.Date
 import Builtins.RegExp
 import Builtins.ParseInt
 import Builtins.ParseFloat
+import Builtins.URI
 
 configureBuiltins :: Runtime ()
 configureBuiltins = do
@@ -52,32 +53,37 @@ configureBuiltins = do
 
   overObject obj $ do
 
-    method      "escape"              1 objEscape
-    method      "eval"                1 (objEval IndirectEvalCall)
-    method      "isNaN"               1 objIsNaN
-    method      "isFinite"            1 objIsFinite
-    native      "parseInt"            2 parseInt
-    native      "parseFloat"          1 parseFloat
-    property "console"        ( VObj console          )
-    property "String"         ( VObj string           )
-    property "Number"         ( VObj number           )
-    property "Boolean"        ( VObj boolean          )
-    property "Array"          ( VObj array            )
-    property "Date"           ( VObj date             )
-    property "RegExp"         ( VObj regexp           )
-    property "Error"          ( VObj errorObj         )
-    property "EvalError"      ( VObj evalError        )
-    property "RangeError"     ( VObj rangeError       )
-    property "ReferenceError" ( VObj referenceError   )
-    property "SyntaxError"    ( VObj syntaxError      )
-    property "TypeError"      ( VObj typeError        )
-    property "URIError"       ( VObj uriError         )
-    property "Math"           ( VObj math             )
-    property "JSON"           ( VObj json             )
-    constant "Infinity"       ( VNum $ 1 / 0          )
-    constant "NaN"            ( VNum $ jsNaN          )
-    constant "undefined"      ( VUndef                )
-    constant "null"           ( VNull                 )
+    method   "escape"              1 objEscape
+    method   "eval"                1 (objEval IndirectEvalCall)
+    method   "isNaN"               1 objIsNaN
+    method   "isFinite"            1 objIsFinite
+    native   "parseInt"            2 parseInt
+    native   "parseFloat"          1 parseFloat
+    native   "decodeURI"           1 decodeURI
+    native   "decodeURIComponent"  1 decodeURIComponent
+    native   "encodeURI"           1 encodeURI
+    native   "encodeURIComponent"  1 encodeURIComponent
+
+    property "console"        ( VObj console        )
+    property "String"         ( VObj string         )
+    property "Number"         ( VObj number         )
+    property "Boolean"        ( VObj boolean        )
+    property "Array"          ( VObj array          )
+    property "Date"           ( VObj date           )
+    property "RegExp"         ( VObj regexp         )
+    property "Error"          ( VObj errorObj       )
+    property "EvalError"      ( VObj evalError      )
+    property "RangeError"     ( VObj rangeError     )
+    property "ReferenceError" ( VObj referenceError )
+    property "SyntaxError"    ( VObj syntaxError    )
+    property "TypeError"      ( VObj typeError      )
+    property "URIError"       ( VObj uriError       )
+    property "Math"           ( VObj math           )
+    property "JSON"           ( VObj json           )
+    constant "Infinity"       ( VNum $ 1 / 0        )
+    constant "NaN"            ( VNum $ jsNaN        )
+    constant "undefined"      ( VUndef              )
+    constant "null"           ( VNull               )
 
   return ()
 

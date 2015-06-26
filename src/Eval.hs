@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Eval (runJS, evalJS, jsEvalExpr, runtime, runtime', RuntimeError(..)) where
+module Eval (doJS, runJS, evalJS, jsEvalExpr, runtime, runtime', toRuntimeError, RuntimeError(..)) where
 
 import Control.Lens
 import Control.Monad.State
@@ -37,14 +37,14 @@ instance Show RuntimeError where
 evalJS :: String -> String -> IO (Either RuntimeError (Maybe JSVal))
 evalJS sourceName input = do
   runJS' sourceName input >>= \case
-    (Left err, _, _) -> return $ Left $ toRuntimeError err
-    (Right v, _, _)  -> return $ Right v
+    (Left err, _) -> return $ Left $ toRuntimeError err
+    (Right v, _)  -> return $ Right v
 
-runJS :: String -> String -> IO (Either RuntimeError String)
+runJS :: String -> String -> IO (Either (String, RuntimeError) String)
 runJS sourceName input = do
   runJS' sourceName input >>= \case
-    (Left err, _, _)     -> return $ Left $ toRuntimeError err
-    (Right _, _, output) -> return $ Right output
+    (Left err, output)     -> return $ Left (output, toRuntimeError err)
+    (Right _, output) -> return $ Right output
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
@@ -57,8 +57,8 @@ jsEvalExpr input = do
 rethrowAsString :: JSError -> Runtime a
 rethrowAsString err = case err of
   JSProtoError (etype, msg) -> throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
-  JSError (err, s) -> do
-    v <- toString err
+  JSError (e, s) -> do
+    v <- toString e
     throwError $ JSError (VStr v, s)
 
 toRuntimeError :: JSError -> RuntimeError
@@ -87,12 +87,17 @@ runInEvalContext callType (Program strictness stmts) = do
           env <- newEnv rec (lexEnv cxt)
           return cxt { lexEnv = env, varEnv = env, cxtStrictness = Strict }
 
-runJS' :: String -> String -> IO (Either JSError (Maybe JSVal), Store, String)
+runJS' :: String -> String -> IO (Either JSError (Maybe JSVal), String)
 runJS' sourceName input =
-  let (r, s) = initialState
-  in case parseJS' input sourceName of
-        Left err -> return (Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), s, "")
-        Right ast -> runRuntime r s (bootstrap >> runProg ast)
+  case parseJS' input sourceName of
+    Left err -> return (Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), "")
+    Right ast -> doJS (runProg ast)
+
+doJS :: Runtime a -> IO (Either JSError a, String)
+doJS action = do
+  let (r,s) = initialState
+  (result, _, stdout) <- runRuntime r s (bootstrap >> action)
+  return (result, stdout)
 
 runtime :: Runtime a -> IO (Either JSError a)
 runtime p =
@@ -118,8 +123,8 @@ initialState = (globals, store)
     pms     = M.fromList [ ]
     envs    = M.fromList [ (3, env) ]
 
-    s id    = Shared (storeObjStore.at id) id
-    e id    = Shared (storeLexEnvStore.at id) id
+    s oid    = Shared (storeObjStore.at oid) oid
+    e oid    = Shared (storeLexEnvStore.at oid) oid
 
     obj     = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
                             _getOwnPropertyMethod = Just objGetOwnPropertyObj,
