@@ -24,24 +24,24 @@ spec = do
 
   describe "Object.prototype" $ do
     it "is the global object prototype" $ runjs $ do
-      object <- getGlobalObject
+      globalObject <- getGlobalObject
       prototype <- getGlobalObjectPrototype
-      actual <- objGet "prototype" object
+      actual <- objGet "prototype" globalObject
       liftIO $ do
         actual `shouldBe` (VObj prototype)
 
     it "has a constructor property" $ runjs $ do
-      object <- getGlobalObject
+      object <- objGet "Object" =<< getGlobalObject
       prototype <- getGlobalObjectPrototype
       actual <- objGet "constructor" prototype
       liftIO $ do
-        actual `shouldBe` (VObj object)
+        actual `shouldBe` object
 
 
   describe "A new object" $ do
     it "has a constructor property" $ runjs $ do
-      object <- getGlobalObject
+      object <- objGet "Object" =<< getGlobalObject
       obj <- newObject
       actual <- objGet "constructor" obj
       liftIO $ do
-        actual `shouldBe` (VObj object)
+        actual `shouldBe` object

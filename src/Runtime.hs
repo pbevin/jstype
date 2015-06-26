@@ -38,20 +38,11 @@ import Core
 
 import Debug.Trace
 
-initialCxt :: Runtime JSCxt
-initialCxt = do
-  env <- initialEnv
-  obj <- VObj <$> getGlobalObject
-  return $ JSCxt env env obj NotStrict
+buildGlobalObject :: Runtime ()
+buildGlobalObject = do
+  objectPrototype <- getGlobalObjectPrototype
 
-initialEnv :: Runtime JSEnv
-initialEnv = do
-  global <- getGlobalObject
-  shareLexEnv $ LexEnv (ObjEnvRec global False) Nothing
-
-createGlobalObjectPrototype :: Runtime (Shared JSObj)
-createGlobalObjectPrototype =
-  mkObject $ do
+  updateObject objectPrototype $ do
     property "prototype" VUndef
     method "toString" 0 objToString
     method "hasOwnProperty" 1 objHasOwnProperty
@@ -59,8 +50,6 @@ createGlobalObjectPrototype =
     method "isPrototypeOf" 1 objIsPrototypeOf
     method "propertyIsEnumerable" 1 objPropertyIsEnumerable
 
-createGlobalThis :: Shared JSObj -> Runtime (Shared JSObj)
-createGlobalThis objectPrototype = do
   functionPrototype <- mkObject $ do
     internal callMethod (\_this _args -> return VUndef)
     property "length" (VNum 0)
@@ -93,9 +82,22 @@ createGlobalThis objectPrototype = do
   addOwnProperty "prototype" (VObj objectPrototype) object
   addOwnProperty "constructor" (VObj object) objectPrototype
 
-  mkObject $ do
+  obj <- getGlobalObject
+  updateObject obj $ do
+    property "prototype" (VObj objectPrototype)
     property "Object" (VObj object)
     property "Function" (VObj function)
+
+initialCxt :: Runtime JSCxt
+initialCxt = do
+  env <- initialEnv
+  obj <- VObj <$> getGlobalObject
+  return $ JSCxt env env obj NotStrict
+  where
+    initialEnv :: Runtime JSEnv
+    initialEnv = do
+      global <- getGlobalObject
+      shareLexEnv $ LexEnv (ObjEnvRec global False) Nothing
 
 -- ref 15.2.4.2
 objToString :: JSFunction

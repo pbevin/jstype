@@ -2,11 +2,13 @@
 
 module Eval (runJS, evalJS, jsEvalExpr, runtime, runtime', RuntimeError(..)) where
 
+import Control.Lens
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Control.Arrow
+import qualified Data.Map as M
 import Data.Maybe
 import Data.List (intercalate)
 import Data.Bits
@@ -35,20 +37,18 @@ instance Show RuntimeError where
 evalJS :: String -> String -> IO (Either RuntimeError (Maybe JSVal))
 evalJS sourceName input = do
   runJS' sourceName input >>= \case
-    ((Left err, _), _) -> return $ Left $ toRuntimeError err
-    ((Right v, _), _)  -> return $ Right v
+    (Left err, _, _) -> return $ Left $ toRuntimeError err
+    (Right v, _, _)  -> return $ Right v
 
 runJS :: String -> String -> IO (Either RuntimeError String)
 runJS sourceName input = do
   runJS' sourceName input >>= \case
-    ((Left err, _), _)     -> return $ Left $ toRuntimeError err
-    ((Right _, output), _) -> return $ Right output
+    (Left err, _, _)     -> return $ Left $ toRuntimeError err
+    (Right _, _, output) -> return $ Right output
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
-  result <- runtime $ do
-    initGlobals evalCode
-    (runExprStmt (parseExpr input) >>= getValue) `catchError` rethrowAsString
+  result <- runtime $ (runExprStmt (parseExpr input) >>= getValue) `catchError` rethrowAsString
   case result of
     Left err  -> do
       error (show err)
@@ -87,31 +87,43 @@ runInEvalContext callType (Program strictness stmts) = do
           env <- newEnv rec (lexEnv cxt)
           return cxt { lexEnv = env, varEnv = env, cxtStrictness = Strict }
 
-runJS' :: String -> String -> IO ((Either JSError (Maybe JSVal), String), JSGlobal)
-runJS' sourceName input = case parseJS' input sourceName of
-  Left err -> return ((Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), ""), emptyGlobal)
-  Right ast -> runRuntime (initGlobals evalCode >> runProg ast)
+runJS' :: String -> String -> IO (Either JSError (Maybe JSVal), Store, String)
+runJS' sourceName input =
+  let (r, s) = initialState
+  in case parseJS' input sourceName of
+        Left err -> return (Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), s, "")
+        Right ast -> runRuntime r s (bootstrap >> runProg ast)
 
 runtime :: Runtime a -> IO (Either JSError a)
-runtime p = do
-  result <- runRuntime p
-  return $ fst (fst result)
+runtime p =
+  let (r, s) = initialState
+  in do (result, _, _) <- runRuntime r s (bootstrap >> p)
+        return result
 
 runtime' :: Runtime a -> IO (Either JSError a)
-runtime' p = runtime (initGlobals evalCode >> p)
+runtime' = runtime
 
-initGlobals :: (EvalCallType -> String -> Runtime StmtReturn) -> Runtime ()
-initGlobals evalCode = do
-  objProto <- createGlobalObjectPrototype
-  modify $ \st -> st { globalObjectPrototype = Just objProto }
+initialState :: (JSGlobal, Store)
+initialState = (globals, store)
+  where
+    globals = JSGlobal (s 1) (s 2) evalCode runStmts (e 3) cxt
+    store   = Store 100 objects pms envs
 
-  newGlobalObject <- createGlobalThis objProto
-  modify $ \st -> st { globalObject = Just newGlobalObject,
-                       globalEvaluator = Just evalCode,
-                       globalRun = Just runStmts }
-  cxt <- initialCxt
-  modify $ \st -> st { globalContext = Just cxt,
-                       globalEnvironment = Just (lexEnv cxt) }
+    object  = obj { _objPrototype = Just (s 2) }
+    proto   = obj
+    env     = LexEnv (ObjEnvRec (s 1) False) Nothing
+    cxt     = JSCxt (e 3) (e 3) (VObj $ s 1) NotStrict
 
-  configureBuiltins newGlobalObject
+    objects = M.fromList [ (1, object), (2, proto) ]
+    pms     = M.fromList [ ]
+    envs    = M.fromList [ (3, env) ]
 
+    s id    = Shared (storeObjStore.at id) id
+    e id    = Shared (storeLexEnvStore.at id) id
+
+    obj     = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                            _getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                            _getMethod = Just objGetObj }
+
+bootstrap :: Runtime ()
+bootstrap = buildGlobalObject >> configureBuiltins

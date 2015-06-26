@@ -15,8 +15,9 @@ import Builtins.RegExp
 import Builtins.ParseInt
 import Builtins.ParseFloat
 
-configureBuiltins :: Shared JSObj -> Runtime ()
-configureBuiltins obj = do
+configureBuiltins :: Runtime ()
+configureBuiltins = do
+  obj       <- getGlobalObject
   prototype <- getGlobalObjectPrototype
 
   array     <- makeArrayClass     -- 15.4
