@@ -13,6 +13,7 @@ import Builtins.Math
 import Builtins.Date
 import Builtins.RegExp
 import Builtins.ParseInt
+import Builtins.ParseFloat
 
 configureBuiltins :: Shared JSObj -> Runtime ()
 configureBuiltins obj = do
@@ -55,7 +56,7 @@ configureBuiltins obj = do
     method      "isNaN"               1 objIsNaN
     method      "isFinite"            1 objIsFinite
     native      "parseInt"            2 parseInt
-    method      "parseFloat"          1 parseFloat
+    native      "parseFloat"          1 parseFloat
     property "console"        ( VObj console          )
     property "String"         ( VObj string           )
     property "Number"         ( VObj number           )
@@ -95,14 +96,6 @@ errorSubtype name parentPrototype = do
 
 jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
-
--- ref 15.1.2.3
-parseFloat :: JSFunction
-parseFloat _this args =
-  let arg = first1 args
-  in do
-    str <- toString arg
-    return $ VNum $ parseNumber str
 
 objIsFinite :: JSFunction
 objIsFinite this args =

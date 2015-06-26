@@ -157,36 +157,17 @@ semicolon = skip ";"
 plusminus :: JSParser String -> JSParser String
 plusminus p = (:) <$> oneOf "+-" <*> p <|> p
 
-number :: JSParser Double
+number, decimal :: JSParser Double
 number = read . snd <$> np
+decimal = read . snd <$> decimalNumber True
 
 numberText :: JSParser String
 numberText = fst <$> np
 
 np :: JSParser (String, String)
-np = lexeme (octalNumber <|> hexNumber <|> numberWithoutDecimal <|> numberWithDecimal)
-  where decimalInt  = string "0" <|> (:) <$> oneOf "123456789" <*> many digit
-        fracPart = do
-          dec <- char '.' >> optional (many1 digit)
-          return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
-
-        expPart  = (:) <$> oneOf "eE" <*> plusminus (many1 digit)
-
-        numberWithoutDecimal = do
-          b <- char '.' >> many1 digit
-          c <- fromMaybe "" <$> optional expPart
-          return ('.' : (b ++ c), "0." ++ (b ++ c))
-
-        numberWithDecimal = do
-          a <- decimalInt
-          mb <- optional fracPart
-          c <- fromMaybe "" <$> optional expPart
-          case mb of
-            Nothing -> return $ dup (a ++ c)
-            Just (b, b') -> return $ (\x -> (a ++ x ++ c)) `applyTo` (b, b')
-
-        hexNumber = do
-          a <- try $ (char '0' >> oneOf "xX")
+np = lexeme (octalNumber <|> hexNumber <|> decimalNumber False)
+  where hexNumber = try $ do
+          a <- char '0' >> oneOf "xX"
           b <- many1 hexDigit
           return $ dup $ '0':a:b
 
@@ -197,7 +178,36 @@ np = lexeme (octalNumber <|> hexNumber <|> numberWithoutDecimal <|> numberWithDe
         octToDec = show . foldl (\x e -> 8*x + digitToInt e) 0
 
         dup x = (x,x)
+
+decimalNumber :: Bool -> JSParser (String, String)
+decimalNumber leadingZeros = lexeme (infinity <|> numberWithoutDecimal <|> numberWithDecimal)
+  where decimalInt  = string "0" <|> positiveInt
+        positiveInt = (:) <$> oneOf "123456789" <*> many digit
+        decimalDigits = many1 digit
+
+        fracPart = do
+          dec <- char '.' >> optional (many1 digit)
+          return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
+
+        expPart  = try $ (:) <$> oneOf "eE" <*> plusminus (many1 digit)
+
+        numberWithoutDecimal = do
+          b <- char '.' >> many1 digit
+          c <- fromMaybe "" <$> optional expPart
+          return ('.' : (b ++ c), "0." ++ (b ++ c))
+
+        numberWithDecimal = do
+          a <- if leadingZeros then decimalDigits else decimalInt
+          mb <- optional fracPart
+          c <- fromMaybe "" <$> optional expPart
+          case mb of
+            Nothing -> return $ dup (a ++ c)
+            Just (b, b') -> return $ (\x -> (a ++ x ++ c)) `applyTo` (b, b')
+
+        infinity = string "Infinity" >> return (dup "Infinity")
+
         applyTo = fmap
+        dup x = (x,x)
 
 -- ref 7.8.4
 quotedString :: JSParser String
@@ -235,7 +245,7 @@ escapeSequence = do
 
 escape :: Char -> JSParser (String,String)
 escape ch
-  | isLineBreak ch = anyChar >>= \ch -> return (['\\', ch], "")
+  | isLineBreak ch = anyChar >>= \c -> return (['\\', c], "")
   | ch == '0' = try octalEscape <|> (char '0' >> lookAhead (noneOf "0123456789") >> return ("0", "\0"))
   | ch == 'u' = char 'u' >> replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
   | ch `elem` "01234567" = octalEscape

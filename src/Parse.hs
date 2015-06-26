@@ -5,6 +5,7 @@ module Parse ( parseJS
              , parseInFunction
              , parseExpr
              , parseNumber
+             , parseDecimal
              , ParseError) where
 
 import Control.Applicative
@@ -41,25 +42,34 @@ parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
   Right e  -> e
   Left err -> error (show err)
 
+jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a
+jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text
+
 parseNumber :: String -> JSNum
 parseNumber str = case jsParse numberParser NotStrict False "" str of
   Right (Just num) -> num
   Right Nothing    -> 0
   Left err         -> jsNaN
 
-jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a
-jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text
+parseDecimal :: String -> Maybe JSNum
+parseDecimal str = case jsParse decimalParser NotStrict False "" str of
+  Left err -> Nothing
+  Right v  -> v
 
-numberParser :: JSParser (Maybe Double)
-numberParser = do
+numericParser :: JSParser Double -> JSParser (Maybe Double)
+numericParser p = do
   whiteSpace
   plusMinus <- optional (oneOf "+-")
-  num <- optional number
+  num <- optional p
   whiteSpace
-  eof
 
   return $ case num of
     Nothing -> Nothing
     Just n -> Just $ if plusMinus == Just '-'
                      then negate n
                      else n
+
+
+numberParser, decimalParser :: JSParser (Maybe Double)
+numberParser = numericParser number <* eof
+decimalParser = numericParser decimal
