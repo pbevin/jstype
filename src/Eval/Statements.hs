@@ -123,10 +123,10 @@ runCoreCont :: Maybe Label -> Runtime StmtReturn
 runCoreCont = return . CTContinue Nothing
 
 runCoreRet :: Expr -> Runtime StmtReturn
-runCoreRet expr = CTReturn . Just <$> runExprStmt expr
+runCoreRet expr = CTReturn . Just <$> (runExprStmt expr >>= getValue)
 
 runCoreThrow :: Expr -> Runtime StmtReturn
-runCoreThrow expr = CTThrow . Just <$> runExprStmt expr
+runCoreThrow expr = CTThrow . Just <$> (runExprStmt expr >>= getValue)
 
 runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Runtime StmtReturn
 runCoreCase scrutinee cases =

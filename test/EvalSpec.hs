@@ -419,6 +419,10 @@ spec = do
                   "  console.log(obj.prop);" ]
       runJStr prog `shouldReturn` Right "abc\n"
 
+    it "can return a variable value from a getter" $ do
+      runJStr "o={get x(){var n=42;return n}}; console.log(o.x);"
+        `shouldReturn` Right "42\n"
+
   describe "Object constructor" $ do
     it "calls toObject() on primitive values" $ do
       jsEvalExpr "new Object(42).toString()" `shouldReturn` VStr "42"
