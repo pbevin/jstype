@@ -267,10 +267,6 @@ debug a = do
   liftIO $ print a
   return a
 
-finally :: Runtime a -> Runtime () -> Runtime a
-finally a f = do
-  (a <* f) `catchError` (\e -> f >> throwError e)
-
 type PropertyMap = PropMap Ident (PropDesc JSVal)
 
 data Property a = PropValue a

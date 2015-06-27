@@ -11,6 +11,7 @@ data CoreStmt a  = CoreBind  DBIType EnvType [(Ident, Expr)] (CoreStmt a)
                  | CoreBlock [CoreStmt a]
                  | CoreExpr  a Expr
                  | CoreLoop  a Expr Expr (CoreStmt a)
+                 | CoreForIn a Expr Expr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
                  | CoreRet   a Expr
@@ -19,7 +20,6 @@ data CoreStmt a  = CoreBind  DBIType EnvType [(Ident, Expr)] (CoreStmt a)
                  | CoreLabel a Label (CoreStmt a)
                  | CoreTry   a (CoreStmt a) (Maybe (Ident, CoreStmt a)) (Maybe (CoreStmt a))
                  | CoreThrow a Expr
-                 | Unconverted Statement
                  deriving (Show, Eq)
 
 desugar :: [Statement] -> CoreStatement
@@ -43,8 +43,7 @@ convert stmt = case stmt of
   EmptyStatement loc             -> convertBlock loc []
   ThrowStatement loc expr        -> convertThrow loc expr
   WithStatement loc expr body    -> convertWith loc expr body
-  otherwise                      -> Unconverted stmt
-  -- otherwise                      -> error (show stmt)
+  TryStatement loc body c f      -> convertTry loc body c f
 
 coreBlock :: [CoreStatement] -> CoreStatement
 coreBlock [s] = s
@@ -88,10 +87,13 @@ convertFor3Var loc ds e2 e3 stmt =
   in CoreBlock [ s1, s2 ]
 
 convertForIn :: SrcLoc -> Expr -> Expr -> Statement -> CoreStatement
-convertForIn loc e1 e2 stmt = Unconverted (For loc (ForIn e1 e2) stmt)
+convertForIn loc e1 e2 body = CoreForIn loc e1 e2 (convert body)
 
 convertForInVar :: SrcLoc -> VarDeclaration -> Expr -> Statement -> CoreStatement
-convertForInVar loc d e stmt = Unconverted (For loc (ForInVar d e) stmt)
+convertForInVar loc (var, e1) e2 body =
+  let s1 = convert $ VarDecl loc [(var, e1)]
+      s2 = convertForIn loc (ReadVar var) e2 body
+  in CoreBlock [s1, s2]
 
 convertIf :: SrcLoc -> Expr -> Statement -> Maybe Statement -> CoreStatement
 convertIf loc expr s1 s2 = CoreIf loc expr (convert s1) (convert <$> s2)
@@ -121,6 +123,11 @@ convertSwitch loc e (as, d, bs) = CoreCase loc e cases
       Just (DefaultClause s) -> [(Nothing, CoreBlock $ map convert s)]
     toCase (CaseClause e body) = (Just e, coreBlock $ map convert body)
 
+convertTry :: SrcLoc -> Statement -> Maybe Statement -> Maybe Statement -> CoreStatement
+convertTry loc body catch finally =
+  CoreTry loc (convert body) (convertCatch <$> catch) (convertFinally <$> finally)
+    where convertCatch (Catch _loc var stmt) = (var, convert stmt)
+          convertFinally (Finally _loc stmt) = convert stmt
 
 
 declBindings :: [Statement] -> [(Ident, Expr)]
@@ -140,37 +147,6 @@ sourceLocation stmt = case stmt of
   CoreIf a _ _ _   -> a
   CoreLabel a _ _  -> a
   CoreTry a _ _ _  -> a
-  Unconverted s    -> sourceLocationUnconverted s
-
-sourceLocationUnconverted :: Statement -> SrcLoc
-sourceLocationUnconverted stmt = case stmt of
-  Block loc _               -> loc
-  LabelledStatement loc _ _ -> loc
-  VarDecl loc _             -> loc
-  ExprStmt loc _            -> loc
-  IfStatement loc _ _ _     -> loc
-  WhileStatement loc _ _    -> loc
-  DoWhileStatement loc _ _  -> loc
-  For loc _ _               -> loc
-  ContinueStatement loc _   -> loc
-  BreakStatement loc _      -> loc
-  Return loc _              -> loc
-  WithStatement loc _ _     -> loc
-  ThrowStatement loc _      -> loc
-  TryStatement loc _ _ _    -> loc
-  EmptyStatement loc        -> loc
-  DebuggerStatement loc     -> loc
-
-
-
-
-
-
-
-
-
-
-
 
 
 

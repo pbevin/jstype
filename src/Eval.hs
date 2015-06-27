@@ -83,8 +83,8 @@ runInEvalContext callType (Program strictness stmts) = do
 
   where maybeNewContext NotStrict cxt = return cxt
         maybeNewContext Strict cxt = do
-          rec <- newEnvRec
-          env <- newEnv rec (lexEnv cxt)
+          rec <- createNewEnvRec
+          env <- createNewEnv rec (lexEnv cxt)
           return cxt { lexEnv = env, varEnv = env, cxtStrictness = Strict }
 
 runJS' :: String -> String -> IO (Either JSError (Maybe JSVal), String)

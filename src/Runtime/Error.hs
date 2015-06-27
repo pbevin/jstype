@@ -52,14 +52,15 @@ errConstructor this args =
                >>= addOwnProperty "toString" (VNative "error/toString" 0 errorToString)
     _ -> raiseError "Bad this for Error constructor"
 
-dflt :: JSVal -> JSVal -> JSVal
-dflt d prop = case prop of
-  VUndef -> d
-  _      -> prop
-
 errorToString :: JSFunction
 errorToString (VObj this) _args = do
   name <- dflt (VStr "Error") <$> objGet "name" this
   msg  <- objGet "message" this
   return $ VStr $ showVal name ++ ": " ++ showVal msg
+  where
+    dflt :: JSVal -> JSVal -> JSVal
+    dflt d prop = case prop of
+      VUndef -> d
+      _      -> prop
+
 errorToString _ _ = raiseError "errorToString called on non-object"

@@ -2,7 +2,7 @@
 
 module Eval.Statements where
 
-import Control.Lens hiding (strict, Getter, Setter)
+import Control.Lens hiding (strict, Getter, Setter, op)
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Writer
@@ -28,7 +28,7 @@ runProg (Program strictness stmts) = do
   case result of
     CTNormal v       -> return v
     CTThrow (Just v) -> throwValAsException v
-    otherwise        -> do
+    _                -> do
       liftIO $ putStrLn $ "Abnormal exit: " ++ show result
       return Nothing
 
@@ -45,19 +45,19 @@ runStmt :: CoreStatement -> Runtime StmtReturn
 runStmt stmt = action `catchError` returnThrow stmt
   where
     action = case stmt of
-      CoreBind dbit et bindings stmt -> {-# SCC coreBind #-}        runCoreBinding dbit et bindings stmt
+      CoreBind dbit et bindings body -> {-# SCC coreBind #-}        runCoreBinding dbit et bindings body
       CoreBlock stmts                -> {-# SCC coreBlock #-}       runCoreBlock stmts
       CoreExpr _loc e                -> {-# SCC coreExpr #-}        runCoreExpr e
       CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}          runCoreIf e ifThen ifElse
       CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}        runCoreLoop test inc body
-      CoreBreak _loc label           -> {-# SCC coreBreak #-}       runCoreBreak label
-      CoreCont _loc label            -> {-# SCC coreCont #-}        runCoreCont label
+      CoreForIn _loc e1 e2 body      -> {-# SCC coreLoop #-}        runCoreForIn e1 e2 body
+      CoreBreak _loc lab             -> {-# SCC coreBreak #-}       runCoreBreak lab
+      CoreCont _loc lab              -> {-# SCC coreCont #-}        runCoreCont lab
       CoreRet _loc expr              -> {-# SCC coreRet #-}         runCoreRet expr
       CoreThrow _loc expr            -> {-# SCC coreThrow #-}       runCoreThrow expr
       CoreCase _loc e cases          -> {-# SCC coreCase #-}        runCoreCase e cases
-      CoreLabel _loc label body      -> {-# SCC coreLabel #-}       runCoreLabel label body
-      Unconverted s                  -> {-# SCC coreUnconverted #-} runUnconvertedStmt s
-      otherwise                      -> error $ "Can't execute " ++ show stmt
+      CoreLabel _loc lab body        -> {-# SCC coreLabel #-}       runCoreLabel lab body
+      CoreTry _loc body catch fin    -> {-# SCC coreTry #-}         runCoreTry body catch fin
 
     returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
     returnThrow s err = do
@@ -82,11 +82,11 @@ runCoreBlock stmts = runAll (CTNormal Nothing) stmts
   where
     runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
     runAll r [] = return r
-    runAll _ (s:stmts) = do
+    runAll _ (s:rest) = do
       result <- runStmt s
       case result of
-        CTNormal _ -> runAll result stmts
-        otherwise  -> return result
+        CTNormal _ -> runAll result rest
+        _          -> return result
 
 runCoreExpr :: Expr -> Runtime StmtReturn
 runCoreExpr e = CTNormal . Just <$> (runExprStmt e >>= getValue)
@@ -111,10 +111,10 @@ runCoreLoop test inc body = keepGoing Nothing where
       r <- {-# SCC loop_body #-} runStmt body
       let v' = rval r <|> v
       case r of
-        CTBreak    v' _ -> return $ CTNormal v'
-        CTContinue v' _ -> increment >> keepGoing v'
-        CTNormal   v'   -> increment >> keepGoing v'
-        otherwise      -> return r
+        CTBreak    _ _ -> return $ CTNormal v'
+        CTContinue _ _ -> increment >> keepGoing v'
+        CTNormal   _   -> increment >> keepGoing v'
+        _              -> return r
 
 runCoreBreak :: Maybe Label -> Runtime StmtReturn
 runCoreBreak = return . CTBreak Nothing
@@ -129,14 +129,14 @@ runCoreThrow :: Expr -> Runtime StmtReturn
 runCoreThrow expr = CTThrow . Just <$> runExprStmt expr
 
 runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Runtime StmtReturn
-runCoreCase e cases =
-  runExprStmt e >>= getValue >>= go cases
+runCoreCase scrutinee cases =
+  runExprStmt scrutinee >>= getValue >>= go cases
     where
       go :: [(Maybe Expr, CoreStatement)] -> JSVal -> Runtime StmtReturn
       go cs input = case cs of
         []       -> endWith dflt
         (c:rest) -> case c of
-          (Nothing, s) -> go rest input
+          (Nothing, _) -> go rest input
           (Just e,  s) -> do
             clauseSelector <- runExprStmt e >>= getValue
             if input `eqv` clauseSelector
@@ -152,112 +152,85 @@ runCoreCase e cases =
         case r of
           CTNormal _  -> runToEnd v' rest
           CTBreak _ _ -> return $ CTNormal v'
-          otherwise   -> return $ r { rval = v' }
+          _           -> return $ r { rval = v' }
 
       dflt = map snd . dropWhile (isJust . fst) $ cases
 
 runCoreLabel :: Label -> CoreStatement -> Runtime StmtReturn
 runCoreLabel _ = runStmt
 
+runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> Runtime StmtReturn
+runCoreTry body catch finally =do
+  br <- runStmt body
 
+  case (catch, finally) of
+    (Just c, Nothing) -> do
+      case br of
+        CTThrow (Just exc) -> runCatch c exc
+        _                  -> return br
 
-runUnconvertedStmt :: Statement -> Runtime StmtReturn
-runUnconvertedStmt s = {-# SCC stmt #-} case s of
+    (Nothing, Just f) -> do
+      fr <- runStmt f
+      case fr of
+        CTNormal _ -> return br
+        _          -> return fr
 
-  For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
-    exprRef <- runExprStmt e
-    exprValue <- getValue exprRef
-    if (exprValue == VNull || exprValue == VUndef)
-    then return $ CTNormal Nothing
-    else do
-      obj <- toObject exprValue
-      keys <- propMapKeys . view ownProperties <$> deref obj
-      keepGoing obj keys Nothing where
-        keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
-        keepGoing _ [] v = return $ CTNormal v
-        keepGoing obj (p:ps) v = do
-          desc <- objGetOwnProperty p obj
-          let want = maybe False propIsEnumerable desc
-          if want
-          then do
-            lhsRef <- runExprStmt lhs
-            putValue' lhsRef (VStr p)
-            s <- runStmt (convert stmt)
-            let nextv = rval s <|> v
-            case s of
-              CTBreak v' _    -> return $ CTNormal nextv
-              CTContinue v' _ -> keepGoing obj ps  nextv
-              CTNormal _      -> keepGoing obj ps  nextv
-              _ -> return s
-          else keepGoing obj ps v
-
-
-  For loc (ForInVar (x, e1) e2) stmt ->
-    runStmt . convert $ transformFor3VarIn loc x e1 e2 stmt
-
-  TryStatement _loc block catch finally -> do -- ref 12.14
-    br <- runStmt (convert block)
-
-    case (catch, finally) of
-      (Just c, Nothing) -> do
-        case br of
-          CTThrow (Just exc) -> runCatch c exc
-          otherwise          -> return br
-
-      (Nothing, Just f) -> do
-        fr <- runFinally f
-        case fr of
-          CTNormal _ -> return br
-          otherwise  -> return fr
-
-      (Just c, Just f) -> do
-        cr <- case br of
-                CTThrow (Just exc) -> runCatch c exc
-                otherwise          -> return br
-        fr <- runFinally f
-        case fr of
-          CTNormal _ -> return cr
-          otherwise  -> return fr
-
-  ThrowStatement _loc e -> do
-    exc <- runExprStmt e >>= getValue
-    return $ CTThrow (Just exc)
-
-  _ -> error ("Unimplemented stmt: " ++ show s)
-
-
-transformFor3VarIn :: SrcLoc -> Ident -> Maybe Expr -> Expr -> Statement -> Statement
-transformFor3VarIn loc x e1 e2 s =
-  let s1 = VarDecl loc [(x, e1)]
-  in Block loc [ s1, For loc (ForIn (ReadVar x) e2) s ]
-
--- ref 12.2
-runVarDecl :: [VarDeclaration] -> Runtime StmtReturn
-runVarDecl assignments = do
-  forM_ assignments $ \(x, e) -> case e of
-    Nothing  -> return ()
-    Just e' -> do
-      runExprStmt e' >>= getValue >>= putVar x
-  return $ CTNormal Nothing
+    (Just c, Just f) -> do
+      cr <- case br of
+              CTThrow (Just exc) -> runCatch c exc
+              _                  -> return br
+      fr <- runStmt f
+      case fr of
+        CTNormal _ -> return cr
+        _          -> return fr
 
 
 -- ref 12.14
-runCatch :: Statement -> JSVal -> Runtime StmtReturn
-runCatch (Catch _loc var block) c = do
+runCatch :: (Ident, CoreStatement) -> JSVal -> Runtime StmtReturn
+runCatch (var, block) c = do
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True rec
   setMutableBinding var c False rec
-  withLexEnv catchEnv $ runStmt (convert block)
+  withLexEnv catchEnv $ runStmt block
 
-runFinally :: Statement -> Runtime StmtReturn
-runFinally (Finally _loc stmt) = runStmt (convert stmt)
+
+-- ref 12.6.4
+runCoreForIn :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
+runCoreForIn lhs e stmt = do
+  exprRef <- runExprStmt e
+  exprValue <- getValue exprRef
+  if (exprValue == VNull || exprValue == VUndef)
+  then return $ CTNormal Nothing
+  else do
+    obj <- toObject exprValue
+    keys <- propMapKeys . view ownProperties <$> deref obj
+    keepGoing obj keys Nothing where
+      keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
+      keepGoing _ [] v = return $ CTNormal v
+      keepGoing obj (p:ps) v = do
+        desc <- objGetOwnProperty p obj
+        let want = maybe False propIsEnumerable desc
+        if want
+        then do
+          lhsRef <- runExprStmt lhs
+          putValue' lhsRef (VStr p)
+          s <- runStmt stmt
+          let nextv = rval s <|> v
+          case s of
+            CTBreak v' _    -> return $ CTNormal nextv
+            CTContinue v' _ -> keepGoing obj ps  nextv
+            CTNormal _      -> keepGoing obj ps  nextv
+            _ -> return s
+        else keepGoing obj ps v
+
+
 
 readVar :: Ident -> Runtime JSVal
 readVar name = do
-  cxt <- {-# SCC getGlobalContext #-} getGlobalContext
-  VRef <$> {-# SCC getIdentifierReference #-} getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
+  cxt <- getGlobalContext
+  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
 
 runExprStmt :: Expr -> Runtime JSVal
 runExprStmt expr = case expr of
@@ -269,7 +242,7 @@ runExprStmt expr = case expr of
   ReadVar name          -> {-# SCC exprReadVar #-}   readVar name
   This                  -> {-# SCC exprThis #-}      thisBinding <$> getGlobalContext
   ArrayLiteral vals     -> {-# SCC exprArrayLit #-}  evalArrayLiteral vals
-  ObjectLiteral map     -> {-# SCC exprObjLit #-}    makeObjectLiteral map
+  ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
   MemberDot e x         -> {-# SCC exprMemberDot #-} evalPropertyAccessorIdent e x
   MemberGet e x         -> {-# SCC exprMemberGet #-} evalPropertyAccessor e x
@@ -445,14 +418,14 @@ makeObjectLiteral nameValueList =do
 
     checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
     checkCompatible a b = do
-      let fail = raiseSyntaxError "Cannot reassign property"
+      let failure = raiseSyntaxError "Cannot reassign property"
       strict <- (== Strict) <$> getGlobalStrictness
-      when (strict && isDataDescriptor (Just a) && isDataDescriptor (Just b)) fail
-      when (isDataDescriptor (Just a) && isAccessorDescriptor (Just b)) fail
-      when (isAccessorDescriptor (Just a) && isDataDescriptor (Just b)) fail
+      when (strict && isDataDescriptor (Just a) && isDataDescriptor (Just b)) failure
+      when (isDataDescriptor (Just a) && isAccessorDescriptor (Just b)) failure
+      when (isAccessorDescriptor (Just a) && isDataDescriptor (Just b)) failure
       when (isAccessorDescriptor (Just a) && isAccessorDescriptor (Just b)) $ do
-        when (hasGetter a && hasGetter b) fail
-        when (hasSetter a && hasSetter b) fail
+        when (hasGetter a && hasGetter b) failure
+        when (hasSetter a && hasSetter b) failure
       return ()
 
 
@@ -470,7 +443,7 @@ evalDelete val
         deleteFromObj (JSRef base name strict) = do
           obj <- toObject base
           objDelete name (strict == Strict) obj
-        deleteFromEnv (JSRef (VEnv base) name strict) = deleteBinding name base
+        deleteFromEnv (JSRef (VEnv base) name _strict) = deleteBinding name base
 
 
 -- ref 11.4.3
@@ -497,11 +470,11 @@ evalTypeof val = do
     return $ VStr result
 
 
-newEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)
-newEnv rec parent = do
+createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)
+createNewEnv rec parent = do
   shareLexEnv $ LexEnv rec (Just parent)
 
-newEnvRec :: Runtime EnvRec
-newEnvRec = do
+createNewEnvRec :: Runtime EnvRec
+createNewEnvRec = do
   m <- sharePropertyMap emptyPropMap
   return (DeclEnvRec m)
