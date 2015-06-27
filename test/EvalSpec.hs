@@ -475,6 +475,10 @@ spec = do
                   "  } " ]
       runJStr prog `shouldReturn` Right "2\n"
 
+    it "can override a constant" $ do
+      runJStr "with ({ Infinity: 3 }) { console.log(Infinity) }"
+        `shouldReturn` Right "3\n"
+
 
   describe "delete" $ do
     it "deletes an undeclared variable" $ do

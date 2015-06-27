@@ -65,17 +65,17 @@ runStmt stmt = action `catchError` returnThrow stmt
       return $ CTThrow (Just val)
 
 runCoreBinding :: DBIType -> EnvType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
-runCoreBinding dbiType envType bindings stmt = case envType of
+runCoreBinding dbiType envType bindings body = case envType of
   DeclarativeEnv -> do
     bindAll dbiType NotStrict bindings
-    runStmt stmt
+    runStmt body
 
   ObjectEnv e -> do
     val <- runExprStmt e
     obj <- toObject =<< getValue val
     oldEnv <- lexEnv <$> getGlobalContext
     newEnv <- newObjectEnvironment obj (Just oldEnv) True
-    withLexEnv newEnv $ runStmt stmt
+    withLexEnv newEnv $ runStmt body
 
 runCoreBlock :: [CoreStatement] -> Runtime StmtReturn
 runCoreBlock stmts = runAll (CTNormal Nothing) stmts

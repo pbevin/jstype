@@ -204,7 +204,9 @@ decimalNumber leadingZeros = lexeme (infinity <|> numberWithoutDecimal <|> numbe
             Nothing -> return $ dup (a ++ c)
             Just (b, b') -> return $ (\x -> (a ++ x ++ c)) `applyTo` (b, b')
 
-        infinity = string "Infinity" >> return (dup "Infinity")
+        infinity = if leadingZeros
+                   then string "Infinity" >> return (dup "Infinity")
+                   else fail ""
 
         applyTo = fmap
         dup x = (x,x)
