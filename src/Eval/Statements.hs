@@ -45,13 +45,15 @@ runStmt :: CoreStatement -> Runtime StmtReturn
 runStmt stmt = action `catchError` returnThrow stmt
   where
     action = case stmt of
-      CoreBind dbiType bindings stmt -> {-# SCC coreBind #-}        runCoreBinding dbiType bindings stmt
+      CoreBind dbit et bindings stmt -> {-# SCC coreBind #-}        runCoreBinding dbit et bindings stmt
       CoreBlock stmts                -> {-# SCC coreBlock #-}       runCoreBlock stmts
       CoreExpr _loc e                -> {-# SCC coreExpr #-}        runCoreExpr e
       CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}          runCoreIf e ifThen ifElse
       CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}        runCoreLoop test inc body
       CoreBreak _loc label           -> {-# SCC coreBreak #-}       runCoreBreak label
       CoreCont _loc label            -> {-# SCC coreCont #-}        runCoreCont label
+      CoreRet _loc expr              -> {-# SCC coreRet #-}         runCoreRet expr
+      CoreThrow _loc expr            -> {-# SCC coreThrow #-}       runCoreThrow expr
       CoreCase _loc e cases          -> {-# SCC coreCase #-}        runCoreCase e cases
       CoreLabel _loc label body      -> {-# SCC coreLabel #-}       runCoreLabel label body
       Unconverted s                  -> {-# SCC coreUnconverted #-} runUnconvertedStmt s
@@ -62,10 +64,18 @@ runStmt stmt = action `catchError` returnThrow stmt
       val <- exceptionToVal (sourceLocation s :) err
       return $ CTThrow (Just val)
 
-runCoreBinding :: DBIType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
-runCoreBinding dbiType bindings stmt = do
-  bindAll dbiType NotStrict bindings
-  runStmt stmt
+runCoreBinding :: DBIType -> EnvType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
+runCoreBinding dbiType envType bindings stmt = case envType of
+  DeclarativeEnv -> do
+    bindAll dbiType NotStrict bindings
+    runStmt stmt
+
+  ObjectEnv e -> do
+    val <- runExprStmt e
+    obj <- toObject =<< getValue val
+    oldEnv <- lexEnv <$> getGlobalContext
+    newEnv <- newObjectEnvironment obj (Just oldEnv) True
+    withLexEnv newEnv $ runStmt stmt
 
 runCoreBlock :: [CoreStatement] -> Runtime StmtReturn
 runCoreBlock stmts = runAll (CTNormal Nothing) stmts
@@ -112,6 +122,12 @@ runCoreBreak = return . CTBreak Nothing
 runCoreCont :: Maybe Label -> Runtime StmtReturn
 runCoreCont = return . CTContinue Nothing
 
+runCoreRet :: Expr -> Runtime StmtReturn
+runCoreRet expr = CTReturn . Just <$> runExprStmt expr
+
+runCoreThrow :: Expr -> Runtime StmtReturn
+runCoreThrow expr = CTThrow . Just <$> runExprStmt expr
+
 runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Runtime StmtReturn
 runCoreCase e cases =
   runExprStmt e >>= getValue >>= go cases
@@ -147,8 +163,6 @@ runCoreLabel _ = runStmt
 
 runUnconvertedStmt :: Statement -> Runtime StmtReturn
 runUnconvertedStmt s = {-# SCC stmt #-} case s of
-  FunDecl {} -> return (CTNormal Nothing)
-  VarDecl _loc assignments -> runVarDecl assignments -- ref 12.2
 
   For _loc (ForIn lhs e) stmt -> do -- ref 12.6.4
     exprRef <- runExprStmt e
@@ -181,8 +195,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
   For loc (ForInVar (x, e1) e2) stmt ->
     runStmt . convert $ transformFor3VarIn loc x e1 e2 stmt
 
-  WithStatement _loc e s -> runWithStatement e s
-
   TryStatement _loc block catch finally -> do -- ref 12.14
     br <- runStmt (convert block)
 
@@ -211,13 +223,6 @@ runUnconvertedStmt s = {-# SCC stmt #-} case s of
     exc <- runExprStmt e >>= getValue
     return $ CTThrow (Just exc)
 
-  Return _loc Nothing          -> return $ CTReturn  (Just VUndef)
-  Return _loc (Just e) -> do
-    val <- runExprStmt e >>= getValue
-    return $ CTReturn (Just val)
-
-  EmptyStatement _loc -> return $ CTNormal Nothing
-
   _ -> error ("Unimplemented stmt: " ++ show s)
 
 
@@ -234,16 +239,6 @@ runVarDecl assignments = do
     Just e' -> do
       runExprStmt e' >>= getValue >>= putVar x
   return $ CTNormal Nothing
-
--- ref 12.10
-runWithStatement :: Expr -> Statement -> Runtime StmtReturn
-runWithStatement e s = do
-  val <- runExprStmt e
-  obj <- toObject =<< getValue val
-  oldEnv <- lexEnv <$> getGlobalContext
-  newEnv <- newObjectEnvironment obj (Just oldEnv) True
-  withLexEnv newEnv $ runStmt (convert s)
-
 
 
 -- ref 12.14
