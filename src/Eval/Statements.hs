@@ -95,22 +95,22 @@ newtype Stmt a = Stmt {
   unStmt :: forall b .
                 Maybe JSVal
              -> CoreStatement
-             -> (a -> Maybe JSVal -> Runtime b) -- normal
-             -> (a -> Maybe Label -> Runtime b) -- break
-             -> (a -> Maybe Label -> Runtime b) -- continue
-             -> (a ->       JSVal -> Runtime b) -- return
-             -> (a ->       JSVal -> Runtime b) -- throw
+             -> (Maybe JSVal -> Runtime b) -- normal
+             -> (Maybe Label -> Runtime b) -- break
+             -> (Maybe Label -> Runtime b) -- continue
+             -> (      JSVal -> Runtime b) -- return
+             -> (      JSVal -> Runtime b) -- throw
              -> Runtime b
 }
 
 
 runST :: Maybe JSVal -> CoreStatement -> Stmt a -> Runtime StmtReturn
 runST v s a = unStmt a v s normal break cont ret throw
-  where normal _ v = return . CTNormal           $ v
-        break  _ l = return . CTBreak Nothing    $ l
-        cont   _ l = return . CTContinue Nothing $ l
-        ret    _ v = return . CTReturn . Just    $ v
-        throw  _ v = return . CTThrow  . Just    $ v
+  where normal v = return . CTNormal           $ v
+        break  l = return . CTBreak Nothing    $ l
+        cont   l = return . CTContinue Nothing $ l
+        ret    v = return . CTReturn . Just    $ v
+        throw  v = return . CTThrow  . Just    $ v
 
 type SResult = Either JSVal JSVal
 
@@ -118,11 +118,11 @@ sadapt :: Runtime StmtReturn -> Stmt ()
 sadapt a = Stmt $ \v s nor brk con ret thr -> do
   r <- a `catchError` returnThrow s
   case r of
-    CTNormal v -> nor () v
-    CTBreak _ l -> brk () l
-    CTContinue _ l -> con () l
-    CTReturn v -> ret () (fromMaybe VUndef v)
-    CTThrow v  -> thr () (fromMaybe VUndef v)
+    CTNormal v -> nor v
+    CTBreak _ l -> brk l
+    CTContinue _ l -> con l
+    CTReturn v -> ret (fromMaybe VUndef v)
+    CTThrow v  -> thr (fromMaybe VUndef v)
   where
     returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
     returnThrow s err = do
@@ -201,16 +201,16 @@ runCoreLoop test inc body = sadapt $ keepGoing Nothing where
         _              -> return r
 
 runCoreBreak :: Maybe Label -> Stmt ()
-runCoreBreak = sadapt . return . CTBreak Nothing
+runCoreBreak label = Stmt $ \v s n b c r t -> b label
 
 runCoreCont :: Maybe Label -> Stmt ()
-runCoreCont = sadapt . return . CTContinue Nothing
+runCoreCont label = Stmt $ \v s n b c r t -> c label
 
 runCoreRet :: Expr -> Stmt ()
-runCoreRet expr = sadapt $ CTReturn . Just <$> (runExprStmt expr >>= getValue)
+runCoreRet expr = Stmt $ \v s n b c r t -> runExprStmt expr >>= getValue >>= r
 
 runCoreThrow :: Expr -> Stmt ()
-runCoreThrow expr = sadapt $ CTThrow . Just <$> (runExprStmt expr >>= getValue)
+runCoreThrow expr = Stmt $ \v s n b c r t -> runExprStmt expr >>= getValue >>= t
 
 runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Stmt ()
 runCoreCase scrutinee cases = sadapt $
