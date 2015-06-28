@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, RankNTypes #-}
 
 module Eval.Statements where
 
@@ -30,6 +30,7 @@ data Result a = CTNormal   { rval :: Maybe a }
               deriving (Show, Eq)
 
 
+
 -- | Global interface to eval()
 evalCode :: EvalCallType -> String -> Runtime JSVal
 evalCode callType text = do
@@ -47,12 +48,12 @@ evalCode callType text = do
 
 -- ref 10.4.2
 runInEvalContext :: EvalCallType -> Program -> Runtime StmtReturn
-runInEvalContext callType (Program strictness stmts) = do
+runInEvalContext callType (Program strictness body) = do
       let cxt = if callType == DirectEvalCall then getGlobalContext else initialCxt
       newCxt <- maybeNewContext strictness =<< cxt
       withNewContext newCxt $ do
-        performDBI DBIEval strictness stmts
-        withStrictness strictness (runStmts stmts)
+        performDBI DBIEval strictness body
+        withStrictness strictness (runStmt $ desugar body)
 
   where maybeNewContext NotStrict cxt = return cxt
         maybeNewContext Strict cxt = do
@@ -71,8 +72,8 @@ runCode body = do
 
 
 runProg :: Program -> Runtime (Maybe JSVal)
-runProg (Program strictness stmts) = do
-  result <- withStrictness strictness (runStmts stmts)
+runProg (Program strictness body) = do
+  result <- withStrictness strictness (runStmt $ desugar body)
   case result of
     CTNormal v       -> return v
     CTThrow (Just v) -> throwValAsException v
@@ -89,31 +90,66 @@ runStmts :: [Statement] -> Runtime StmtReturn
 runStmts = runStmt . desugar
 
 
-runStmt :: CoreStatement -> Runtime StmtReturn
-runStmt stmt = action `catchError` returnThrow stmt
-  where
-    action = case stmt of
-      CoreBind dbit et bindings body -> {-# SCC coreBind #-}        runCoreBinding dbit et bindings body
-      CoreBlock stmts                -> {-# SCC coreBlock #-}       runCoreBlock stmts
-      CoreExpr _loc e                -> {-# SCC coreExpr #-}        runCoreExpr e
-      CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}          runCoreIf e ifThen ifElse
-      CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}        runCoreLoop test inc body
-      CoreForIn _loc e1 e2 body      -> {-# SCC coreLoop #-}        runCoreForIn e1 e2 body
-      CoreBreak _loc lab             -> {-# SCC coreBreak #-}       runCoreBreak lab
-      CoreCont _loc lab              -> {-# SCC coreCont #-}        runCoreCont lab
-      CoreRet _loc expr              -> {-# SCC coreRet #-}         runCoreRet expr
-      CoreThrow _loc expr            -> {-# SCC coreThrow #-}       runCoreThrow expr
-      CoreCase _loc e cases          -> {-# SCC coreCase #-}        runCoreCase e cases
-      CoreLabel _loc lab body        -> {-# SCC coreLabel #-}       runCoreLabel lab body
-      CoreTry _loc body catch fin    -> {-# SCC coreTry #-}         runCoreTry body catch fin
 
+newtype Stmt a = Stmt {
+  unStmt :: forall b .
+                Maybe JSVal
+             -> CoreStatement
+             -> (a -> Maybe JSVal -> Runtime b) -- normal
+             -> (a -> Maybe Label -> Runtime b) -- break
+             -> (a -> Maybe Label -> Runtime b) -- continue
+             -> (a ->       JSVal -> Runtime b) -- return
+             -> (a ->       JSVal -> Runtime b) -- throw
+             -> Runtime b
+}
+
+
+runST :: Maybe JSVal -> CoreStatement -> Stmt a -> Runtime StmtReturn
+runST v s a = unStmt a v s normal break cont ret throw
+  where normal _ v = return . CTNormal           $ v
+        break  _ l = return . CTBreak Nothing    $ l
+        cont   _ l = return . CTContinue Nothing $ l
+        ret    _ v = return . CTReturn . Just    $ v
+        throw  _ v = return . CTThrow  . Just    $ v
+
+type SResult = Either JSVal JSVal
+
+sadapt :: Runtime StmtReturn -> Stmt ()
+sadapt a = Stmt $ \v s nor brk con ret thr -> do
+  r <- a `catchError` returnThrow s
+  case r of
+    CTNormal v -> nor () v
+    CTBreak _ l -> brk () l
+    CTContinue _ l -> con () l
+    CTReturn v -> ret () (fromMaybe VUndef v)
+    CTThrow v  -> thr () (fromMaybe VUndef v)
+  where
     returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
     returnThrow s err = do
       val <- exceptionToVal (sourceLocation s :) err
       return $ CTThrow (Just val)
 
-runCoreBinding :: DBIType -> EnvType -> [(Ident, Expr)] -> CoreStatement -> Runtime StmtReturn
-runCoreBinding dbiType envType bindings body = case envType of
+
+runStmt :: CoreStatement -> Runtime StmtReturn
+runStmt stmt = runST Nothing stmt action
+  where
+    action = case stmt of
+      CoreBind dbit et bindings body -> {-# SCC coreBind #-}   runCoreBinding dbit et bindings body
+      CoreBlock body                 -> {-# SCC coreBlock #-}  runCoreBlock body
+      CoreExpr _loc e                -> {-# SCC coreExpr #-}   runCoreExpr e
+      CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}     runCoreIf e ifThen ifElse
+      CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}   runCoreLoop test inc body
+      CoreForIn _loc e1 e2 body      -> {-# SCC coreLoop #-}   runCoreForIn e1 e2 body
+      CoreBreak _loc lab             -> {-# SCC coreBreak #-}  runCoreBreak lab
+      CoreCont _loc lab              -> {-# SCC coreCont #-}   runCoreCont lab
+      CoreRet _loc expr              -> {-# SCC coreRet #-}    runCoreRet expr
+      CoreThrow _loc expr            -> {-# SCC coreThrow #-}  runCoreThrow expr
+      CoreCase _loc e cases          -> {-# SCC coreCase #-}   runCoreCase e cases
+      CoreLabel _loc lab body        -> {-# SCC coreLabel #-}  runCoreLabel lab body
+      CoreTry _loc body catch fin    -> {-# SCC coreTry #-}    runCoreTry body catch fin
+
+runCoreBinding :: DBIType -> EnvType -> [(Ident, Expr)] -> CoreStatement -> Stmt ()
+runCoreBinding dbiType envType bindings body = sadapt $ case envType of
   DeclarativeEnv -> do
     bindAll dbiType NotStrict bindings
     runStmt body
@@ -125,8 +161,8 @@ runCoreBinding dbiType envType bindings body = case envType of
     newEnv <- newObjectEnvironment obj (Just oldEnv) True
     withLexEnv newEnv $ runStmt body
 
-runCoreBlock :: [CoreStatement] -> Runtime StmtReturn
-runCoreBlock stmts = runAll (CTNormal Nothing) stmts
+runCoreBlock :: [CoreStatement] -> Stmt ()
+runCoreBlock body = sadapt $ runAll (CTNormal Nothing) body
   where
     runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
     runAll r [] = return r
@@ -136,19 +172,19 @@ runCoreBlock stmts = runAll (CTNormal Nothing) stmts
         CTNormal _ -> runAll result rest
         _          -> return result
 
-runCoreExpr :: Expr -> Runtime StmtReturn
-runCoreExpr e = CTNormal . Just <$> (runExprStmt e >>= getValue)
+runCoreExpr :: Expr -> Stmt ()
+runCoreExpr e = sadapt $ CTNormal . Just <$> (runExprStmt e >>= getValue)
 
-runCoreIf :: Expr -> CoreStatement -> Maybe CoreStatement -> Runtime StmtReturn
-runCoreIf e ifThen ifElse = do
+runCoreIf :: Expr -> CoreStatement -> Maybe CoreStatement -> Stmt ()
+runCoreIf e ifThen ifElse = sadapt $ do
   cond <- toBoolean <$> (runExprStmt e >>= getValue)
   case (cond, ifElse) of
     (True, _)        -> runStmt ifThen
     (False, Just s)  -> runStmt s
     (False, Nothing) -> return (CTNormal Nothing)
 
-runCoreLoop :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
-runCoreLoop test inc body = keepGoing Nothing where
+runCoreLoop :: Expr -> Expr -> CoreStatement -> Stmt ()
+runCoreLoop test inc body = sadapt $ keepGoing Nothing where
   condition = toBoolean <$> (runExprStmt test >>= getValue)
   increment = runExprStmt inc >>= getValue
   keepGoing v = do
@@ -164,20 +200,20 @@ runCoreLoop test inc body = keepGoing Nothing where
         CTNormal   _   -> increment >> keepGoing v'
         _              -> return r
 
-runCoreBreak :: Maybe Label -> Runtime StmtReturn
-runCoreBreak = return . CTBreak Nothing
+runCoreBreak :: Maybe Label -> Stmt ()
+runCoreBreak = sadapt . return . CTBreak Nothing
 
-runCoreCont :: Maybe Label -> Runtime StmtReturn
-runCoreCont = return . CTContinue Nothing
+runCoreCont :: Maybe Label -> Stmt ()
+runCoreCont = sadapt . return . CTContinue Nothing
 
-runCoreRet :: Expr -> Runtime StmtReturn
-runCoreRet expr = CTReturn . Just <$> (runExprStmt expr >>= getValue)
+runCoreRet :: Expr -> Stmt ()
+runCoreRet expr = sadapt $ CTReturn . Just <$> (runExprStmt expr >>= getValue)
 
-runCoreThrow :: Expr -> Runtime StmtReturn
-runCoreThrow expr = CTThrow . Just <$> (runExprStmt expr >>= getValue)
+runCoreThrow :: Expr -> Stmt ()
+runCoreThrow expr = sadapt $ CTThrow . Just <$> (runExprStmt expr >>= getValue)
 
-runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Runtime StmtReturn
-runCoreCase scrutinee cases =
+runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Stmt ()
+runCoreCase scrutinee cases = sadapt $
   runExprStmt scrutinee >>= getValue >>= go cases
     where
       go :: [(Maybe Expr, CoreStatement)] -> JSVal -> Runtime StmtReturn
@@ -204,11 +240,11 @@ runCoreCase scrutinee cases =
 
       dflt = map snd . dropWhile (isJust . fst) $ cases
 
-runCoreLabel :: Label -> CoreStatement -> Runtime StmtReturn
-runCoreLabel _ = runStmt
+runCoreLabel :: Label -> CoreStatement -> Stmt ()
+runCoreLabel _ = sadapt . runStmt
 
-runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> Runtime StmtReturn
-runCoreTry body catch finally =do
+runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> Stmt ()
+runCoreTry body catch finally = sadapt $ do
   br <- runStmt body
 
   case (catch, finally) of
@@ -245,8 +281,8 @@ runCatch (var, block) c = do
 
 
 -- ref 12.6.4
-runCoreForIn :: Expr -> Expr -> CoreStatement -> Runtime StmtReturn
-runCoreForIn lhs e stmt = do
+runCoreForIn :: Expr -> Expr -> CoreStatement -> Stmt ()
+runCoreForIn lhs e stmt = sadapt $ do
   exprRef <- runExprStmt e
   exprValue <- getValue exprRef
   if (exprValue == VNull || exprValue == VUndef)
@@ -267,9 +303,9 @@ runCoreForIn lhs e stmt = do
           s <- runStmt stmt
           let nextv = rval s <|> v
           case s of
-            CTBreak v' _    -> return $ CTNormal nextv
-            CTContinue v' _ -> keepGoing obj ps  nextv
-            CTNormal _      -> keepGoing obj ps  nextv
+            CTBreak _ _    -> return $ CTNormal nextv
+            CTContinue _ _ -> keepGoing obj ps  nextv
+            CTNormal _     -> keepGoing obj ps  nextv
             _ -> return s
         else keepGoing obj ps v
 
