@@ -11,12 +11,12 @@ import Expr
 type SourceName = String
 type SourceCode = String
 
-jsEvalCode :: EvalCallType -> String -> Runtime StmtReturn
+jsEvalCode :: EvalCallType -> String -> Runtime JSVal
 jsEvalCode callType str = do
   f <- asks globalEvaluator
   f callType str
 
-jsRunStmts :: [Statement] -> Runtime StmtReturn
+jsRunStmts :: [Statement] -> Runtime (Either JSVal JSVal)
 jsRunStmts stmts = do
   f <- asks globalRun
   f stmts

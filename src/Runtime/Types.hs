@@ -175,17 +175,9 @@ sameValue x y = x == y
 type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc])
              | JSProtoError (ErrorType, String)
-             | EarlyExit
+             | EarlyExit  -- XXX
              deriving (Show, Eq)
 type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
-
-type StmtReturn = Result JSVal
-data Result a = CTNormal   { rval :: Maybe a }
-              | CTBreak    { rval :: Maybe a, label :: Maybe Ident }
-              | CTContinue { rval :: Maybe a, label :: Maybe Ident }
-              | CTReturn   { rval :: Maybe a }
-              | CTThrow    { rval :: Maybe a }
-              deriving (Show, Eq)
 
 
 -- Shared type
@@ -232,8 +224,8 @@ exit = throwError EarlyExit
 data JSGlobal = JSGlobal {
   globalObject          :: Shared JSObj,
   globalObjectPrototype :: Shared JSObj,
-  globalEvaluator       :: EvalCallType -> String -> Runtime StmtReturn,
-  globalRun             :: [Statement] -> Runtime StmtReturn,
+  globalEvaluator       :: EvalCallType -> String -> Runtime JSVal,
+  globalRun             :: [Statement] -> Runtime (Either JSVal JSVal),
   globalEnvironment     :: Shared LexEnv,
   globalContext         :: JSCxt
 }

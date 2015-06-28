@@ -21,6 +21,54 @@ import Builtins
 import Runtime
 import Core
 
+type StmtReturn = Result JSVal
+data Result a = CTNormal   { rval :: Maybe a }
+              | CTBreak    { rval :: Maybe a, label :: Maybe Ident }
+              | CTContinue { rval :: Maybe a, label :: Maybe Ident }
+              | CTReturn   { rval :: Maybe a }
+              | CTThrow    { rval :: Maybe a }
+              deriving (Show, Eq)
+
+
+-- | Global interface to eval()
+evalCode :: EvalCallType -> String -> Runtime JSVal
+evalCode callType text = do
+  currentStrictness <- return . cxtStrictness =<< getGlobalContext
+  case parseJS'' text "(eval)" currentStrictness False of
+    Left err -> raiseSyntaxError (show err)
+    Right prog -> do
+      result <- runInEvalContext callType prog
+      case result of
+        CTNormal (Just v) -> return v
+        CTThrow  (Just v) -> do
+          stackTrace <- getStackTrace v
+          throwError $ JSError (v, stackTrace)
+        _ -> return VUndef
+
+-- ref 10.4.2
+runInEvalContext :: EvalCallType -> Program -> Runtime StmtReturn
+runInEvalContext callType (Program strictness stmts) = do
+      let cxt = if callType == DirectEvalCall then getGlobalContext else initialCxt
+      newCxt <- maybeNewContext strictness =<< cxt
+      withNewContext newCxt $ do
+        performDBI DBIEval strictness stmts
+        withStrictness strictness (runStmts stmts)
+
+  where maybeNewContext NotStrict cxt = return cxt
+        maybeNewContext Strict cxt = do
+          rec <- createNewEnvRec
+          env <- createNewEnv rec (lexEnv cxt)
+          return cxt { lexEnv = env, varEnv = env, cxtStrictness = Strict }
+
+-- | Global interface for running function bodies
+runCode :: [Statement] -> Runtime (Either JSVal JSVal)
+runCode body = do
+  runStmts body >>= \case
+    CTNormal v -> return . Right . fromMaybe VUndef $ v
+    CTThrow  v -> return . Left . fromMaybe VUndef $ v
+    CTReturn v -> return . Right . fromMaybe VUndef $ v
+    _ -> raiseError "Abnormal exit from function body"
+
 
 runProg :: Program -> Runtime (Maybe JSVal)
 runProg (Program strictness stmts) = do
