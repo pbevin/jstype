@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RankNTypes #-}
+{-# LANGUAGE LambdaCase, RankNTypes, GeneralizedNewtypeDeriving #-}
 
 module Eval.Statements where
 
@@ -102,6 +102,9 @@ newtype StmtT r m a = StmtT {
              -> m r
 }
 
+instance MonadTrans (StmtT r) where
+  lift m = undefined
+
 instance Functor (StmtT r m) where
   fmap f s = undefined
 
@@ -130,7 +133,7 @@ runStmtT a stmt = unStmtT a Nothing stmt nor brk con ret thr
 
 newtype Stmt a = Stmt {
   unStmt :: StmtT StmtReturn Runtime a
-}
+} deriving (Monad, Applicative, Functor)
 
 runS :: Maybe JSVal -> CoreStatement -> Stmt JSVal -> Runtime StmtReturn
 runS v s a = runStmtT (unStmt a) s
