@@ -91,21 +91,31 @@ runStmts = runStmt . desugar
 
 
 
-newtype Stmt a = Stmt {
-  unStmt :: forall b .
-                Maybe JSVal
+newtype StmtT r m a = StmtT {
+  unStmtT :: Maybe JSVal
              -> CoreStatement
-             -> (Maybe JSVal -> Runtime b) -- normal
-             -> (Maybe Label -> Runtime b) -- break
-             -> (Maybe Label -> Runtime b) -- continue
-             -> (      JSVal -> Runtime b) -- return
-             -> (      JSVal -> Runtime b) -- throw
-             -> Runtime b
+             -> (Maybe JSVal -> m r) -- normal
+             -> (Maybe Label -> m r) -- break
+             -> (Maybe Label -> m r) -- continue
+             -> (      JSVal -> m r) -- return
+             -> (      JSVal -> m r) -- throw
+             -> m r
 }
 
+runStmtT :: Monad m => CoreStatement -> StmtT (Either JSVal JSVal) m a -> m (Either JSVal JSVal)
+runStmtT stmt a = unStmtT a Nothing stmt nor brk con ret thr
+  where nor v = return . Right . fromMaybe VUndef $ v
+        brk v = error "Abnormal break from runStmtT"
+        con v = error "Abnormal continue from runStmtT"
+        ret v = return . Right $ v
+        thr v = return . Left $ v
 
-runST :: Maybe JSVal -> CoreStatement -> Stmt a -> Runtime StmtReturn
-runST v s a = unStmt a v s normal break cont ret throw
+newtype Stmt a = Stmt {
+  unStmt :: StmtT StmtReturn Runtime a
+}
+
+runS :: Maybe JSVal -> CoreStatement -> Stmt a -> Runtime StmtReturn
+runS v s a = unStmtT (unStmt a) v s normal break cont ret throw
   where normal v = return . CTNormal           $ v
         break  l = return . CTBreak Nothing    $ l
         cont   l = return . CTContinue Nothing $ l
@@ -115,7 +125,7 @@ runST v s a = unStmt a v s normal break cont ret throw
 type SResult = Either JSVal JSVal
 
 sadapt :: Runtime StmtReturn -> Stmt ()
-sadapt a = Stmt $ \v s nor brk con ret thr -> do
+sadapt a = Stmt $ StmtT $ \v s nor brk con ret thr -> do
   r <- a `catchError` returnThrow s
   case r of
     CTNormal v -> nor v
@@ -131,7 +141,7 @@ sadapt a = Stmt $ \v s nor brk con ret thr -> do
 
 
 runStmt :: CoreStatement -> Runtime StmtReturn
-runStmt stmt = runST Nothing stmt action
+runStmt stmt = runS Nothing stmt action
   where
     action = case stmt of
       CoreBind dbit et bindings body -> {-# SCC coreBind #-}   runCoreBinding dbit et bindings body
@@ -201,16 +211,16 @@ runCoreLoop test inc body = sadapt $ keepGoing Nothing where
         _              -> return r
 
 runCoreBreak :: Maybe Label -> Stmt ()
-runCoreBreak label = Stmt $ \v s n b c r t -> b label
+runCoreBreak label = Stmt $ StmtT $ \v s n b c r t -> b label
 
 runCoreCont :: Maybe Label -> Stmt ()
-runCoreCont label = Stmt $ \v s n b c r t -> c label
+runCoreCont label = Stmt $ StmtT $ \v s n b c r t -> c label
 
 runCoreRet :: Expr -> Stmt ()
-runCoreRet expr = Stmt $ \v s n b c r t -> runExprStmt expr >>= getValue >>= r
+runCoreRet expr = Stmt $ StmtT $ \v s n b c r t -> runExprStmt expr >>= getValue >>= r
 
 runCoreThrow :: Expr -> Stmt ()
-runCoreThrow expr = Stmt $ \v s n b c r t -> runExprStmt expr >>= getValue >>= t
+runCoreThrow expr = Stmt $ StmtT $ \v s n b c r t -> runExprStmt expr >>= getValue >>= t
 
 runCoreCase :: Expr -> [(Maybe Expr, CoreStatement)] -> Stmt ()
 runCoreCase scrutinee cases = sadapt $
