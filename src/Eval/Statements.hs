@@ -149,11 +149,11 @@ sadapt a = Stmt $ StmtT $ \v s nor brk con ret thr -> do
     CTContinue _ l -> con l
     CTReturn v -> ret (fromMaybe VUndef v)
     CTThrow v  -> thr (fromMaybe VUndef v)
-  where
-    returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
-    returnThrow s err = do
-      val <- exceptionToVal (sourceLocation s :) err
-      return $ CTThrow (Just val)
+
+returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
+returnThrow s err = do
+  val <- exceptionToVal (sourceLocation s :) err
+  return $ CTThrow (Just val)
 
 
 runStmt :: CoreStatement -> Runtime StmtReturn
@@ -275,8 +275,8 @@ runCoreLabel :: Label -> CoreStatement -> Stmt JSVal
 runCoreLabel _ = sadapt . runStmt
 
 runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> Stmt JSVal
-runCoreTry body catch finally = sadapt $ do
-  br <- runStmt body
+runCoreTry body catch finally = Stmt $ StmtT $ \v s nor brk con ret thr -> do
+  br <- runStmt body `catchError` returnThrow s
 
   case (catch, finally) of
     (Just c, Nothing) -> do

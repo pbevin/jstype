@@ -321,6 +321,8 @@ spec = do
 
     runJStr prog `shouldReturn` Right "prior to throw\n"
 
+  it "can catch a reference error" $ do
+    jsEvalExpr "(function f() {try { return x; } catch(e) { return 71; }})()" `shouldReturn` VNum 71
 
   it "raises an error to the top level" $ do
     runJStr "throw 'hi'" `shouldError` "hi"
