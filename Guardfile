@@ -39,6 +39,31 @@ class ::Guard::Haskellish < ::Guard::Haskell
         end
       end
     end
+
+    # Don't line-buffer stdout, otherwise the 'progress' formatter
+    # doesn't show anything until everything has run.
+    def listen(in_stream, out_stream)
+      buf = ""
+      while (str = in_stream.readpartial(1024))
+        out_stream.print(str)
+        buf += str
+        buf.lines.each do |line|
+          if @listening && line.end_with?("\n")
+            res = self.class.finished_with(line)
+            case res
+            when :success, :runtime_failure, :compile_failure
+              # A horrible hack to show the cursor again
+              #
+              # The problem is that '\e[?25h' code from hspec is waiting on
+              # the next line, which we probably will never read :-(
+              out_stream.print("\e[?25h")
+              stop(res)
+            end
+          end
+        end
+        buf.gsub!(/\A.*\n/m, '')
+      end
+    end
   end
 end
 
