@@ -221,10 +221,12 @@ runCoreLoop test inc body postTest = sadapt $ keepGoing Nothing where
       r <- {-# SCC loop_body #-} runStmt body
       let v' = rval r <|> v
       case r of
-        CTBreak    _ _ -> return $ CTNormal v'
-        CTContinue _ _ -> increment >> next v'
-        CTNormal   _   -> increment >> next v'
-        _              -> return r
+        CTBreak    _ (Just l) -> ifCurrentLabel l (return r) (return $ CTNormal v')
+        CTBreak    _ Nothing  -> return (CTNormal v')
+        CTContinue _ (Just l) -> increment >> next v'
+        CTContinue _ Nothing  -> increment >> next v'
+        CTNormal   _          -> increment >> next v'
+        _                     -> return r
   next v = do
     shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
     if shouldContinue
@@ -272,7 +274,14 @@ runCoreCase scrutinee cases = sadapt $
       dflt = map snd . dropWhile (isJust . fst) $ cases
 
 runCoreLabel :: Label -> CoreStatement -> Stmt JSVal
-runCoreLabel _ = sadapt . runStmt
+runCoreLabel lab body = sadapt $ do
+  result <- pushLabel lab $ runStmt body
+  case result of
+    CTBreak v l ->
+      if l == Just lab
+      then return $ CTNormal v
+      else return result
+    _ -> return result
 
 runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> Stmt JSVal
 runCoreTry body catch finally = Stmt $ StmtT $ \v s nor brk con ret thr -> do

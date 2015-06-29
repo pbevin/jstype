@@ -234,6 +234,18 @@ spec = do
     runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
       `shouldReturn` Right "3\n2\n1\n"
 
+  it "can break out of an outer loop" $ do
+    runJStr "var x = 1; L1: do { L2: do { x++; break L1; x++ } while (0); x++; } while (0); console.log(x);"
+      `shouldReturn` Right "2\n"
+
+  it "can break out of a for loop from a catch block" $ do
+    jsEvalExpr "(function(x){FOR : for(;;){ try{ x++; throw 1; } catch(e){ break FOR; }}; return x })(0)"
+      `shouldReturn` VNum 1
+
+  it "does not attach a break label after a newline" $ do
+    jsEvalExpr "(function() {FOR1 : for(var i=1;i<2;i++){ LABEL1 : do {var x =1;break\nFOR1;var y=2;} while(0);} return i;})()"
+      `shouldReturn` VNum 2
+
   it "runs a for..var loop" $ do
     runJStr "for (var i = 0, t = 0; i < 10; i++, t+=i); console.log(t);" `shouldReturn` Right "55\n"
 

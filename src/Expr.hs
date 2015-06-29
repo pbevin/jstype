@@ -94,9 +94,6 @@ data Lang = Lang {
   postfixOps :: [String]
 }
 
-maybeExpr :: Maybe Expr -> Expr
-maybeExpr = fromMaybe LiteralUndefined
-
 jsLang :: Lang
 jsLang = Lang {
   reservedWords =

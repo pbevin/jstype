@@ -89,7 +89,7 @@ runtime' = runtime
 initialState :: (JSGlobal, Store)
 initialState = (globals, store)
   where
-    globals = JSGlobal (s 1) (s 2) evalCode runCode (e 3) cxt
+    globals = JSGlobal (s 1) (s 2) [] evalCode runCode (e 3) cxt
     store   = Store 100 objects pms envs
 
     object  = obj { _objPrototype = Just (s 2) }

@@ -79,6 +79,10 @@ convertFor3 :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> 
 convertFor3 loc e1 e2 e3 stmt = case e1 of
   Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) (Boolean True)
   Just e  -> CoreBlock [ CoreExpr loc e, convertFor3 loc Nothing e2 e3 stmt ]
+  where
+    maybeExpr :: Maybe Expr -> Expr
+    maybeExpr = fromMaybe (Boolean True)
+
 
 convertFor3Var :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
 convertFor3Var loc ds e2 e3 stmt =

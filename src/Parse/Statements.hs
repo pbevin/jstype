@@ -214,18 +214,24 @@ emptyStmt :: JSParser Statement
 emptyStmt = semicolon >> EmptyStatement <$> srcLoc
 
 breakStmt :: JSParser Statement
-breakStmt = ifInsideIterationOrSwitch $ keyword "break" >>
-  BreakStatement <$> srcLoc <*> optional (fromLabelSet identifier)
+breakStmt = ifInsideIterationOrSwitch $ do
+  loc <- srcLoc
+  pos1 <- getPosition
+  keyword "break"
+  pos2 <- getPosition
+  if sameLine pos1 pos2
+  then BreakStatement loc <$> optional (fromLabelSet identifier)
+  else BreakStatement loc <$> pure Nothing
 
 continueStmt :: JSParser Statement
 continueStmt = ifInsideIteration $ do
+  loc <- srcLoc
   pos1 <- getPosition
   keyword "continue"
   pos2 <- getPosition
   if sameLine pos1 pos2
-  then ContinueStatement <$> srcLoc
-                         <*> optional (fromLabelSet identifier)
-  else ContinueStatement <$> srcLoc <*> pure Nothing
+  then ContinueStatement loc <$> optional (fromLabelSet identifier)
+  else ContinueStatement loc <$> pure Nothing
 
 
 throwStmt :: JSParser Statement

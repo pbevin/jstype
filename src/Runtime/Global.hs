@@ -1,6 +1,6 @@
 module Runtime.Global where
 
-import GHC.Stack
+import Control.Lens
 import Control.Monad.Reader
 import qualified Data.Map as M
 import Data.Maybe
@@ -40,8 +40,6 @@ withGlobalContext :: (JSCxt -> JSCxt) -> Runtime a -> Runtime a
 withGlobalContext f action = do
   oldContext <- asks globalContext
   local (\g -> g { globalContext = f oldContext }) action
-  -- result <- action `finally` (modify $ \g -> g { globalContext = oldContext })
-  -- return result
 
 withNewContext :: JSCxt -> Runtime a -> Runtime a
 withNewContext cxt = withGlobalContext (const cxt)
@@ -56,3 +54,13 @@ withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = st
 
 withLexEnv :: JSEnv -> Runtime a -> Runtime a
 withLexEnv env = withGlobalContext $ \cxt -> cxt { lexEnv = env }
+
+pushLabel :: Label -> Runtime a -> Runtime a
+pushLabel label action = local (over globalLabelStack (label:)) action
+
+ifCurrentLabel :: Label -> Runtime a -> Runtime a -> Runtime a
+ifCurrentLabel label onStack notOnStack = do
+  stack <- view globalLabelStack <$> ask
+  if label `elem` stack
+  then onStack
+  else notOnStack
