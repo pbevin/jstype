@@ -246,6 +246,9 @@ spec = do
   it "can set an object property" $ do
     runJStr "var a = function() { }; a.prop = 2; console.log(a.prop);" `shouldReturn` Right "2\n"
 
+  it "returns undefined when the function does not explicitly return" $ do
+    jsEvalExpr "(function() { x = 1; })()" `shouldReturn` VUndef
+
   it "has a nice error message when accessing a property on null or undefined" $ do
     runJStr "undefined.x" `shouldError` "TypeError: Cannot read property x of undefined"
     runJStr "null.x" `shouldError` "TypeError: Cannot read property x of null"

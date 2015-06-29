@@ -65,7 +65,7 @@ runInEvalContext callType (Program strictness body) = do
 runCode :: [Statement] -> Runtime (Either JSVal JSVal)
 runCode body = do
   runStmts body >>= \case
-    CTNormal v -> return . Right . fromMaybe VUndef $ v
+    CTNormal v -> return . Right $ VUndef
     CTThrow  v -> return . Left . fromMaybe VUndef $ v
     CTReturn v -> return . Right . fromMaybe VUndef $ v
     _ -> raiseError "Abnormal exit from function body"
