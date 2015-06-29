@@ -10,7 +10,7 @@ type CoreStatement = CoreStmt SrcLoc
 data CoreStmt a  = CoreBind  DBIType EnvType [(Ident, Expr)] (CoreStmt a)
                  | CoreBlock [CoreStmt a]
                  | CoreExpr  a Expr
-                 | CoreLoop  a Expr Expr (CoreStmt a)
+                 | CoreLoop  a Expr Expr (CoreStmt a) Expr
                  | CoreForIn a Expr Expr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
@@ -63,10 +63,10 @@ convertExpr :: SrcLoc -> Expr -> CoreStatement
 convertExpr = CoreExpr
 
 convertWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
-convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt)
+convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt) (Boolean True)
 
 convertDoWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
-convertDoWhile loc expr stmt = CoreBlock [ convert stmt, convertWhile loc expr stmt ]
+convertDoWhile loc expr stmt = CoreLoop loc (Boolean True) LiteralUndefined (convert stmt) expr
 
 convertFor :: SrcLoc -> ForHeader -> Statement -> CoreStatement
 convertFor loc header stmt = case header of
@@ -77,7 +77,7 @@ convertFor loc header stmt = case header of
 
 convertFor3 :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
 convertFor3 loc e1 e2 e3 stmt = case e1 of
-  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt)
+  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) (Boolean True)
   Just e  -> CoreBlock [ CoreExpr loc e, convertFor3 loc Nothing e2 e3 stmt ]
 
 convertFor3Var :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
@@ -136,17 +136,17 @@ declBindings stmts = [ (name, LiteralUndefined) | name <- concatMap searchVariab
 
 sourceLocation :: CoreStatement -> SrcLoc
 sourceLocation stmt = case stmt of
-  CoreBind _ _ _ _ -> error "no srcloc for corebind"
-  CoreBlock _      -> error "no srcloc for coreblock"
-  CoreExpr a _     -> a
-  CoreLoop a _ _ _ -> a
-  CoreBreak a _    -> a
-  CoreCont a _     -> a
-  CoreRet a _      -> a
-  CoreCase a _ _   -> a
-  CoreIf a _ _ _   -> a
-  CoreLabel a _ _  -> a
-  CoreTry a _ _ _  -> a
+  CoreBind _ _ _ _   -> error "no srcloc for corebind"
+  CoreBlock _        -> error "no srcloc for coreblock"
+  CoreExpr a _       -> a
+  CoreLoop a _ _ _ _ -> a
+  CoreBreak a _      -> a
+  CoreCont a _       -> a
+  CoreRet a _        -> a
+  CoreCase a _ _     -> a
+  CoreIf a _ _ _     -> a
+  CoreLabel a _ _    -> a
+  CoreTry a _ _ _    -> a
 
 
 

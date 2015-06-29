@@ -164,7 +164,7 @@ runStmt stmt = runS Nothing stmt action
       CoreBlock body                 -> {-# SCC coreBlock #-}  runCoreBlock body
       CoreExpr _loc e                -> {-# SCC coreExpr #-}   runCoreExpr e
       CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}     runCoreIf e ifThen ifElse
-      CoreLoop _loc test inc body    -> {-# SCC coreLoop #-}   runCoreLoop test inc body
+      CoreLoop _loc test inc body e2 -> {-# SCC coreLoop #-}   runCoreLoop test inc body e2
       CoreForIn _loc e1 e2 body      -> {-# SCC coreLoop #-}   runCoreForIn e1 e2 body
       CoreBreak _loc lab             -> {-# SCC coreBreak #-}  runCoreBreak lab
       CoreCont _loc lab              -> {-# SCC coreCont #-}   runCoreCont lab
@@ -209,8 +209,8 @@ runCoreIf e ifThen ifElse = sadapt $ do
     (False, Just s)  -> runStmt s
     (False, Nothing) -> return (CTNormal Nothing)
 
-runCoreLoop :: Expr -> Expr -> CoreStatement -> Stmt JSVal
-runCoreLoop test inc body = sadapt $ keepGoing Nothing where
+runCoreLoop :: Expr -> Expr -> CoreStatement -> Expr -> Stmt JSVal
+runCoreLoop test inc body postTest = sadapt $ keepGoing Nothing where
   condition = toBoolean <$> (runExprStmt test >>= getValue)
   increment = runExprStmt inc >>= getValue
   keepGoing v = do
@@ -222,9 +222,14 @@ runCoreLoop test inc body = sadapt $ keepGoing Nothing where
       let v' = rval r <|> v
       case r of
         CTBreak    _ _ -> return $ CTNormal v'
-        CTContinue _ _ -> increment >> keepGoing v'
-        CTNormal   _   -> increment >> keepGoing v'
+        CTContinue _ _ -> increment >> next v'
+        CTNormal   _   -> increment >> next v'
         _              -> return r
+  next v = do
+    shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
+    if shouldContinue
+    then keepGoing v
+    else return $ CTNormal v
 
 runCoreBreak :: Maybe Label -> Stmt JSVal
 runCoreBreak label = Stmt $ StmtT $ \v s n b c r t -> b label

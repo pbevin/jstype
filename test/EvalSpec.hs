@@ -22,6 +22,7 @@ spec = do
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum (10/3)
 
+
   it "does Javascript-style mod for negative numbers" $ do
     jsEvalExpr "-1 % 2" `shouldReturn` VNum (-1)
 
@@ -224,6 +225,10 @@ spec = do
 
   it "can break out of a while loop" $ do
     runJStr "var i = 0; while (true) { if (i++ > 10) break; }; console.log(i);" `shouldReturn` Right "12\n"
+
+  it "can break out of a while loop in a function" $ do
+    runJStr "var a = 'yes'; (function(){ do { break; a = 'no';} while (0); })();console.log(a);"
+         `shouldReturn` Right "yes\n"
 
   it "runs do-while loops" $ do
     runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
