@@ -326,6 +326,7 @@ spec = do
       testParse "" `shouldBe` Program NotStrict []
       testParse "// this is a comment\n" `shouldBe` Program NotStrict []
       testParse "// a\n//b\n2\n" `shouldBe` Program NotStrict [ExprStmt s (Num 2)]
+      testParse "//s" `shouldBe` Program NotStrict []
 
     it "resolves the if-then-else ambiguity" $ do
       testParse "if (a) if (b) 1; else 2" `shouldBe`

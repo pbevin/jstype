@@ -94,7 +94,7 @@ reserved word = void $ try $ do
 comment :: JSParser ()
 comment = void parseComment
   where parseComment = (try lineComment <|> try blockComment) <?> "comment"
-        lineComment = string "//" >> manyTill anyChar (try lineBreak)
+        lineComment = string "//" >> manyTill anyChar (try lineBreak <|> eof)
         blockComment = string "/*" >> manyTill anyChar (try $ string "*/")
 
 whiteSpace :: JSParser ()
