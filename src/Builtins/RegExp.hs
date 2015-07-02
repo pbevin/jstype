@@ -20,6 +20,7 @@ makeRegExpClass = do
     >>= setCallMethod regExpFunction
     >>= setCstrMethod regExpConstructor
     >>= objSetPrototype functionPrototype
+    >>= objSetHasInstance funHasInstance
     >>= addMethod "constructor" 1 regExpConstructor
     >>= addOwnProperty "length" (VNum 2)
     >>= addOwnProperty "prototype" (VObj regExpPrototype)

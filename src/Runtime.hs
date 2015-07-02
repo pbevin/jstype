@@ -195,7 +195,6 @@ setArrayIndices assigns objRef = do
   mapM_ (\(n, v) -> defineOwnProperty (show n) (dataPD v True True True) False objRef) assigns
   return objRef
 
-
 funFunction :: Shared JSObj -> JSFunction
 funFunction prototype _this args = do
   obj <- newObject >>= setClass "Function"

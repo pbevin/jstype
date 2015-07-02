@@ -7,6 +7,8 @@ import Runtime
 
 mathObject :: Runtime (Shared JSObj)
 mathObject = mkObject $ do
+  className "Math"
+
   constant "PI"      $ (pi          :: Double)
   constant "SQRT2"   $ (sqrt 2      :: Double)
   constant "SQRT1_2" $ (sqrt 0.5    :: Double)

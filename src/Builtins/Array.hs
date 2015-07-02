@@ -5,6 +5,7 @@ import Data.List (intercalate)
 import Safe
 import Data.Int
 import Runtime
+import Builtins.Array.Reduce
 import Builtins.Array.Sort
 
 
@@ -29,6 +30,7 @@ makeArrayClass = do
     isFunctionObject
     internal callMethod (arrayFunction arrayPrototype)
     internal cstrMethod arrayConstructor
+    internal hasInstanceMethod funHasInstance
 
     property "name" (VStr "Array")
     property "prototype" (VObj arrayPrototype)
@@ -47,21 +49,30 @@ arrayFunction proto _this args = do
 
 arrayConstructor :: JSFunction
 arrayConstructor this args =
-  let len = VNum $ fromIntegral $ length args
-  in case this of
-    VObj obj -> do
-      cstr <- getGlobalProperty "Array"
-      o <- setClass "Array" obj
-        >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
-        >>= addOwnPropertyDescriptor "length" (dataPD len True False False)
-
-      forM_ (zip args [0..]) $ \(item, idx) -> do
-        addOwnProperty (show idx) item o
-
-      return (VObj o)
-      
+  case (this, args) of
+    (VObj obj, [len]) -> VObj <$> arrayConstructorLength obj len
+    (VObj obj, _)     -> VObj <$> arrayConstructorElements obj args
     _ -> raiseError $ "arrayConstructor called with this = " ++ show this
 
+arrayConstructorLength :: Shared JSObj -> JSVal -> Runtime (Shared JSObj)
+arrayConstructorLength obj length = do
+  len <- VNum . fromIntegral <$> toInt length
+  cstr <- getGlobalProperty "Array"
+  o <- setClass "Array" obj
+    >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
+    >>= addOwnPropertyDescriptor "length" (dataPD len True False False)
+  return o
+
+arrayConstructorElements :: Shared JSObj -> [JSVal] -> Runtime (Shared JSObj)
+arrayConstructorElements obj args = do
+  let len = VNum $ fromIntegral $ length args
+  o <- arrayConstructorLength obj len
+
+  forM_ (zip args [0..]) $ \(item, idx) -> do
+    addOwnProperty (show idx) item o
+
+  return o
+      
 -- ref 15.4.4.2, incomplete
 arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
 arrayToString this _args = arrayJoin this []
@@ -89,10 +100,6 @@ arrayJoin this args =
     stringOrEmpty VNull  = return ""
     stringOrEmpty val    = toString val
 
-
--- ref 15.4.4.21, incomplete
-arrayReduce :: JSVal -> [JSVal] -> Runtime JSVal
-arrayReduce _this _args = return VNull
 
 arrayReverse :: JSFunction
 arrayReverse _this _args = return VUndef

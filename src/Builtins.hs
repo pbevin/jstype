@@ -28,8 +28,9 @@ configureBuiltins = do
   math      <- mathObject         -- 15.8
   date      <- makeDateClass      -- 15.9
   regexp    <- makeRegExpClass    -- 15.10
-  json      <- newObject          -- 15.12
-    >>= addMethod      "stringify"           1 jsonStringify
+  json      <- mkObject $ do      -- 15.12
+    className "JSON"
+    method "stringify" 1 jsonStringify
 
   errorPrototype <- newObject
     >>= setClass       "Error"

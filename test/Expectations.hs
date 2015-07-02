@@ -71,6 +71,9 @@ run a = runtime a >>= \(Right r) -> return r
 handleException :: JSError -> Runtime a
 handleException err = exceptionToVal id err >>= stringifyException >>= throwError
 
+evalE :: String -> IO (Either RuntimeError (Maybe JSVal))
+evalE str = evalJS "" str
+
 runE :: Runtime a -> IO (Either RuntimeError a)
 runE action = doJS (action `catchError` handleException) >>= \case
   (Left err, _) -> return . Left . toRuntimeError $ err

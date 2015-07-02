@@ -19,6 +19,7 @@ makeBooleanClass = do
     >>= setCallMethod booleanFunction
     >>= setCstrMethod booleanConstructor
     >>= objSetPrototype functionPrototype
+    >>= objSetHasInstance funHasInstance
     >>= addMethod "constructor" 1 booleanConstructor
     >>= addOwnProperty "length" (VNum 1)
 
