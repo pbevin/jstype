@@ -183,7 +183,8 @@ type JSFunction = JSVal -> [JSVal] -> Runtime JSVal
 -- Shared type
 type ObjId = Int
 data Shared a = Shared {
-  _where :: Simple Lens Store (Maybe a),
+  -- _where :: Simple Lens Store (Maybe a),
+  _ref :: IORef a,
   objid :: ObjId
 }
 
@@ -231,12 +232,7 @@ data JSGlobal = JSGlobal {
   globalContext         :: JSCxt
 }
 
-data Store = Store {
-  storeNextID           :: Int,
-  _storeObjStore  :: M.Map ObjId JSObj,
-  _storePropMapStore  :: M.Map ObjId PropertyMap,
-  _storeLexEnvStore  :: M.Map ObjId LexEnv
-}
+data Store = Store { storeNextID :: Int }
 
 raiseError :: String -> Runtime a
 raiseError s = throwError $ JSError (VStr s, [])
@@ -276,5 +272,4 @@ instance Monoid (PropDesc a) where
 
 
 makeLenses ''JSObj
-makeLenses ''Store
 makeLenses ''JSGlobal

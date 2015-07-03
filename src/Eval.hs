@@ -8,6 +8,7 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Control.Arrow
+import Data.IORef
 import qualified Data.Map as M
 import Data.Maybe
 import Data.List (intercalate)
@@ -73,40 +74,39 @@ runJS' sourceName input =
 
 doJS :: Runtime a -> IO (Either JSError a, String)
 doJS action = do
-  let (r,s) = initialState
+  (r,s) <- initialState
   (result, _, stdout) <- runRuntime r s (bootstrap >> action)
   return (result, stdout)
 
 runtime :: Runtime a -> IO (Either JSError a)
-runtime p =
-  let (r, s) = initialState
-  in do (result, _, _) <- runRuntime r s (bootstrap >> p)
-        return result
+runtime p = do
+  (r, s) <- initialState
+  (result, _, _) <- runRuntime r s (bootstrap >> p)
+  return result
 
 runtime' :: Runtime a -> IO (Either JSError a)
 runtime' = runtime
 
-initialState :: (JSGlobal, Store)
-initialState = (globals, store)
-  where
-    globals = JSGlobal (s 1) (s 2) [] evalCode runCode (e 3) cxt
-    store   = Store 100 objects pms envs
+initialState :: IO (JSGlobal, Store)
+initialState = do
+  (pro, obj, env) <- createInitialSharedObjects
 
-    object  = obj { _objPrototype = Just (s 2) }
-    proto   = obj
-    env     = LexEnv (ObjEnvRec (s 1) False) Nothing
-    cxt     = JSCxt (e 3) (e 3) (VObj $ s 1) NotStrict
+  let globals   = JSGlobal obj pro [] evalCode runCode env cxt
+      store     = Store 4
 
-    objects = M.fromList [ (1, object), (2, proto) ]
-    pms     = M.fromList [ ]
-    envs    = M.fromList [ (3, env) ]
+      cxt       = JSCxt env env (VObj obj) NotStrict
 
-    s oid    = Shared (storeObjStore.at oid) oid
-    e oid    = Shared (storeLexEnvStore.at oid) oid
+  return (globals, store)
 
-    obj     = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
-                            _getOwnPropertyMethod = Just objGetOwnPropertyObj,
-                            _getMethod = Just objGetObj }
+createInitialSharedObjects :: IO (Shared JSObj, Shared JSObj, Shared LexEnv)
+createInitialSharedObjects =
+  let obj       = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
+                                _getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                                _getMethod = Just objGetObj }
+  in do proRef <- newIORef $ obj
+        objRef <- newIORef $ obj { _objPrototype = Just $ Shared proRef 1 }
+        envRef <- newIORef $ LexEnv (ObjEnvRec (Shared objRef 2) False) Nothing
+        return (Shared proRef 1, Shared objRef 2, Shared envRef 3)
 
 bootstrap :: Runtime ()
 bootstrap = buildGlobalObject >> configureBuiltins
