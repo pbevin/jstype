@@ -2,24 +2,25 @@ module Core where
 
 import Control.Arrow
 import Data.Maybe
+import Compiler
 import Expr
 
 data DBIType = DBINone | DBIGlobal | DBIFunction | DBIEval deriving (Show, Eq)
-data EnvType = DeclarativeEnv | ObjectEnv Expr deriving (Show, Eq)
+data EnvType = DeclarativeEnv | ObjectEnv CompiledExpr deriving (Show, Eq)
 type CoreStatement = CoreStmt SrcLoc
 data CoreStmt a  = CoreBind  DBIType EnvType [(Ident, Expr)] (CoreStmt a)
                  | CoreBlock [CoreStmt a]
-                 | CoreExpr  a Expr
-                 | CoreLoop  a Expr Expr (CoreStmt a) Expr
-                 | CoreForIn a Expr Expr (CoreStmt a)
+                 | CoreExpr  a CompiledExpr
+                 | CoreLoop  a CompiledExpr CompiledExpr (CoreStmt a) CompiledExpr
+                 | CoreForIn a CompiledExpr CompiledExpr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
-                 | CoreRet   a Expr
-                 | CoreCase  a Expr [(Maybe Expr, CoreStmt a)]
-                 | CoreIf    a Expr (CoreStmt a) (Maybe (CoreStmt a))
+                 | CoreRet   a CompiledExpr
+                 | CoreCase  a CompiledExpr [(Maybe CompiledExpr, CoreStmt a)]
+                 | CoreIf    a CompiledExpr (CoreStmt a) (Maybe (CoreStmt a))
                  | CoreLabel a Label (CoreStmt a)
                  | CoreTry   a (CoreStmt a) (Maybe (Ident, CoreStmt a)) (Maybe (CoreStmt a))
-                 | CoreThrow a Expr
+                 | CoreThrow a CompiledExpr
                  deriving (Show, Eq)
 
 desugar :: [Statement] -> CoreStatement
@@ -57,16 +58,22 @@ convertLabelled loc label body = CoreLabel loc label (convert body)
 
 convertVarDecl :: SrcLoc -> [VarDeclaration] -> CoreStatement
 convertVarDecl loc decls = CoreBlock (map makeAssignment . filter (isJust . snd) $ decls)
-  where makeAssignment (name, Just val) = CoreExpr loc (Assign (ReadVar name) "=" val)
+  where makeAssignment (name, Just val) = CoreExpr loc (compile $ Assign (ReadVar name) "=" val)
 
 convertExpr :: SrcLoc -> Expr -> CoreStatement
-convertExpr = CoreExpr
+convertExpr loc e = CoreExpr loc (compile e)
 
 convertWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
-convertWhile loc expr stmt = CoreLoop loc expr LiteralUndefined (convert stmt) (Boolean True)
+convertWhile loc expr stmt = CoreLoop loc (compile expr)
+                                      (compile $ LiteralUndefined)
+                                      (convert stmt)
+                                      (compile $ Boolean True)
 
 convertDoWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
-convertDoWhile loc expr stmt = CoreLoop loc (Boolean True) LiteralUndefined (convert stmt) expr
+convertDoWhile loc e stmt = CoreLoop loc (compile $ Boolean True)
+                                         (compile LiteralUndefined)
+                                         (convert stmt)
+                                         (compile e)
 
 convertFor :: SrcLoc -> ForHeader -> Statement -> CoreStatement
 convertFor loc header stmt = case header of
@@ -77,11 +84,11 @@ convertFor loc header stmt = case header of
 
 convertFor3 :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
 convertFor3 loc e1 e2 e3 stmt = case e1 of
-  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) (Boolean True)
-  Just e  -> CoreBlock [ CoreExpr loc e, convertFor3 loc Nothing e2 e3 stmt ]
+  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) (compile $ Boolean True)
+  Just e  -> CoreBlock [ CoreExpr loc (compile e), convertFor3 loc Nothing e2 e3 stmt ]
   where
-    maybeExpr :: Maybe Expr -> Expr
-    maybeExpr = fromMaybe (Boolean True)
+    maybeExpr :: Maybe Expr -> CompiledExpr
+    maybeExpr = compile <$> fromMaybe (Boolean True)
 
 
 convertFor3Var :: SrcLoc -> [VarDeclaration] -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
@@ -91,7 +98,7 @@ convertFor3Var loc ds e2 e3 stmt =
   in CoreBlock [ s1, s2 ]
 
 convertForIn :: SrcLoc -> Expr -> Expr -> Statement -> CoreStatement
-convertForIn loc e1 e2 body = CoreForIn loc e1 e2 (convert body)
+convertForIn loc e1 e2 body = CoreForIn loc (compile e1) (compile e2) (convert body)
 
 convertForInVar :: SrcLoc -> VarDeclaration -> Expr -> Statement -> CoreStatement
 convertForInVar loc (var, e1) e2 body =
@@ -100,7 +107,7 @@ convertForInVar loc (var, e1) e2 body =
   in CoreBlock [s1, s2]
 
 convertIf :: SrcLoc -> Expr -> Statement -> Maybe Statement -> CoreStatement
-convertIf loc expr s1 s2 = CoreIf loc expr (convert s1) (convert <$> s2)
+convertIf loc e s1 s2 = CoreIf loc (compile e) (convert s1) (convert <$> s2)
 
 convertContinue :: SrcLoc -> Maybe Label -> CoreStatement
 convertContinue loc label = CoreCont loc label
@@ -109,23 +116,23 @@ convertBreak :: SrcLoc -> Maybe Label -> CoreStatement
 convertBreak loc label = CoreBreak loc label
 
 convertReturn :: SrcLoc -> Maybe Expr -> CoreStatement
-convertReturn loc expr = CoreRet loc (fromMaybe LiteralUndefined expr)
+convertReturn loc e = CoreRet loc $ compile (fromMaybe LiteralUndefined e)
 
 convertThrow :: SrcLoc -> Expr -> CoreStatement
-convertThrow = CoreThrow
+convertThrow loc e = CoreThrow loc (compile e)
 
 convertWith :: SrcLoc -> Expr -> Statement -> CoreStatement
-convertWith _loc expr stmt = CoreBind DBINone (ObjectEnv expr) [] (convert stmt)
+convertWith _loc expr stmt = CoreBind DBINone (ObjectEnv $ compile expr) [] (convert stmt)
 
 convertSwitch :: SrcLoc -> Expr -> CaseBlock -> CoreStatement
-convertSwitch loc e (as, d, bs) = CoreCase loc e cases
+convertSwitch loc e (as, d, bs) = CoreCase loc (compile e) cases
   where
     cases = map toCase as ++ dflt ++ map toCase bs
-    dflt :: [(Maybe Expr, CoreStatement)]
+    dflt :: [(Maybe CompiledExpr, CoreStatement)]
     dflt  = case d of
       Nothing -> []
       Just (DefaultClause s) -> [(Nothing, CoreBlock $ map convert s)]
-    toCase (CaseClause e body) = (Just e, coreBlock $ map convert body)
+    toCase (CaseClause e body) = (Just (compile e), coreBlock $ map convert body)
 
 convertTry :: SrcLoc -> Statement -> Maybe Statement -> Maybe Statement -> CoreStatement
 convertTry loc body catch finally =

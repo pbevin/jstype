@@ -14,6 +14,7 @@ import Data.Bits
 import Data.Foldable
 import Text.Show.Functions
 import Eval.Expressions
+import Compiler
 import Parse
 import Expr
 import JSNum
@@ -202,10 +203,10 @@ runCoreBlock sadapt body = sadapt $ runAll (CTNormal Nothing) body
         CTNormal _ -> runAll result rest
         _          -> return result
 
-runCoreExpr :: Adapt -> Expr -> StatementAction
+runCoreExpr :: Adapt -> CompiledExpr -> StatementAction
 runCoreExpr sadapt e = sadapt $ CTNormal . Just <$> (runExprStmt e >>= getValue)
 
-runCoreIf :: Adapt -> Expr -> CoreStatement -> Maybe CoreStatement -> StatementAction
+runCoreIf :: Adapt -> CompiledExpr -> CoreStatement -> Maybe CoreStatement -> StatementAction
 runCoreIf sadapt e ifThen ifElse = sadapt $ do
   cond <- toBoolean <$> (runExprStmt e >>= getValue)
   case (cond, ifElse) of
@@ -213,7 +214,7 @@ runCoreIf sadapt e ifThen ifElse = sadapt $ do
     (False, Just s)  -> runStmt s
     (False, Nothing) -> return (CTNormal Nothing)
 
-runCoreLoop :: Adapt -> Expr -> Expr -> CoreStatement -> Expr -> StatementAction
+runCoreLoop :: Adapt -> CompiledExpr -> CompiledExpr -> CoreStatement -> CompiledExpr -> StatementAction
 runCoreLoop sadapt test inc body postTest = sadapt $ keepGoing Nothing where
   condition = toBoolean <$> (runExprStmt test >>= getValue)
   increment = runExprStmt inc >>= getValue
@@ -243,17 +244,17 @@ runCoreBreak label = StmtT $ \_ _ b _ _ _ -> b label
 runCoreCont :: Maybe Label -> StatementAction
 runCoreCont label = StmtT $ \_ _ _ c _ _ -> c label
 
-runCoreRet :: Expr -> StatementAction
+runCoreRet :: CompiledExpr -> StatementAction
 runCoreRet expr = StmtT $ \_ _ _ _ r _ -> runExprStmt expr >>= getValue >>= r
 
-runCoreThrow :: Expr -> StatementAction
+runCoreThrow :: CompiledExpr -> StatementAction
 runCoreThrow expr = StmtT $ \_ _ _ _ _ t -> runExprStmt expr >>= getValue >>= t
 
-runCoreCase :: Adapt -> Expr -> [(Maybe Expr, CoreStatement)] -> StatementAction
+runCoreCase :: Adapt -> CompiledExpr -> [(Maybe CompiledExpr, CoreStatement)] -> StatementAction
 runCoreCase sadapt scrutinee cases = sadapt $
   runExprStmt scrutinee >>= getValue >>= go cases
     where
-      go :: [(Maybe Expr, CoreStatement)] -> JSVal -> Runtime StmtReturn
+      go :: [(Maybe CompiledExpr, CoreStatement)] -> JSVal -> Runtime StmtReturn
       go cs input = case cs of
         []       -> endWith dflt
         (c:rest) -> case c of
@@ -326,7 +327,7 @@ runCatch (var, block) c = do
 
 
 -- ref 12.6.4
-runCoreForIn :: Adapt -> Expr -> Expr -> CoreStatement -> StatementAction
+runCoreForIn :: Adapt -> CompiledExpr -> CompiledExpr -> CoreStatement -> StatementAction
 runCoreForIn sadapt lhs e stmt = sadapt $ do
   exprRef <- runExprStmt e
   exprValue <- getValue exprRef
@@ -354,10 +355,8 @@ runCoreForIn sadapt lhs e stmt = sadapt $ do
             _ -> return s
         else keepGoing obj ps v
 
-
-
-runExprStmt :: Expr -> Runtime JSVal
-runExprStmt = evalExpr runExprStmt'
+runExprStmt :: CompiledExpr -> Runtime JSVal
+runExprStmt e = evalExpr runExprStmt' e
 
 runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
@@ -367,10 +366,9 @@ runExprStmt' expr = case expr of
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
   Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
   Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
-  BinOp "||" e1 e2      -> {-# SCC exprOrOr #-}      evalOrOr e1 e2
   BinOp op e1 e2        -> {-# SCC exprBinOp #-}     evalBinaryOp op e1 e2
-  UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt e >>= evalDelete -- ref 11.4.1
-  UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt e >>= evalTypeof -- ref 11.4.3
+  UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt (compile e) >>= evalDelete -- ref 11.4.1
+  UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt (compile e) >>= evalTypeof -- ref 11.4.3
   UnOp op e             -> {-# SCC exprUnary #-}     evalUnOp op e
   PostOp op e           -> {-# SCC exprPostfix #-}   evalPostOp op e
   NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
@@ -379,7 +377,7 @@ runExprStmt' expr = case expr of
 -- ref 11.2.2
 evalNewExpr :: Expr -> [Expr] -> Runtime JSVal
 evalNewExpr f args = do
-  fun <- runExprStmt f >>= getValue
+  fun <- runExprStmt (compile f) >>= getValue
   argList <- evalArguments args
   assertFunction (show f) (view cstrMethod) fun  -- XXX need to get the name here
   liftM VObj (newObjectFromConstructor fun argList)
@@ -388,37 +386,23 @@ evalNewExpr f args = do
 -- ref 11.13.2 (compound assignment)
 evalAssignment :: Expr -> Ident -> Expr -> Runtime JSVal
 evalAssignment lhs op e = do
-  lref <- runExprStmt lhs
-  rref <- runExprStmt e
+  lref <- runExprStmt (compile lhs)
+  rref <- runExprStmt (compile e)
   case op of
     "=" -> assignRef lref rref
     _   -> updateRef (init op) lref rref
 
 evalCond :: Expr -> Expr -> Expr -> Runtime JSVal
 evalCond e1 e2 e3 = do
-  lref <- runExprStmt e1 >>= getValue
+  lref <- runExprStmt (compile e1) >>= getValue
   if toBoolean lref
-  then runExprStmt e2 >>= getValue
-  else runExprStmt e3 >>= getValue
-
-evalAndAnd :: Expr -> Expr -> Runtime JSVal
-evalAndAnd e1 e2 = do
-  v1 <- runExprStmt e1 >>= getValue
-  if toBoolean v1
-  then runExprStmt e2 >>= getValue
-  else return v1
-
-evalOrOr :: Expr -> Expr -> Runtime JSVal
-evalOrOr e1 e2 = do
-  v1 <- runExprStmt e1 >>= getValue
-  if toBoolean v1
-  then return v1
-  else runExprStmt e2 >>= getValue
+  then runExprStmt (compile e2) >>= getValue
+  else runExprStmt (compile e3) >>= getValue
 
 evalBinaryOp :: Ident -> Expr -> Expr -> Runtime JSVal
 evalBinaryOp op e1 e2 = do
-  v1 <- runExprStmt e1 >>= getValue
-  v2 <- runExprStmt e2 >>= getValue
+  v1 <- runExprStmt (compile e1) >>= getValue
+  v2 <- runExprStmt (compile e2) >>= getValue
   evalBinOp op v1 v2
 
 evalUnOp :: Ident -> Expr -> Runtime JSVal
@@ -450,21 +434,21 @@ evalPostOp op e = f e
 -- ref 11.2.3
 evalFunCall :: Expr -> [Expr] -> Runtime JSVal
 evalFunCall f args = do
-  ref <- runExprStmt f
+  ref <- runExprStmt (compile f)
   argList <- evalArguments args
   callFunction ref argList
 
 evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
 evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
   where evalMaybe Nothing = return Nothing
-        evalMaybe (Just e) = Just <$> (runExprStmt e >>= getValue)
+        evalMaybe (Just e) = Just <$> (runExprStmt (compile e) >>= getValue)
 
 evalArguments :: [Expr] -> Runtime [JSVal]
-evalArguments = mapM (runExprStmt >=> getValue)
+evalArguments = mapM (runExprStmt . compile >=> getValue)
 
 modifyingOp :: (JSNum->JSNum) -> (JSNum->JSNum) -> Expr -> Runtime JSVal
 modifyingOp op returnOp e = do
-  lhs <- runExprStmt e
+  lhs <- runExprStmt (compile e)
   case lhs of
     VRef ref -> do
       lval <- getValue lhs
@@ -476,12 +460,12 @@ modifyingOp op returnOp e = do
     _ -> raiseReferenceError $ show e ++ " is not assignable"
 
 purePrefix :: (JSVal -> Runtime JSVal) -> Expr -> Runtime JSVal
-purePrefix f e = runExprStmt e >>= getValue >>= f
+purePrefix f e = runExprStmt (compile e) >>= getValue >>= f
 
 
 -- ref 7.8.5
 makeRegularExpression :: String -> String -> Runtime JSVal
-makeRegularExpression body flags = runExprStmt (NewExpr (ReadVar "RegExp") [ (Str body), (Str flags) ])
+makeRegularExpression body flags = runExprStmt (compile $ NewExpr (ReadVar "RegExp") [ (Str body), (Str flags) ])
 
 -- ref 11.1.5
 makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal
@@ -503,7 +487,7 @@ makeObjectLiteral nameValueList =do
 
     makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
     makeDescriptor (Value e) = do
-      val <- runExprStmt e >>= getValue
+      val <- runExprStmt (compile e) >>= getValue
       return $ dataPD val True True True
     makeDescriptor (Getter body) = do
       strict <- getGlobalStrictness

@@ -21,6 +21,7 @@ import JSNum
 import Runtime
 import Builtins
 import Eval.Statements
+import Compiler
 import Core
 
 data RuntimeError = RuntimeError {
@@ -49,7 +50,7 @@ runJS sourceName input = do
 
 jsEvalExpr :: String -> IO JSVal
 jsEvalExpr input = do
-  result <- runtime $ (runExprStmt (parseExpr input) >>= getValue) `catchError` rethrowAsString
+  result <- runtime $ (runExprStmt (compile $ parseExpr input) >>= getValue) `catchError` rethrowAsString
   case result of
     Left err  -> do
       error (show err)
