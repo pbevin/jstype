@@ -13,6 +13,7 @@ import Data.List (intercalate)
 import Data.Bits
 import Data.Foldable
 import Text.Show.Functions
+import Eval.Expressions
 import Parse
 import Expr
 import JSNum
@@ -355,29 +356,17 @@ runCoreForIn sadapt lhs e stmt = sadapt $ do
 
 
 
-readVar :: Ident -> Runtime JSVal
-readVar name = do
-  cxt <- getGlobalContext
-  VRef <$> getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
-
 runExprStmt :: Expr -> Runtime JSVal
-runExprStmt expr = case expr of
-  Num n                 -> {-# SCC exprNum #-}       return $ VNum n
-  Str s                 -> {-# SCC exprStr #-}       return $ VStr s
-  Boolean b             -> {-# SCC exprBoolean #-}   return $ VBool b
-  LiteralNull           -> {-# SCC exprNull #-}      return VNull
-  LiteralUndefined      -> {-# SCC exprUndef #-}     return VUndef
-  ReadVar name          -> {-# SCC exprReadVar #-}   readVar name
-  This                  -> {-# SCC exprThis #-}      thisBinding <$> getGlobalContext
+runExprStmt = evalExpr runExprStmt'
+
+runExprStmt' :: Expr -> Runtime JSVal
+runExprStmt' expr = case expr of
   ArrayLiteral vals     -> {-# SCC exprArrayLit #-}  evalArrayLiteral vals
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
-  MemberDot e x         -> {-# SCC exprMemberDot #-} evalPropertyAccessorIdent e x
-  MemberGet e x         -> {-# SCC exprMemberGet #-} evalPropertyAccessor e x
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
   Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
   Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
-  BinOp "&&" e1 e2      -> {-# SCC exprAndAnd #-}    evalAndAnd e1 e2
   BinOp "||" e1 e2      -> {-# SCC exprOrOr #-}      evalOrOr e1 e2
   BinOp op e1 e2        -> {-# SCC exprBinOp #-}     evalBinaryOp op e1 e2
   UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt e >>= evalDelete -- ref 11.4.1
@@ -386,23 +375,6 @@ runExprStmt expr = case expr of
   PostOp op e           -> {-# SCC exprPostfix #-}   evalPostOp op e
   NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
-
--- ref 11.2.1
-evalPropertyAccessor :: Expr -> Expr -> Runtime JSVal
-evalPropertyAccessor e x = do
-  baseValue <- runExprStmt e >>= getValue
-  propertyNameValue <- runExprStmt x >>= getValue
-  checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
-  propertyNameString <- toString propertyNameValue
-  memberGet baseValue propertyNameString
-
--- ref 11.2.1
-evalPropertyAccessorIdent :: Expr -> Ident -> Runtime JSVal
-evalPropertyAccessorIdent e x = do
-  baseValue <- runExprStmt e >>= getValue
-  checkObjectCoercible ("Cannot read property " ++ x) baseValue
-  memberGet baseValue x
-
 
 -- ref 11.2.2
 evalNewExpr :: Expr -> [Expr] -> Runtime JSVal

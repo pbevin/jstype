@@ -35,15 +35,8 @@ shareShared obj = do
   objId <- nextID
   ref <- liftIO $ newIORef obj
   return $ Shared ref objId
-  -- g <- get
-  -- let m = view store g
-  --     newmap = M.insert objId obj m
-  -- put $ set store newmap g
-  -- return $ Shared (store.at objId) objId
 
 nextID :: Runtime ObjId
 nextID = do
-  store <- get
-  let objId = 1 + storeNextID store
-  put store { storeNextID = objId }
-  return objId
+  storeNextID += 1
+  use storeNextID

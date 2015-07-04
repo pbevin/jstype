@@ -207,6 +207,30 @@ spec = do
       jsEvalExpr "1 == 1" `shouldReturn` VBool True
       jsEvalExpr "1 == 2" `shouldReturn` VBool False
 
+  describe "&&" $ do
+    it "is true if both sides are true" $ do
+      jsEvalExpr "true && true" `shouldReturn` VBool True
+
+    it "is false if either side is false" $ do
+      jsEvalExpr "false && true"  `shouldReturn` VBool False
+      jsEvalExpr "true  && false" `shouldReturn` VBool False
+      jsEvalExpr "false && false" `shouldReturn` VBool False
+
+    it "does not evaluate the RHS if the LHS is false" $ do
+      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VNum 1
+
+  describe "||" $ do
+    it "is false if both sides are false" $ do
+      jsEvalExpr "false || false" `shouldReturn` VBool False
+
+    it "is false if either side is false" $ do
+      jsEvalExpr "true  || false" `shouldReturn` VBool True
+      jsEvalExpr "false || true " `shouldReturn` VBool True
+      jsEvalExpr "true  || true " `shouldReturn` VBool True
+
+    it "does not evaluate the RHS if the LHS is false" $ do
+      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VNum 1
+
   it "does bitshift operations" $ do
     jsEvalExpr "3 << 2" `shouldReturn` VNum 12
     jsEvalExpr "12 >> 2" `shouldReturn` VNum 3

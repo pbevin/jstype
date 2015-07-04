@@ -232,7 +232,10 @@ data JSGlobal = JSGlobal {
   globalContext         :: JSCxt
 }
 
-data Store = Store { storeNextID :: Int }
+data Store = Store {
+  _storeNextID :: Int,
+  _valueStack :: [JSVal]
+}
 
 raiseError :: String -> Runtime a
 raiseError s = throwError $ JSError (VStr s, [])
@@ -273,3 +276,4 @@ instance Monoid (PropDesc a) where
 
 makeLenses ''JSObj
 makeLenses ''JSGlobal
+makeLenses ''Store
