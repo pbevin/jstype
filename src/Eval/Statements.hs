@@ -356,7 +356,20 @@ runCoreForIn sadapt lhs e stmt = sadapt $ do
         else keepGoing obj ps v
 
 runExprStmt :: CompiledExpr -> Runtime JSVal
-runExprStmt e = evalExpr runExprStmt' e
+runExprStmt e = withEmptyStack $ evalExpr runExprStmt' e
+
+withEmptyStack :: Runtime JSVal -> Runtime JSVal
+withEmptyStack action = do
+  oldStack <- use valueStack
+  valueStack .= []
+  result <- action
+  stack <- use valueStack
+  valueStack .= oldStack
+  return result
+  -- if null stack
+  -- then return result
+  -- else error $ "Stack should have been empty: is " ++ show stack
+
 
 runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
@@ -366,10 +379,6 @@ runExprStmt' expr = case expr of
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
   Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
   Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
-  UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt (compile e) >>= evalDelete -- ref 11.4.1
-  UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt (compile e) >>= evalTypeof -- ref 11.4.3
-  UnOp op e             -> {-# SCC exprUnary #-}     evalUnOp op e
-  PostOp op e           -> {-# SCC exprPostfix #-}   evalPostOp op e
   NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
 
@@ -398,31 +407,10 @@ evalCond e1 e2 e3 = do
   then runExprStmt (compile e2) >>= getValue
   else runExprStmt (compile e3) >>= getValue
 
-evalUnOp :: Ident -> Expr -> Runtime JSVal
-evalUnOp op e = f e
-  where
-    f = case op of
-          "++"   -> modifyingOp (+ 1) (+ 1)
-          "--"   -> modifyingOp (subtract 1) (subtract 1)
-          "+"    -> purePrefix unaryPlus
-          "-"    -> purePrefix unaryMinus
-          "!"    -> purePrefix unaryNot
-          "~"    -> purePrefix unaryBitwiseNot
-          "void" -> purePrefix (return . const VUndef)
-          _      -> const $ raiseError $ "Prefix not implemented: " ++ op
-
 evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 evalFunExpr name params strictness body = do
   env <- lexEnv <$> getGlobalContext
   createFunction name params strictness body env
-
--- ref 11.3
-evalPostOp :: Ident -> Expr -> Runtime JSVal
-evalPostOp op e = f e
-  where f = case op of
-          "++" -> modifyingOp (+1) id
-          "--" -> modifyingOp (subtract 1) id
-          _    -> const $ raiseError $ "No such postfix operator: " ++ op
 
 -- ref 11.2.3
 evalFunCall :: Expr -> [Expr] -> Runtime JSVal
@@ -438,22 +426,6 @@ evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
 
 evalArguments :: [Expr] -> Runtime [JSVal]
 evalArguments = mapM (runExprStmt . compile >=> getValue)
-
-modifyingOp :: (JSNum->JSNum) -> (JSNum->JSNum) -> Expr -> Runtime JSVal
-modifyingOp op returnOp e = do
-  lhs <- runExprStmt (compile e)
-  case lhs of
-    VRef ref -> do
-      lval <- getValue lhs
-      val <- toNumber lval
-      let newVal = VNum $ op val
-          retVal = VNum $ returnOp val
-      putValue ref newVal
-      return retVal
-    _ -> raiseReferenceError $ show e ++ " is not assignable"
-
-purePrefix :: (JSVal -> Runtime JSVal) -> Expr -> Runtime JSVal
-purePrefix f e = runExprStmt (compile e) >>= getValue >>= f
 
 
 -- ref 7.8.5
@@ -505,46 +477,6 @@ makeObjectLiteral nameValueList =do
         when (hasSetter a && hasSetter b) failure
       return ()
 
-
--- ref 11.4.1
-evalDelete :: JSVal -> Runtime JSVal
-evalDelete val
-  | not (isReference val) = return (VBool True)
-  | isUnresolvableReference ref && isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (1)"
-  | isUnresolvableReference ref = return (VBool True)
-  | isPropertyReference ref = deleteFromObj ref
-  | isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (2)"
-  | otherwise = deleteFromEnv ref
-
-  where ref = unwrapRef val
-        deleteFromObj (JSRef base name strict) = do
-          obj <- toObject base
-          objDelete name (strict == Strict) obj
-        deleteFromEnv (JSRef (VEnv base) name _strict) = deleteBinding name base
-
-
--- ref 11.4.3
-evalTypeof :: JSVal -> Runtime JSVal
-evalTypeof val = do
-  if isReference val && isUnresolvableReference (unwrapRef val)
-  then return $ VStr "undefined"
-  else do
-    resolved <- getValue val
-    result <- case resolved of
-      VObj objRef ->
-        (^.callMethod) <$> deref objRef >>= \case
-          Nothing -> return "object"
-          Just _  -> return "function"
-      VNative{}   -> return "function"
-      _ ->
-        return $ case typeof resolved of
-          TypeUndefined -> "undefined"
-          TypeNull      -> "object"
-          TypeBoolean   -> "boolean"
-          TypeNumber    -> "number"
-          TypeString    -> "string"
-          _ -> showVal resolved
-    return $ VStr result
 
 
 createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)

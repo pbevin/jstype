@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Eval.Expressions (runCompiledExpr, evalExpr) where
 
 import Control.Lens
@@ -24,11 +26,18 @@ runCompiledExpr globalEval op = case op of
   OpVar name       -> runOpVar name
   OpGet name       -> runOpGet name
   OpGet2           -> runOpGet2
-  OpToValue        -> runOpToValue
+  OpGetValue       -> runOpGetValue
   OpToBoolean      -> runOpToBoolean
   OpDiscard        -> void pop
   OpDup            -> topOfStack >>= push
+  OpSwap           -> runSwap
+  OpRoll3          -> runRoll3
   OpBinary op      -> runBinaryOp op
+  OpUnary op       -> runUnaryOp op
+  OpModify op      -> runModify op
+  OpDelete         -> runDelete
+  OpTypeof         -> runTypeof
+  OpStore          -> runStore
   BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
   IfEq val code    -> runIfEq val (runCompiledExpr globalEval code)
   Interpreted expr -> push =<< globalEval expr
@@ -36,14 +45,6 @@ runCompiledExpr globalEval op = case op of
 
 evalExpr :: (Expr -> Runtime JSVal) -> CompiledExpr -> Runtime JSVal
 evalExpr globalEval code = runCompiledExpr globalEval code >> pop
-
-singleItemOnStack :: Runtime JSVal
-singleItemOnStack = do
-  stack <- use valueStack
-  case stack of
-    [val] -> pop >> return val
-    _     -> error $ "Stack should have had 1 element; found " ++ show stack
-
 
 runOpThis :: Runtime ()
 runOpThis = push =<< (thisBinding <$> getGlobalContext)
@@ -70,11 +71,11 @@ runOpGet2 = do
   propertyNameString <- toString propertyNameValue
   memberGet baseValue propertyNameString >>= push
 
-runOpToValue :: Runtime ()
-runOpToValue = frob getValue
+runOpGetValue :: Runtime ()
+runOpGetValue = push =<< getValue =<< pop
 
 runOpToBoolean :: Runtime ()
-runOpToBoolean = frob (return . VBool . toBoolean)
+runOpToBoolean = frob (VBool . toBoolean)
 
 runBinaryOp :: Ident -> Runtime ()
 runBinaryOp op =
@@ -82,6 +83,104 @@ runBinaryOp op =
   in do e2 <- pop
         e1 <- pop
         action e1 e2 >>= push
+
+runUnaryOp :: Ident -> Runtime ()
+runUnaryOp op = do
+  e <- pop
+  push =<< f e
+  where
+    f = case op of
+          "+"    -> unaryPlus
+          "-"    -> unaryMinus
+          "!"    -> unaryNot
+          "~"    -> unaryBitwiseNot
+          "void" -> (return . const VUndef)
+          _      -> const $ raiseError $ "Prefix not implemented: " ++ op
+
+runModify :: Ident -> Runtime ()
+runModify op =
+  let go f = pop >>= toNumber >>= push . VNum . f
+  in case op of
+            "++" -> go (+ 1)
+            "--" -> go (subtract 1)
+            _    -> raiseError $ "No such modifier: " ++ op
+
+-- modifyingOp :: (JSNum -> JSNum) -> Runtime ()
+-- modifyingOp op = do
+--   lhs <- pop
+--   case lhs of
+--     VRef ref -> do
+--       lval <- getValue lhs
+--       val <- toNumber lval
+--       putValue ref . VNum $ op val
+--       return ()
+--     _ -> raiseReferenceError $ show lhs ++ " is not assignable"
+
+-- ref 11.4.1
+runDelete :: Runtime ()
+runDelete = pop >>= runDelete'
+  where runDelete' val
+          | not (isReference val) = push (VBool True)
+          | isUnresolvableReference ref && isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (1)"
+          | isUnresolvableReference ref = push (VBool True)
+          | isPropertyReference ref = push =<< deleteFromObj ref
+          | isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (2)"
+          | otherwise = push =<< deleteFromEnv ref
+          where
+              ref = unwrapRef val
+              deleteFromObj (JSRef base name strict) = do
+                obj <- toObject base
+                objDelete name (strict == Strict) obj
+              deleteFromEnv (JSRef (VEnv base) name _strict) = deleteBinding name base
+
+-- ref 11.4.3
+runTypeof :: Runtime ()
+runTypeof = do
+  val <- pop
+  if isReference val && isUnresolvableReference (unwrapRef val)
+  then push $ VStr "undefined"
+  else do
+    resolved <- getValue val
+    result <- case resolved of
+      VObj objRef ->
+        (^.callMethod) <$> deref objRef >>= \case
+          Nothing -> return "object"
+          Just _  -> return "function"
+      VNative{}   -> return "function"
+      _ ->
+        return $ case typeof resolved of
+          TypeUndefined -> "undefined"
+          TypeNull      -> "object"
+          TypeBoolean   -> "boolean"
+          TypeNumber    -> "number"
+          TypeString    -> "string"
+          _ -> showVal resolved
+    push $ VStr result
+
+runStore :: Runtime ()
+runStore = do
+  val <- pop
+  lhs <- pop
+  case lhs of
+    VRef ref -> putValue ref val
+    _        -> raiseReferenceError $ show lhs ++ " is not assignable"
+  push val
+
+runSwap :: Runtime ()
+runSwap = do
+  a <- pop
+  b <- pop
+  push a
+  push b
+
+runRoll3 :: Runtime ()
+runRoll3 = do
+  a <- pop
+  b <- pop
+  c <- pop
+  push a
+  push c
+  push b
 
 runIfEq :: JSVal -> Runtime () -> Runtime ()
 runIfEq val action = do
@@ -98,8 +197,8 @@ pop = do
   valueStack %= tail
   return v
 
-frob :: (JSVal -> Runtime JSVal) -> Runtime ()
-frob f = pop >>= f >>= push
+frob :: (JSVal -> JSVal) -> Runtime ()
+frob f = pop >>= push . f
 
 topOfStack :: Runtime JSVal
 topOfStack = head <$> use valueStack
