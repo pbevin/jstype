@@ -366,7 +366,6 @@ runExprStmt' expr = case expr of
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
   Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
   Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
-  BinOp op e1 e2        -> {-# SCC exprBinOp #-}     evalBinaryOp op e1 e2
   UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt (compile e) >>= evalDelete -- ref 11.4.1
   UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt (compile e) >>= evalTypeof -- ref 11.4.3
   UnOp op e             -> {-# SCC exprUnary #-}     evalUnOp op e
@@ -398,12 +397,6 @@ evalCond e1 e2 e3 = do
   if toBoolean lref
   then runExprStmt (compile e2) >>= getValue
   else runExprStmt (compile e3) >>= getValue
-
-evalBinaryOp :: Ident -> Expr -> Expr -> Runtime JSVal
-evalBinaryOp op e1 e2 = do
-  v1 <- runExprStmt (compile e1) >>= getValue
-  v2 <- runExprStmt (compile e2) >>= getValue
-  evalBinOp op v1 v2
 
 evalUnOp :: Ident -> Expr -> Runtime JSVal
 evalUnOp op e = f e

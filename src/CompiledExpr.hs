@@ -12,6 +12,7 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | OpToBoolean     -- convert TOS to boolean
                    | OpDiscard       -- discard TOS
                    | OpDup           -- duplicate TOS
+                   | OpBinary Ident  -- binary op on top 2
                    | BasicBlock [CompiledExpr]
                    | IfEq JSVal CompiledExpr
                    | Interpreted Expr

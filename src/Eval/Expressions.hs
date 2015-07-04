@@ -28,6 +28,7 @@ runCompiledExpr globalEval op = case op of
   OpToBoolean      -> runOpToBoolean
   OpDiscard        -> void pop
   OpDup            -> topOfStack >>= push
+  OpBinary op      -> runBinaryOp op
   BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
   IfEq val code    -> runIfEq val (runCompiledExpr globalEval code)
   Interpreted expr -> push =<< globalEval expr
@@ -63,8 +64,8 @@ runOpGet name = do
 -- ref 11.2.1
 runOpGet2 :: Runtime ()
 runOpGet2 = do
-  baseValue         <- pop
   propertyNameValue <- pop
+  baseValue         <- pop
   checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
   propertyNameString <- toString propertyNameValue
   memberGet baseValue propertyNameString >>= push
@@ -75,6 +76,12 @@ runOpToValue = frob getValue
 runOpToBoolean :: Runtime ()
 runOpToBoolean = frob (return . VBool . toBoolean)
 
+runBinaryOp :: Ident -> Runtime ()
+runBinaryOp op =
+  let action = evalBinOp op
+  in do e2 <- pop
+        e1 <- pop
+        action e1 e2 >>= push
 
 runIfEq :: JSVal -> Runtime () -> Runtime ()
 runIfEq val action = do
