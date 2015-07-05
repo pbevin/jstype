@@ -5,8 +5,6 @@ import CompiledExpr
 import Runtime.Types
 import Expr
 
-import Debug.Trace
-
 compile :: Expr -> CompiledExpr
 compile expr = case expr of
   Num n            -> OpConst (VNum n)
@@ -91,4 +89,4 @@ compileUnary op e =
 
 compilePostOp :: Ident -> Expr -> CompiledExpr
 compilePostOp op e =
-  BasicBlock [ compile e, OpDup, OpGetValue, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]
+  BasicBlock [ compile e, OpDup, OpGetValue, OpToNumber, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]

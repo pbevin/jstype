@@ -30,6 +30,7 @@ runCompiledExpr globalEval op = case op of
   OpGet2           -> runOpGet2
   OpGetValue       -> runOpGetValue
   OpToBoolean      -> runOpToBoolean
+  OpToNumber       -> runOpToNumber
   OpDiscard        -> void pop
   OpDup            -> topOfStack >>= push
   OpSwap           -> runSwap
@@ -66,8 +67,8 @@ runSparse :: Int -> Runtime ()
 runSparse n = do
   length <- pop
   values <- replicateM n $ do
-    k <- toInt =<< pop
     v <- pop
+    k <- toInt =<< pop
     return (k,v)
   push =<< createSparseArray length values
 
@@ -94,6 +95,9 @@ runOpGetValue = push =<< getValue =<< pop
 
 runOpToBoolean :: Runtime ()
 runOpToBoolean = frob (VBool . toBoolean)
+
+runOpToNumber :: Runtime ()
+runOpToNumber = pop >>= toNumber >>= push . VNum
 
 runBinaryOp :: Ident -> Runtime ()
 runBinaryOp op =

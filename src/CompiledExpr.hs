@@ -12,6 +12,7 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | OpGet2          -- property access with value
                    | OpGetValue      -- dereference top of stack
                    | OpToBoolean     -- convert TOS to boolean
+                   | OpToNumber      -- convert TOS to number
                    | OpDiscard       -- discard TOS
                    | OpDup           -- duplicate TOS
                    | OpSwap          -- swap top 2 items on stack

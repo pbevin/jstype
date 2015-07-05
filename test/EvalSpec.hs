@@ -87,17 +87,22 @@ spec = do
     runJStr "console.log(!true); console.log(!false)"
       `shouldReturn` Right "false\ntrue\n"
 
-  it "does pre-increment and pre-decrement" $ do
-    runJStr "var a = 5; console.log(--a); console.log(a)"
-      `shouldReturn` Right "4\n4\n"
-    runJStr "var a = 5; console.log(++a); console.log(a)"
-      `shouldReturn` Right "6\n6\n"
+  describe "++ and --" $ do
+    it "does pre-increment and pre-decrement" $ do
+      runJStr "var a = 5; console.log(--a); console.log(a)"
+        `shouldReturn` Right "4\n4\n"
+      runJStr "var a = 5; console.log(++a); console.log(a)"
+        `shouldReturn` Right "6\n6\n"
 
-  it "does post-increment and post-decrement" $ do
-    runJStr "var a = 5; console.log(a--); console.log(a)"
-      `shouldReturn` Right "5\n4\n"
-    runJStr "var a = 5; console.log(a++); console.log(a)"
-      `shouldReturn` Right "5\n6\n"
+    it "does post-increment and post-decrement" $ do
+      runJStr "var a = 5; console.log(a--); console.log(a)"
+        `shouldReturn` Right "5\n4\n"
+      runJStr "var a = 5; console.log(a++); console.log(a)"
+        `shouldReturn` Right "5\n6\n"
+
+    it "converts to numeric" $ do
+      runJStr "var a = '5'; console.log(typeof a++, typeof a)"
+        `shouldReturn` Right "number number\n"
 
   it "evaluates a primitive number wrapped in an object" $ do
     jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VNum 2
@@ -173,6 +178,18 @@ spec = do
       jsEvalExpr "[4,5,,].length" `shouldReturn` VNum 3
       jsEvalExpr "[4,5,,,].length" `shouldReturn` VNum 4
       jsEvalExpr "[4,5,,,,].length" `shouldReturn` VNum 5
+
+  describe "[a,b,,d,e]" $ do
+    it "has a at [0]" $ do
+      jsEvalExpr "['a','b',,'d','e'][0]" `shouldReturn` VStr "a"
+    it "has b at [1]" $ do
+      jsEvalExpr "['a','b',,'d','e'][1]" `shouldReturn` VStr "b"
+    it "has undefined at [2]" $ do
+      jsEvalExpr "['a','b',,'d','e'][2]" `shouldReturn` VUndef
+    it "has d at [3]" $ do
+      jsEvalExpr "['a','b',,'d','e'][3]" `shouldReturn` VStr "d"
+    it "has e at [4]" $ do
+      jsEvalExpr "['a','b',,'d','e'][4]" `shouldReturn` VStr "e"
 
   describe "printing an array" $ do
     it "prints the elements joined by comma" $ do
