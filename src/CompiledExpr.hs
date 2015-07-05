@@ -6,6 +6,8 @@ import Runtime.Types
 data CompiledExpr = OpConst JSVal    -- push constant
                    | OpThis          -- push current `this`
                    | OpVar Ident     -- read variable, push reference
+                   | OpArray Int     -- make array from last n values on stack
+                   | OpSparse Int    -- make sparse array from last 2n+1 values on stack
                    | OpGet Ident     -- property access with identifier
                    | OpGet2          -- property access with value
                    | OpGetValue      -- dereference top of stack

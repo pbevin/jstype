@@ -373,7 +373,6 @@ withEmptyStack action = do
 
 runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
-  ArrayLiteral vals     -> {-# SCC exprArrayLit #-}  evalArrayLiteral vals
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args

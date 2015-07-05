@@ -172,25 +172,30 @@ numConstructor this args = do
     _ -> raiseError $ "numConstructor called with this = " ++ show this
 
 
-arrayAssigns :: [Maybe a] -> [(Integer, a)]
+arrayAssigns :: [Maybe a] -> [(Int, a)]
 arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
 
 createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
   let len = VNum $ fromIntegral $ length vals
       assigns = arrayAssigns vals
-  in do cstr <- getGlobalProperty "Array"
-        arrayPrototype <- objFindPrototype "Array"
-        obj <- mkObject $ do
-          className "Array"
-          prototype arrayPrototype
-          descriptor "constructor" (dataPD cstr True False  True)
-          descriptor "length"      (dataPD len  True False False)
+  in createSparseArray len assigns
 
-        setArrayIndices assigns obj
-        return $ VObj obj
+createSparseArray :: JSVal -> [(Int, JSVal)] -> Runtime JSVal
+createSparseArray len assigns = do
+  cstr <- getGlobalProperty "Array"
+  arrayPrototype <- objFindPrototype "Array"
+  obj <- mkObject $ do
+    className "Array"
+    prototype arrayPrototype
+    descriptor "constructor" (dataPD cstr True False  True)
+    descriptor "length"      (dataPD len  True False False)
 
-setArrayIndices :: [(Integer, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
+  setArrayIndices assigns obj
+  return $ VObj obj
+
+
+setArrayIndices :: [(Int, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
 setArrayIndices assigns objRef = do
   mapM_ (\(n, v) -> defineOwnProperty (show n) (dataPD v True True True) False objRef) assigns
   return objRef

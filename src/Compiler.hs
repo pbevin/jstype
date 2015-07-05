@@ -1,8 +1,11 @@
 module Compiler (module Compiler, module CompiledExpr) where
 
+import Data.Maybe
 import CompiledExpr
 import Runtime.Types
 import Expr
+
+import Debug.Trace
 
 compile :: Expr -> CompiledExpr
 compile expr = case expr of
@@ -13,6 +16,7 @@ compile expr = case expr of
   LiteralUndefined -> OpConst (VUndef)
   ReadVar v        -> OpVar v
   This             -> OpThis
+  ArrayLiteral vs  -> compileArrayLiteral vs
   MemberDot e x    -> compilePropAccDot e x
   MemberGet e x    -> compilePropAccBracket e x
   BinOp "&&" e1 e2 -> compileShortCircuitAnd e1 e2
@@ -23,14 +27,27 @@ compile expr = case expr of
   UnOp "typeof" e  -> compileTypeof e
   UnOp op e        -> compileUnary op e
   PostOp op e      -> compilePostOp op e
-
-
-  -- UnOp "delete" e       -> {-# SCC exprDelete #-}    runExprStmt (compile e) >>= evalDelete -- ref 11.4.1
-  -- UnOp "typeof" e       -> {-# SCC exprTypeof #-}    runExprStmt (compile e) >>= evalTypeof -- ref 11.4.3
-  -- UnOp op e             -> {-# SCC exprUnary #-}     evalUnOp op e
-  -- PostOp op e           -> {-# SCC exprPostfix #-}   evalPostOp op e
   _                -> Interpreted expr
 
+compileArrayLiteral :: [Maybe Expr] -> CompiledExpr
+compileArrayLiteral vs =
+  if all isJust vs
+  then compileCompactArray (catMaybes vs)
+  else compileSparseArray vs
+
+compileCompactArray :: [Expr] -> CompiledExpr
+compileCompactArray elts =
+  BasicBlock $ reverse $ (OpArray $ length elts) : map compile elts
+
+compileSparseArray :: [Maybe Expr] -> CompiledExpr
+compileSparseArray elts =
+  BasicBlock $ go 0 $ zip [0..] elts
+    where
+      go n []     = [ OpConst (vnum $ length elts), OpSparse n ]
+      go n (x:xs) = case x of
+        (_, Nothing) -> go n xs
+        (k, Just e) -> OpConst (VNum k) : compile e : go (n+1) xs
+      vnum k = VNum (fromIntegral k)
 
 compilePropAccDot :: Expr -> Ident -> CompiledExpr
 compilePropAccDot expr ident =

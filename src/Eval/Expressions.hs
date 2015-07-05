@@ -3,7 +3,7 @@
 module Eval.Expressions (runCompiledExpr, evalExpr) where
 
 import Control.Lens
-import Control.Monad (void, when)
+import Control.Monad (void, when, replicateM)
 import CompiledExpr
 import Runtime
 import Expr
@@ -24,6 +24,8 @@ runCompiledExpr globalEval op = case op of
   OpConst v        -> push v
   OpThis           -> runOpThis
   OpVar name       -> runOpVar name
+  OpArray n        -> runArray n
+  OpSparse n       -> runSparse n
   OpGet name       -> runOpGet name
   OpGet2           -> runOpGet2
   OpGetValue       -> runOpGetValue
@@ -54,6 +56,22 @@ runOpVar name = do
   cxt <- getGlobalContext
   val <- getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
   push (VRef val)
+
+runArray :: Int -> Runtime ()
+runArray n = do
+  values <- replicateM n pop
+  push =<< createArray (map Just values)
+
+runSparse :: Int -> Runtime ()
+runSparse n = do
+  length <- pop
+  values <- replicateM n $ do
+    k <- toInt =<< pop
+    v <- pop
+    return (k,v)
+  push =<< createSparseArray length values
+
+
 
 -- ref 11.2.1
 runOpGet :: Ident -> Runtime ()
