@@ -375,32 +375,12 @@ runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
-  FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
-  NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
-
--- ref 11.2.2
-evalNewExpr :: Expr -> [Expr] -> Runtime JSVal
-evalNewExpr f args = do
-  fun <- runExprStmt (compile f) >>= getValue
-  argList <- evalArguments args
-  assertFunction (show f) (view cstrMethod) fun  -- XXX need to get the name here
-  liftM VObj (newObjectFromConstructor fun argList)
 
 evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 evalFunExpr name params strictness body = do
   env <- lexEnv <$> getGlobalContext
   createFunction name params strictness body env
-
--- ref 11.2.3
-evalFunCall :: Expr -> [Expr] -> Runtime JSVal
-evalFunCall f args = do
-  ref <- runExprStmt (compile f)
-  argList <- evalArguments args
-  callFunction ref argList
-
-evalArguments :: [Expr] -> Runtime [JSVal]
-evalArguments = mapM (runExprStmt . compile >=> getValue)
 
 
 -- ref 7.8.5

@@ -41,6 +41,9 @@ runCompiledExpr globalEval op = case op of
   OpDelete         -> runDelete
   OpTypeof         -> runTypeof
   OpStore          -> runStore
+  OpFunCall n      -> runFunCall n
+  OpNewCall n      -> runNewCall n
+
   BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
   IfTrue op1 op2   -> runIfTrue (runCompiledExpr globalEval) op1 op2
   Interpreted expr -> push =<< globalEval expr
@@ -188,6 +191,23 @@ runStore = do
     VRef ref -> putValue ref val
     _        -> raiseReferenceError $ show lhs ++ " is not assignable"
   push val
+
+-- ref 11.2.2
+runNewCall :: Int -> Runtime ()
+runNewCall n = do
+  func <- getValue =<< pop
+  args <- reverse <$> replicateM n pop
+  assertFunction "(function)" (view cstrMethod) func  -- XXX need to get the name here
+  push =<< VObj <$> newObjectFromConstructor func args
+
+-- ref 11.2.3
+runFunCall :: Int -> Runtime ()
+runFunCall n = do
+  func <- pop
+  args <- reverse <$> replicateM n pop
+  push =<< callFunction func args
+
+
 
 runSwap :: Runtime ()
 runSwap = do

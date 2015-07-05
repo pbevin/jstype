@@ -28,6 +28,8 @@ compile expr = case expr of
   UnOp op e        -> compileUnary op e
   PostOp op e      -> compilePostOp op e
   Cond e1 e2 e3    -> compileCond e1 e2 e3
+  FunCall f args   -> compileFunCall f args
+  NewExpr f args   -> compileNewExpr f args
   _                -> Interpreted expr
 
 compileArrayLiteral :: [Maybe Expr] -> CompiledExpr
@@ -113,3 +115,14 @@ compileCond e1 e2 e3 =
                IfTrue (BasicBlock [ compile e2, OpGetValue ])
                       (BasicBlock [ compile e3, OpGetValue ]) ]
 
+
+compileCall :: (Int->CompiledExpr) -> Expr -> [Expr] -> CompiledExpr
+compileCall op f args =
+  BasicBlock $ concatMap compileArg args
+          ++ [ compile f, op (length args) ]
+  where
+    compileArg e = [ compile e, OpGetValue ]
+
+compileFunCall, compileNewExpr :: Expr -> [Expr] -> CompiledExpr
+compileFunCall = compileCall OpFunCall
+compileNewExpr = compileCall OpNewCall

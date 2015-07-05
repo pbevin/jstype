@@ -23,6 +23,8 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | OpDelete        -- delete reference at TOS, leave bool
                    | OpTypeof        -- replace TOS with its type name
                    | OpStore         -- val is TOS, ref is NOS: write val to ref, leave val
+                   | OpFunCall Int   -- Function call with n arguments on stack, func is TOS, last arg is NOS
+                   | OpNewCall Int   -- As function call, but creating new object
                    | Nop             -- Do nothing
                    | BasicBlock [CompiledExpr]
                    | IfTrue CompiledExpr CompiledExpr
