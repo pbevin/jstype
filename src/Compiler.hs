@@ -17,6 +17,8 @@ compile expr = case expr of
   ArrayLiteral vs  -> compileArrayLiteral vs
   MemberDot e x    -> compilePropAccDot e x
   MemberGet e x    -> compilePropAccBracket e x
+  Assign lhs "=" e -> compileAssignment lhs e
+  Assign lhs op e  -> compileCompoundAssignment lhs op e
   BinOp "&&" e1 e2 -> compileShortCircuitAnd e1 e2
   BinOp "||" e1 e2 -> compileShortCircuitOr e1 e2
   BinOp "," e1 e2  -> compileSequence e1 e2
@@ -54,6 +56,19 @@ compilePropAccDot expr ident =
 compilePropAccBracket :: Expr -> Expr -> CompiledExpr
 compilePropAccBracket expr ix =
   BasicBlock [ compile expr, OpGetValue, compile ix, OpGetValue, OpGet2 ]
+
+-- ref 11.13.1
+compileAssignment :: Expr -> Expr -> CompiledExpr
+compileAssignment lhs e =
+  BasicBlock $ [ compile lhs, compile e, OpGetValue, OpStore ]
+
+-- ref 11.13.2
+compileCompoundAssignment :: Expr -> Ident -> Expr -> CompiledExpr
+compileCompoundAssignment lhs op e =
+  BasicBlock $ [ compile lhs, OpDup, OpGetValue,
+                 compile e, OpGetValue,
+                 OpBinary (init op), OpStore ]
+
 
 compileShortCircuitAnd :: Expr -> Expr -> CompiledExpr
 compileShortCircuitAnd e1 e2 =

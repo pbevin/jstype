@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, RankNTypes, GeneralizedNewtypeDeriving #-}
 
-module Eval.Statements where
+module Eval.Statements (evalCode, runCode, runProg, runExprStmt) where
 
 import Control.Lens hiding (strict, Getter, Setter, op)
 import Control.Monad.State
@@ -376,7 +376,6 @@ runExprStmt' expr = case expr of
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
-  Assign lhs op e       -> {-# SCC exprAssign #-}    evalAssignment lhs op e
   Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
   NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
@@ -388,16 +387,6 @@ evalNewExpr f args = do
   argList <- evalArguments args
   assertFunction (show f) (view cstrMethod) fun  -- XXX need to get the name here
   liftM VObj (newObjectFromConstructor fun argList)
-
--- ref 11.13.1 (simple assignment)
--- ref 11.13.2 (compound assignment)
-evalAssignment :: Expr -> Ident -> Expr -> Runtime JSVal
-evalAssignment lhs op e = do
-  lref <- runExprStmt (compile lhs)
-  rref <- runExprStmt (compile e)
-  case op of
-    "=" -> assignRef lref rref
-    _   -> updateRef (init op) lref rref
 
 evalCond :: Expr -> Expr -> Expr -> Runtime JSVal
 evalCond e1 e2 e3 = do
@@ -417,11 +406,6 @@ evalFunCall f args = do
   ref <- runExprStmt (compile f)
   argList <- evalArguments args
   callFunction ref argList
-
-evalArrayLiteral :: [Maybe Expr] -> Runtime JSVal
-evalArrayLiteral vals = createArray =<< mapM evalMaybe vals
-  where evalMaybe Nothing = return Nothing
-        evalMaybe (Just e) = Just <$> (runExprStmt (compile e) >>= getValue)
 
 evalArguments :: [Expr] -> Runtime [JSVal]
 evalArguments = mapM (runExprStmt . compile >=> getValue)
