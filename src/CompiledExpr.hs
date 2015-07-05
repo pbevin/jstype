@@ -30,5 +30,4 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | Nop             -- Do nothing
                    | BasicBlock [CompiledExpr]
                    | IfTrue CompiledExpr CompiledExpr
-                   | Interpreted Expr
                    deriving (Show, Eq)

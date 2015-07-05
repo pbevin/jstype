@@ -19,8 +19,8 @@ debugOp code action = do
   debug ("after", stack')
   return v
 
-runCompiledExpr :: (Expr -> Runtime JSVal) -> CompiledExpr -> Runtime ()
-runCompiledExpr globalEval op = case op of
+runCompiledExpr :: CompiledExpr -> Runtime ()
+runCompiledExpr op = case op of
   OpConst v        -> push v
   OpThis           -> runOpThis
   OpVar name       -> runOpVar name
@@ -46,14 +46,13 @@ runCompiledExpr globalEval op = case op of
   OpNewCall n      -> runNewCall n
   OpLambda         -> runLambda
 
-  BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
-  IfTrue op1 op2   -> runIfTrue (runCompiledExpr globalEval) op1 op2
-  Interpreted expr -> push =<< globalEval expr
+  BasicBlock ops   -> mapM_ runCompiledExpr ops
+  IfTrue op1 op2   -> runIfTrue runCompiledExpr op1 op2
   Nop              -> return ()
   _                -> error $ "No such opcode: " ++ show op
 
-evalExpr :: (Expr -> Runtime JSVal) -> CompiledExpr -> Runtime JSVal
-evalExpr globalEval code = runCompiledExpr globalEval code >> pop
+evalExpr :: CompiledExpr -> Runtime JSVal
+evalExpr code = runCompiledExpr code >> pop
 
 runOpThis :: Runtime ()
 runOpThis = push =<< (thisBinding <$> getGlobalContext)

@@ -356,7 +356,7 @@ runCoreForIn sadapt lhs e stmt = sadapt $ do
         else keepGoing obj ps v
 
 runExprStmt :: CompiledExpr -> Runtime JSVal
-runExprStmt e = withEmptyStack $ evalExpr runExprStmt' e
+runExprStmt e = withEmptyStack $ evalExpr e
 
 withEmptyStack :: Runtime JSVal -> Runtime JSVal
 withEmptyStack action = do
@@ -366,13 +366,6 @@ withEmptyStack action = do
   stack <- use valueStack
   valueStack .= oldStack
   return result
-  -- if null stack
-  -- then return result
-  -- else error $ "Stack should have been empty: is " ++ show stack
-
-
-runExprStmt' :: Expr -> Runtime JSVal
-runExprStmt' expr = undefined
 
 
 createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)

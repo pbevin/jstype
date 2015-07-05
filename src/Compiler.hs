@@ -5,8 +5,13 @@ import CompiledExpr
 import Runtime.Types
 import Expr
 
+mergeBlocks :: [CompiledExpr] -> [CompiledExpr]
+mergeBlocks (BasicBlock a : rest) = mergeBlocks $ a ++ rest
+mergeBlocks (a : rest) = a :  mergeBlocks rest
+mergeBlocks [] = []
+
 compile :: Expr -> CompiledExpr
-compile expr = BasicBlock $ case expr of
+compile expr = BasicBlock $ mergeBlocks $ case expr of
   Num n            -> [ OpConst (VNum n)  ]
   Str s            -> [ OpConst (VStr s)  ]
   Boolean b        -> [ OpConst (VBool b) ]
