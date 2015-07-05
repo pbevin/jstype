@@ -376,7 +376,6 @@ runExprStmt' expr = case expr of
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
   FunCall f args        -> {-# SCC exprFunCall #-}   evalFunCall f args
-  Cond e1 e2 e3         -> {-# SCC exprCond #-}      evalCond e1 e2 e3
   NewExpr f args        -> {-# SCC exprNew #-}       evalNewExpr f args
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
 
@@ -387,13 +386,6 @@ evalNewExpr f args = do
   argList <- evalArguments args
   assertFunction (show f) (view cstrMethod) fun  -- XXX need to get the name here
   liftM VObj (newObjectFromConstructor fun argList)
-
-evalCond :: Expr -> Expr -> Expr -> Runtime JSVal
-evalCond e1 e2 e3 = do
-  lref <- runExprStmt (compile e1) >>= getValue
-  if toBoolean lref
-  then runExprStmt (compile e2) >>= getValue
-  else runExprStmt (compile e3) >>= getValue
 
 evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 evalFunExpr name params strictness body = do

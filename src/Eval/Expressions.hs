@@ -42,8 +42,9 @@ runCompiledExpr globalEval op = case op of
   OpTypeof         -> runTypeof
   OpStore          -> runStore
   BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
-  IfEq val code    -> runIfEq val (runCompiledExpr globalEval code)
+  IfTrue op1 op2   -> runIfTrue (runCompiledExpr globalEval) op1 op2
   Interpreted expr -> push =<< globalEval expr
+  Nop              -> return ()
   _                -> error $ "No such opcode: " ++ show op
 
 evalExpr :: (Expr -> Runtime JSVal) -> CompiledExpr -> Runtime JSVal
@@ -203,6 +204,14 @@ runRoll3 = do
   push a
   push c
   push b
+
+runIfTrue :: (CompiledExpr -> Runtime ()) -> CompiledExpr -> CompiledExpr -> Runtime ()
+runIfTrue eval ifTrue ifFalse = do
+  val <- pop
+  if val == VBool True
+  then eval ifTrue
+  else eval ifFalse
+
 
 runIfEq :: JSVal -> Runtime () -> Runtime ()
 runIfEq val action = do

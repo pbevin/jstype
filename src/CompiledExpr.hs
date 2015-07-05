@@ -23,7 +23,8 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | OpDelete        -- delete reference at TOS, leave bool
                    | OpTypeof        -- replace TOS with its type name
                    | OpStore         -- val is TOS, ref is NOS: write val to ref, leave val
+                   | Nop             -- Do nothing
                    | BasicBlock [CompiledExpr]
-                   | IfEq JSVal CompiledExpr
+                   | IfTrue CompiledExpr CompiledExpr
                    | Interpreted Expr
                    deriving (Show, Eq)

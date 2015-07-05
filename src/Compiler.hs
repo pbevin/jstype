@@ -27,6 +27,7 @@ compile expr = case expr of
   UnOp "typeof" e  -> compileTypeof e
   UnOp op e        -> compileUnary op e
   PostOp op e      -> compilePostOp op e
+  Cond e1 e2 e3    -> compileCond e1 e2 e3
   _                -> Interpreted expr
 
 compileArrayLiteral :: [Maybe Expr] -> CompiledExpr
@@ -74,13 +75,13 @@ compileShortCircuitAnd :: Expr -> Expr -> CompiledExpr
 compileShortCircuitAnd e1 e2 =
   let compe1 = [ compile e1, OpGetValue, OpDup, OpToBoolean ]
       compe2 = [ OpDiscard, compile e2, OpGetValue ]
-  in BasicBlock $ compe1 ++ [ IfEq (VBool True) (BasicBlock compe2) ]
+  in BasicBlock $ compe1 ++ [ IfTrue (BasicBlock compe2) Nop]
 
 compileShortCircuitOr :: Expr -> Expr -> CompiledExpr
 compileShortCircuitOr e1 e2 =
   let compe1 = [ compile e1, OpGetValue, OpDup, OpToBoolean]
       compe2 = [ OpDiscard, compile e2, OpGetValue ]
-  in BasicBlock $ compe1 ++ [ IfEq (VBool False) (BasicBlock compe2) ]
+  in BasicBlock $ compe1 ++ [ IfTrue Nop (BasicBlock compe2) ]
 
 compileSequence :: Expr -> Expr -> CompiledExpr
 compileSequence e1 e2 =
@@ -105,3 +106,10 @@ compileUnary op e =
 compilePostOp :: Ident -> Expr -> CompiledExpr
 compilePostOp op e =
   BasicBlock [ compile e, OpDup, OpGetValue, OpToNumber, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]
+
+compileCond :: Expr -> Expr -> Expr -> CompiledExpr
+compileCond e1 e2 e3 =
+  BasicBlock [ compile e1, OpGetValue, OpToBoolean,
+               IfTrue (BasicBlock [ compile e2, OpGetValue ])
+                      (BasicBlock [ compile e3, OpGetValue ]) ]
+

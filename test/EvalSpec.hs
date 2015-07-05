@@ -104,6 +104,11 @@ spec = do
       runJStr "var a = '5'; console.log(typeof a++, typeof a)"
         `shouldReturn` Right "number number\n"
 
+  describe "Ternary operator" $ do
+    it "acts like if-then-else" $ do
+      jsEvalExpr "true ? 4 : 8" `shouldReturn` VNum 4
+      jsEvalExpr "false ? 4 : 8" `shouldReturn` VNum 8
+
   it "evaluates a primitive number wrapped in an object" $ do
     jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VNum 2
 
