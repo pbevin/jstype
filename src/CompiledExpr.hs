@@ -25,6 +25,7 @@ data CompiledExpr = OpConst JSVal    -- push constant
                    | OpStore         -- val is TOS, ref is NOS: write val to ref, leave val
                    | OpFunCall Int   -- Function call with n arguments on stack, func is TOS, last arg is NOS
                    | OpNewCall Int   -- As function call, but creating new object
+                   | OpNewObj Int    -- Create object literal from top N k-v pairs on stack
                    | Nop             -- Do nothing
                    | BasicBlock [CompiledExpr]
                    | IfTrue CompiledExpr CompiledExpr

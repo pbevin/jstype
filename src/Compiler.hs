@@ -15,6 +15,7 @@ compile expr = case expr of
   ReadVar v        -> OpVar v
   This             -> OpThis
   ArrayLiteral vs  -> compileArrayLiteral vs
+  ObjectLiteral vs -> compileObjectLiteral vs
   MemberDot e x    -> compilePropAccDot e x
   MemberGet e x    -> compilePropAccBracket e x
   Assign lhs "=" e -> compileAssignment lhs e
@@ -51,6 +52,17 @@ compileSparseArray elts =
       go n (x:xs) = case x of
         (_, Nothing) -> go n xs
         (k, Just e) -> OpConst (VNum k) : compile e : go (n+1) xs
+      vnum k = VNum (fromIntegral k)
+
+compileObjectLiteral :: [PropertyAssignment] -> CompiledExpr
+compileObjectLiteral kvMap =
+  BasicBlock $ go kvMap
+    where
+      go []         = [ OpNewObj (length kvMap) ]
+      go ((k,v):xs) = OpConst (VStr k) : val v : go xs
+      val (Value e)    = compile e
+      val (Getter s)   = OpConst (VGetter s)
+      val (Setter e s) = OpConst (VSetter e s)
       vnum k = VNum (fromIntegral k)
 
 compilePropAccDot :: Expr -> Ident -> CompiledExpr

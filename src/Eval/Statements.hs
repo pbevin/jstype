@@ -373,59 +373,12 @@ withEmptyStack action = do
 
 runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
-  ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
 
 evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 evalFunExpr name params strictness body = do
   env <- lexEnv <$> getGlobalContext
   createFunction name params strictness body env
-
--- ref 11.1.5
-makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal
-makeObjectLiteral nameValueList =do
-  cstr <- getGlobalProperty "Object"
-  obj <- newObject >>= addOwnProperty "constructor" cstr
-  mapM_ (addObjectProp obj) nameValueList
-  return (VObj obj)
-
-  where
-    addObjectProp :: Shared JSObj -> PropertyAssignment -> Runtime (Shared JSObj)
-    addObjectProp obj (name, value) = do
-      desc <- makeDescriptor value
-      objGetOwnProperty name obj >>= \case
-        Just previous -> checkCompatible previous desc
-        Nothing -> return ()
-      defineOwnProperty name desc False obj
-      return obj
-
-    makeDescriptor :: PropertyValue -> Runtime (PropDesc JSVal)
-    makeDescriptor (Value e) = do
-      val <- runExprStmt (compile e) >>= getValue
-      return $ dataPD val True True True
-    makeDescriptor (Getter body) = do
-      strict <- getGlobalStrictness
-      env <- lexEnv <$> getGlobalContext
-      func <- createFunction Nothing [] strict body env >>= mkGetter
-      return $ accessorPD func Nothing True True
-    makeDescriptor (Setter param body) = do
-      strict <- getGlobalStrictness
-      env <- lexEnv <$> getGlobalContext
-      func <- createFunction Nothing [param] strict body env >>= mkSetter
-      return $ accessorPD Nothing func True True
-
-    checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
-    checkCompatible a b = do
-      let failure = raiseSyntaxError "Cannot reassign property"
-      strict <- (== Strict) <$> getGlobalStrictness
-      when (strict && isDataDescriptor (Just a) && isDataDescriptor (Just b)) failure
-      when (isDataDescriptor (Just a) && isAccessorDescriptor (Just b)) failure
-      when (isAccessorDescriptor (Just a) && isDataDescriptor (Just b)) failure
-      when (isAccessorDescriptor (Just a) && isAccessorDescriptor (Just b)) $ do
-        when (hasGetter a && hasGetter b) failure
-        when (hasSetter a && hasSetter b) failure
-      return ()
-
 
 
 createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)

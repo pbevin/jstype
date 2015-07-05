@@ -25,6 +25,8 @@ data JSVal = VNum JSNum
            | VStacktrace [SrcLoc]
            | VEnv EnvRec
            | VRegExp String String
+           | VGetter [Statement]
+           | VSetter Ident [Statement]
 
 instance Show JSVal where
   show (VNum a)         = "VNum " ++ show a
@@ -38,6 +40,8 @@ instance Show JSVal where
   show (VStacktrace st) = "VStacktrace " ++ show st
   show (VEnv env)       = "VEnv " ++ show env
   show (VRegExp p f)    = "VRegExp " ++ show p ++ " " ++ show f
+  show (VGetter _)      = "VGetter"
+  show (VSetter _ _)    = "VSetter"
 
 isObj :: JSVal -> Bool
 isObj (VObj _) = True

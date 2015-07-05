@@ -25,6 +25,7 @@ runCompiledExpr globalEval op = case op of
   OpThis           -> runOpThis
   OpVar name       -> runOpVar name
   OpArray n        -> runArray n
+  OpNewObj n       -> runNewObj n
   OpSparse n       -> runSparse n
   OpGet name       -> runOpGet name
   OpGet2           -> runOpGet2
@@ -75,6 +76,14 @@ runSparse n = do
     k <- toInt =<< pop
     return (k,v)
   push =<< createSparseArray length values
+
+runNewObj :: Int -> Runtime ()
+runNewObj n = do
+  values <- replicateM n $ do
+    v <- pop
+    VStr k <- pop
+    return (k, v)
+  push =<< createObjectLiteral values
 
 
 

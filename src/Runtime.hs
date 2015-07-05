@@ -2,7 +2,7 @@
 
 module Runtime (module Runtime, module X) where
 
-import Control.Lens hiding (strict)
+import Control.Lens hiding (strict, Getter, Setter)
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
@@ -193,6 +193,57 @@ createSparseArray len assigns = do
 
   setArrayIndices assigns obj
   return $ VObj obj
+
+-- ref 11.1.5
+createObjectLiteral :: [(String, JSVal)] -> Runtime JSVal
+createObjectLiteral nameValueList =do
+  cstr <- getGlobalProperty "Object"
+  obj <- newObject >>= addOwnProperty "constructor" cstr
+  mapM_ (addObjectProp obj) nameValueList
+  return (VObj obj)
+
+  where
+    addObjectProp :: Shared JSObj -> (String, JSVal) -> Runtime (Shared JSObj)
+    addObjectProp obj (name, value) = do
+      desc <- makeDescriptor value
+      objGetOwnProperty name obj >>= \case
+        Just previous -> checkCompatible previous desc
+        Nothing -> return ()
+      defineOwnProperty name desc False obj
+      return obj
+
+    makeDescriptor :: JSVal -> Runtime (PropDesc JSVal)
+    makeDescriptor val = case val of
+      VGetter body    -> makeGetter body
+      VSetter v body  -> makeSetter v body
+      _               -> return $ dataPD val True True True
+
+    makeGetter :: [Statement] -> Runtime (PropDesc JSVal)
+    makeGetter body = do
+      strict <- getGlobalStrictness
+      env <- lexEnv <$> getGlobalContext
+      func <- createFunction Nothing [] strict body env >>= mkGetter
+      return $ accessorPD func Nothing True True
+
+    makeSetter :: Ident -> [Statement] -> Runtime (PropDesc JSVal)
+    makeSetter param body = do
+      strict <- getGlobalStrictness
+      env <- lexEnv <$> getGlobalContext
+      func <- createFunction Nothing [param] strict body env >>= mkSetter
+      return $ accessorPD Nothing func True True
+
+    checkCompatible :: PropDesc JSVal -> PropDesc JSVal -> Runtime ()
+    checkCompatible a b = do
+      let failure = raiseSyntaxError "Cannot reassign property"
+      strict <- (== Strict) <$> getGlobalStrictness
+      when (strict && isDataDescriptor (Just a) && isDataDescriptor (Just b)) failure
+      when (isDataDescriptor (Just a) && isAccessorDescriptor (Just b)) failure
+      when (isAccessorDescriptor (Just a) && isDataDescriptor (Just b)) failure
+      when (isAccessorDescriptor (Just a) && isAccessorDescriptor (Just b)) $ do
+        when (hasGetter a && hasGetter b) failure
+        when (hasSetter a && hasSetter b) failure
+      return ()
+
 
 
 setArrayIndices :: [(Int, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
