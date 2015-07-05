@@ -372,13 +372,7 @@ withEmptyStack action = do
 
 
 runExprStmt' :: Expr -> Runtime JSVal
-runExprStmt' expr = case expr of
-  FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
-
-evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
-evalFunExpr name params strictness body = do
-  env <- lexEnv <$> getGlobalContext
-  createFunction name params strictness body env
+runExprStmt' expr = undefined
 
 
 createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)

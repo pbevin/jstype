@@ -27,6 +27,7 @@ data JSVal = VNum JSNum
            | VRegExp String String
            | VGetter [Statement]
            | VSetter Ident [Statement]
+           | VLambda (Maybe Ident) [Ident] Strictness [Statement]
 
 instance Show JSVal where
   show (VNum a)         = "VNum " ++ show a
@@ -42,6 +43,7 @@ instance Show JSVal where
   show (VRegExp p f)    = "VRegExp " ++ show p ++ " " ++ show f
   show (VGetter _)      = "VGetter"
   show (VSetter _ _)    = "VSetter"
+  show (VLambda n _ _ _) = "VLambda " ++ show n
 
 isObj :: JSVal -> Bool
 isObj (VObj _) = True

@@ -44,6 +44,7 @@ runCompiledExpr globalEval op = case op of
   OpStore          -> runStore
   OpFunCall n      -> runFunCall n
   OpNewCall n      -> runNewCall n
+  OpLambda         -> runLambda
 
   BasicBlock ops   -> mapM_ (runCompiledExpr globalEval) ops
   IfTrue op1 op2   -> runIfTrue (runCompiledExpr globalEval) op1 op2
@@ -215,6 +216,12 @@ runFunCall n = do
   func <- pop
   args <- reverse <$> replicateM n pop
   push =<< callFunction func args
+
+runLambda :: Runtime ()
+runLambda = do
+  VLambda name params strict body <- pop
+  env <- lexEnv <$> getGlobalContext
+  push =<< createFunction name params strict body env
 
 
 

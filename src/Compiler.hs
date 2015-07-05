@@ -6,16 +6,17 @@ import Runtime.Types
 import Expr
 
 compile :: Expr -> CompiledExpr
-compile expr = case expr of
-  Num n            -> OpConst (VNum n)
-  Str s            -> OpConst (VStr s)
-  Boolean b        -> OpConst (VBool b)
-  LiteralNull      -> OpConst (VNull)
-  LiteralUndefined -> OpConst (VUndef)
-  ReadVar v        -> OpVar v
-  This             -> OpThis
+compile expr = BasicBlock $ case expr of
+  Num n            -> [ OpConst (VNum n)  ]
+  Str s            -> [ OpConst (VStr s)  ]
+  Boolean b        -> [ OpConst (VBool b) ]
+  LiteralNull      -> [ OpConst (VNull)   ]
+  LiteralUndefined -> [ OpConst (VUndef)  ]
+  ReadVar v        -> [ OpVar v           ]
+  This             -> [ OpThis            ]
   ArrayLiteral vs  -> compileArrayLiteral vs
   ObjectLiteral vs -> compileObjectLiteral vs
+  FunExpr n p s b  -> compileFunctionLiteral (VLambda n p s b)
   MemberDot e x    -> compilePropAccDot e x
   MemberGet e x    -> compilePropAccBracket e x
   Assign lhs "=" e -> compileAssignment lhs e
@@ -32,21 +33,20 @@ compile expr = case expr of
   FunCall f args   -> compileFunCall f args
   NewExpr f args   -> compileNewExpr f args
   RegExp r f       -> compileRegExp r f
-  _                -> Interpreted expr
 
-compileArrayLiteral :: [Maybe Expr] -> CompiledExpr
+compileArrayLiteral :: [Maybe Expr] -> [CompiledExpr]
 compileArrayLiteral vs =
   if all isJust vs
   then compileCompactArray (catMaybes vs)
   else compileSparseArray vs
 
-compileCompactArray :: [Expr] -> CompiledExpr
+compileCompactArray :: [Expr] -> [CompiledExpr]
 compileCompactArray elts =
-  BasicBlock $ reverse $ (OpArray $ length elts) : map compile elts
+  reverse $ (OpArray $ length elts) : map compile elts
 
-compileSparseArray :: [Maybe Expr] -> CompiledExpr
+compileSparseArray :: [Maybe Expr] -> [CompiledExpr]
 compileSparseArray elts =
-  BasicBlock $ go 0 $ zip [0..] elts
+  go 0 $ zip [0..] elts
     where
       go n []     = [ OpConst (vnum $ length elts), OpSparse n ]
       go n (x:xs) = case x of
@@ -54,9 +54,9 @@ compileSparseArray elts =
         (k, Just e) -> OpConst (VNum k) : compile e : go (n+1) xs
       vnum k = VNum (fromIntegral k)
 
-compileObjectLiteral :: [PropertyAssignment] -> CompiledExpr
+compileObjectLiteral :: [PropertyAssignment] -> [CompiledExpr]
 compileObjectLiteral kvMap =
-  BasicBlock $ go kvMap
+  go kvMap
     where
       go []         = [ OpNewObj (length kvMap) ]
       go ((k,v):xs) = OpConst (VStr k) : val v : go xs
@@ -65,83 +65,85 @@ compileObjectLiteral kvMap =
       val (Setter e s) = OpConst (VSetter e s)
       vnum k = VNum (fromIntegral k)
 
-compilePropAccDot :: Expr -> Ident -> CompiledExpr
-compilePropAccDot expr ident =
-  BasicBlock [ compile expr, OpGetValue, OpGet ident ]
+compileFunctionLiteral :: JSVal -> [CompiledExpr]
+compileFunctionLiteral func = [ OpConst func, OpLambda ]
 
-compilePropAccBracket :: Expr -> Expr -> CompiledExpr
+compilePropAccDot :: Expr -> Ident -> [CompiledExpr]
+compilePropAccDot expr ident =
+  [ compile expr, OpGetValue, OpGet ident ]
+
+compilePropAccBracket :: Expr -> Expr -> [CompiledExpr]
 compilePropAccBracket expr ix =
-  BasicBlock [ compile expr, OpGetValue, compile ix, OpGetValue, OpGet2 ]
+  [ compile expr, OpGetValue, compile ix, OpGetValue, OpGet2 ]
 
 -- ref 11.13.1
-compileAssignment :: Expr -> Expr -> CompiledExpr
+compileAssignment :: Expr -> Expr -> [CompiledExpr]
 compileAssignment lhs e =
-  BasicBlock $ [ compile lhs, compile e, OpGetValue, OpStore ]
+  [ compile lhs, compile e, OpGetValue, OpStore ]
 
 -- ref 11.13.2
-compileCompoundAssignment :: Expr -> Ident -> Expr -> CompiledExpr
+compileCompoundAssignment :: Expr -> Ident -> Expr -> [CompiledExpr]
 compileCompoundAssignment lhs op e =
-  BasicBlock $ [ compile lhs, OpDup, OpGetValue,
+  [ compile lhs, OpDup, OpGetValue,
                  compile e, OpGetValue,
                  OpBinary (init op), OpStore ]
 
 
-compileShortCircuitAnd :: Expr -> Expr -> CompiledExpr
+compileShortCircuitAnd :: Expr -> Expr -> [CompiledExpr]
 compileShortCircuitAnd e1 e2 =
   let compe1 = [ compile e1, OpGetValue, OpDup, OpToBoolean ]
       compe2 = [ OpDiscard, compile e2, OpGetValue ]
-  in BasicBlock $ compe1 ++ [ IfTrue (BasicBlock compe2) Nop]
+  in compe1 ++ [ IfTrue (BasicBlock compe2) Nop]
 
-compileShortCircuitOr :: Expr -> Expr -> CompiledExpr
+compileShortCircuitOr :: Expr -> Expr -> [CompiledExpr]
 compileShortCircuitOr e1 e2 =
   let compe1 = [ compile e1, OpGetValue, OpDup, OpToBoolean]
       compe2 = [ OpDiscard, compile e2, OpGetValue ]
-  in BasicBlock $ compe1 ++ [ IfTrue Nop (BasicBlock compe2) ]
+  in compe1 ++ [ IfTrue Nop (BasicBlock compe2) ]
 
-compileSequence :: Expr -> Expr -> CompiledExpr
+compileSequence :: Expr -> Expr -> [CompiledExpr]
 compileSequence e1 e2 =
-  BasicBlock [ compile e1, OpDiscard, compile e2 ]
+  [ compile e1, OpDiscard, compile e2 ]
 
-compileBinOp :: Ident -> Expr -> Expr -> CompiledExpr
+compileBinOp :: Ident -> Expr -> Expr -> [CompiledExpr]
 compileBinOp op e1 e2 =
-  BasicBlock [ compile e1, OpGetValue, compile e2, OpGetValue, OpBinary op ]
+  [ compile e1, OpGetValue, compile e2, OpGetValue, OpBinary op ]
 
-compileDelete :: Expr -> CompiledExpr
-compileDelete e = BasicBlock [ compile e, OpDelete ]
+compileDelete :: Expr -> [CompiledExpr]
+compileDelete e = [ compile e, OpDelete ]
 
-compileTypeof :: Expr -> CompiledExpr
-compileTypeof e = BasicBlock [ compile e, OpTypeof ]
+compileTypeof :: Expr -> [CompiledExpr]
+compileTypeof e = [ compile e, OpTypeof ]
 
-compileUnary :: Ident -> Expr -> CompiledExpr
+compileUnary :: Ident -> Expr -> [CompiledExpr]
 compileUnary op e =
   if op == "++" || op == "--"
-  then BasicBlock [ compile e, OpDup, OpGetValue, OpModify op, OpStore ]
-  else BasicBlock [ compile e, OpGetValue, OpUnary op ]
+  then [ compile e, OpDup, OpGetValue, OpModify op, OpStore ]
+  else [ compile e, OpGetValue, OpUnary op ]
 
-compilePostOp :: Ident -> Expr -> CompiledExpr
+compilePostOp :: Ident -> Expr -> [CompiledExpr]
 compilePostOp op e =
-  BasicBlock [ compile e, OpDup, OpGetValue, OpToNumber, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]
+  [ compile e, OpDup, OpGetValue, OpToNumber, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]
 
-compileCond :: Expr -> Expr -> Expr -> CompiledExpr
+compileCond :: Expr -> Expr -> Expr -> [CompiledExpr]
 compileCond e1 e2 e3 =
-  BasicBlock [ compile e1, OpGetValue, OpToBoolean,
+  [ compile e1, OpGetValue, OpToBoolean,
                IfTrue (BasicBlock [ compile e2, OpGetValue ])
                       (BasicBlock [ compile e3, OpGetValue ]) ]
 
 
-compileCall :: (Int->CompiledExpr) -> Expr -> [Expr] -> CompiledExpr
+compileCall :: (Int->CompiledExpr) -> Expr -> [Expr] -> [CompiledExpr]
 compileCall op f args =
-  BasicBlock $ concatMap compileArg args
-          ++ [ compile f, op (length args) ]
+  concatMap compileArg args ++ [ compile f, op (length args) ]
   where
     compileArg e = [ compile e, OpGetValue ]
 
-compileFunCall, compileNewExpr :: Expr -> [Expr] -> CompiledExpr
+compileFunCall, compileNewExpr :: Expr -> [Expr] -> [CompiledExpr]
 compileFunCall = compileCall OpFunCall
 compileNewExpr = compileCall OpNewCall
 
 -- ref 7.8.5
-compileRegExp :: String -> String -> CompiledExpr
+compileRegExp :: String -> String -> [CompiledExpr]
 compileRegExp r f =
-  BasicBlock [ OpConst (VStr r), OpConst (VStr f),
+  [ OpConst (VStr r), OpConst (VStr f),
                OpVar "RegExp", OpFunCall 2 ]
