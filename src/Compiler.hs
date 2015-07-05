@@ -30,6 +30,7 @@ compile expr = case expr of
   Cond e1 e2 e3    -> compileCond e1 e2 e3
   FunCall f args   -> compileFunCall f args
   NewExpr f args   -> compileNewExpr f args
+  RegExp r f       -> compileRegExp r f
   _                -> Interpreted expr
 
 compileArrayLiteral :: [Maybe Expr] -> CompiledExpr
@@ -126,3 +127,9 @@ compileCall op f args =
 compileFunCall, compileNewExpr :: Expr -> [Expr] -> CompiledExpr
 compileFunCall = compileCall OpFunCall
 compileNewExpr = compileCall OpNewCall
+
+-- ref 7.8.5
+compileRegExp :: String -> String -> CompiledExpr
+compileRegExp r f =
+  BasicBlock [ OpConst (VStr r), OpConst (VStr f),
+               OpVar "RegExp", OpFunCall 2 ]

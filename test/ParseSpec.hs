@@ -580,7 +580,7 @@ spec = do
 
   describe "Regular expression parsing" $ do
     it "parses regular expression literals" $ do
-      parseExpr "/[a]/i" `shouldBe` RegularExpression "[a]" "i"
+      parseExpr "/[a]/i" `shouldBe` RegExp "[a]" "i"
 
     it "does not allow a newline character in the first position" $ do
       unparseable "/\n/i"

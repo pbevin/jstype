@@ -374,18 +374,12 @@ withEmptyStack action = do
 runExprStmt' :: Expr -> Runtime JSVal
 runExprStmt' expr = case expr of
   ObjectLiteral kvMap   -> {-# SCC exprObjLit #-}    makeObjectLiteral kvMap
-  RegularExpression r f -> {-# SCC exprRegExp #-}    makeRegularExpression r f
   FunExpr n ps st body  -> {-# SCC exprFunDef #-}    evalFunExpr n ps st body
 
 evalFunExpr :: Maybe Ident -> [Ident] -> Strictness -> [Statement] -> Runtime JSVal
 evalFunExpr name params strictness body = do
   env <- lexEnv <$> getGlobalContext
   createFunction name params strictness body env
-
-
--- ref 7.8.5
-makeRegularExpression :: String -> String -> Runtime JSVal
-makeRegularExpression body flags = runExprStmt (compile $ NewExpr (ReadVar "RegExp") [ (Str body), (Str flags) ])
 
 -- ref 11.1.5
 makeObjectLiteral :: [PropertyAssignment] -> Runtime JSVal

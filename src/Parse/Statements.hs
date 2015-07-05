@@ -519,7 +519,7 @@ regexLiteral = do
   flags <- many (oneOf identLetter)
   whiteSpace
 
-  return $ RegularExpression (first ++ concat rest) flags
+  return $ RegExp (first ++ concat rest) flags
 
 regexFirstChar, regexChar, regexBackslash, regexClass :: JSParser String
 regexFirstChar = tostr (noneOf "*\\/[\n\r\x2028\x2029")

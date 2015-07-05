@@ -71,7 +71,7 @@ data Expr = Num JSNum
           | This
           | ArrayLiteral [Maybe Expr]
           | ObjectLiteral [PropertyAssignment]
-          | RegularExpression String String
+          | RegExp String String
           | BinOp Operator Expr Expr
           | UnOp Operator Expr
           | PostOp Operator Expr
