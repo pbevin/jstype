@@ -578,6 +578,11 @@ spec = do
     it "splits chars outside the BMP (> 0xFFFF) into two UTF-16 characters" $ do
       parseExpr "'\x104A0'" `shouldBe` Str "\xD801\xDCA0"
 
+    it "parses a hex code" $ do
+      parseExpr "'\\x00'" `shouldBe` Str "\0"
+      parseExpr "'\\xFF'" `shouldBe` Str "\xff"
+      parseExpr "'\\xff'" `shouldBe` Str "\xff"
+
   describe "Regular expression parsing" $ do
     it "parses regular expression literals" $ do
       parseExpr "/[a]/i" `shouldBe` RegExp "[a]" "i"
@@ -599,5 +604,3 @@ spec = do
       unparseable "/a\r/i"
       unparseable "/a\x2028/i"
       unparseable "/a\x2029/i"
-
-

@@ -250,6 +250,7 @@ escape ch
   | isLineBreak ch = anyChar >>= \c -> return (['\\', c], "")
   | ch == '0' = try octalEscape <|> (char '0' >> lookAhead (noneOf "0123456789") >> return ("0", "\0"))
   | ch == 'u' = char 'u' >> replicateM 4 hexDigit >>= \s -> return ("u" ++ s, [hexToChar s])
+  | ch == 'x' = char 'x' >> replicateM 2 hexDigit >>= \s -> return ("x" ++ s, [hexToChar s])
   | ch `elem` "01234567" = octalEscape
   | otherwise = char ch >> return ([ch], [singleCharEscape ch])
 
