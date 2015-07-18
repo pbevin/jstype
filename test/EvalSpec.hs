@@ -276,6 +276,10 @@ spec = do
     runJStr "var a = 'yes'; (function(){ do { break; a = 'no';} while (0); })();console.log(a);"
          `shouldReturn` Right "yes\n"
 
+  it "can continue in a for loop" $ do
+    runJStr "for (i=0; i<5; i++) { if(i%2==1)continue; console.log(i) }"
+      `shouldReturn` Right "0\n2\n4\n"
+
   it "runs do-while loops" $ do
     runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
       `shouldReturn` Right "3\n2\n1\n"
@@ -384,6 +388,10 @@ spec = do
 
   it "can catch a reference error" $ do
     jsEvalExpr "(function f() {try { return x; } catch(e) { return 71; }})()" `shouldReturn` VNum 71
+
+  it "throws an error if the LHS of a comma expr fails" $ do
+    runJStr "try { x, 1; throw new Error('a'); } catch (e) { console.log(e.toString()) }"
+      `shouldReturn` Right "ReferenceError: No such variable x\n"
 
   it "raises an error to the top level" $ do
     runJStr "throw 'hi'" `shouldError` "hi"

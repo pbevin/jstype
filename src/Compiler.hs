@@ -108,7 +108,7 @@ compileShortCircuitOr e1 e2 =
 
 compileSequence :: Expr -> Expr -> [CompiledExpr]
 compileSequence e1 e2 =
-  [ compile e1, OpDiscard, compile e2 ]
+  [ compile e1, OpGetValue, OpDiscard, compile e2, OpGetValue ]
 
 compileBinOp :: Ident -> Expr -> Expr -> [CompiledExpr]
 compileBinOp op e1 e2 =
