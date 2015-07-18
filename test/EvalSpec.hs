@@ -149,6 +149,9 @@ spec = do
                   "  console.log(v); " ]
       runJStr prog `shouldReturn` Right "3\n42\n41\n"
 
+    it "uses the last definition of a value" $ do
+      jsEvalExpr "{ a: 1, a: 2 }['a']" `shouldReturn` VNum 2
+
 
 
   describe "an empty array" $ do

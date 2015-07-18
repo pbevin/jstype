@@ -5,13 +5,20 @@ import CompiledExpr
 import Runtime.Types
 import Expr
 
-mergeBlocks :: [CompiledExpr] -> [CompiledExpr]
-mergeBlocks (BasicBlock a : rest) = mergeBlocks $ a ++ rest
-mergeBlocks (a : rest) = a :  mergeBlocks rest
-mergeBlocks [] = []
+mergeBlocks :: [OpCode] -> OpCode
+mergeBlocks [] = BasicBlock []
+mergeBlocks [BasicBlock ops] = mergeBlocks ops
+mergeBlocks [a] = a
+mergeBlocks (BasicBlock ops : rest) = mergeBlocks (ops ++ rest)
+mergeBlocks (a : rest) = BasicBlock ( a : straighten rest )
 
-compile :: Expr -> CompiledExpr
-compile expr = BasicBlock $ mergeBlocks $ case expr of
+straighten :: [OpCode] -> [OpCode]
+straighten ops = case mergeBlocks ops of
+  BasicBlock xs -> xs
+  op            -> [op]
+
+compile :: Expr -> OpCode
+compile expr = mergeBlocks $ case expr of
   Num n            -> [ OpConst (VNum n)  ]
   Str s            -> [ OpConst (VStr s)  ]
   Boolean b        -> [ OpConst (VBool b) ]
@@ -60,15 +67,16 @@ compileSparseArray elts =
       vnum k = VNum (fromIntegral k)
 
 compileObjectLiteral :: [PropertyAssignment] -> [CompiledExpr]
-compileObjectLiteral kvMap =
-  go kvMap
-    where
-      go []         = [ OpNewObj (length kvMap) ]
-      go ((k,v):xs) = OpConst (VStr k) : val v : go xs
-      val (Value e)    = compile e
-      val (Getter s)   = OpConst (VGetter s)
-      val (Setter e s) = OpConst (VSetter e s)
-      vnum k = VNum (fromIntegral k)
+compileObjectLiteral kvMap = go . reverse $ kvMap
+  where
+    go []         = [ OpNewObj (length kvMap) ]
+    go ((k,v):xs) = OpConst (VStr k) : val v : go xs
+
+    val (Value e)    = BasicBlock [ compile e, OpGetValue ]
+    val (Getter s)   = OpConst (VGetter s)
+    val (Setter e s) = OpConst (VSetter e s)
+
+    vnum k = VNum (fromIntegral k)
 
 compileFunctionLiteral :: JSVal -> [CompiledExpr]
 compileFunctionLiteral func = [ OpConst func, OpLambda ]
