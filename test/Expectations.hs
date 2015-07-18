@@ -39,13 +39,6 @@ shouldValue val expected = val >>= \case
   Left err -> expectationFailure $ "raised an error (" ++ show err ++ ")"
   Right v  -> v `shouldBe` expected
 
-
-shouldStartWith :: String -> String -> Expectation
-shouldStartWith haystack needle
-  | needle `isPrefixOf` haystack = return ()
-  | otherwise = expectationFailure $
-      "Expected string starting with " ++ show needle ++ ", got " ++ show haystack
-
 runJStr :: String -> IO (Either RuntimeError String)
 runJStr str = runJS "" str >>= \case
   Left (_, err) -> return $ Left err
