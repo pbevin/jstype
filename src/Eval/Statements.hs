@@ -36,7 +36,9 @@ data Result a = CTNormal   { rval :: Maybe a }
 -- | Global interface to eval()
 evalCode :: EvalCallType -> String -> Runtime JSVal
 evalCode callType text = do
-  currentStrictness <- return . cxtStrictness =<< getGlobalContext
+  currentStrictness <- case callType of
+    DirectEvalCall -> return . cxtStrictness =<< getGlobalContext
+    IndirectEvalCall -> return NotStrict
   case parseJS'' text "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
     Right prog -> do

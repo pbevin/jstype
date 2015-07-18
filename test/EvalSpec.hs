@@ -435,6 +435,10 @@ spec = do
       runJStr "var a = 1; function f() { var eval1 = eval, a = 2; console.log(eval('a'), eval1('a')) }; f();"
         `shouldReturn` Right "2 1\n"
 
+    it "does not inherit strict mode when called indirectly" $ do
+      runJStr "'use strict'; var s = eval; s('var eval;'); console.log(22)"
+        `shouldReturn` Right "22\n"
+
   describe "Boolean" $ do
     it "can be called as a function" $ do
       jsEvalExpr "Boolean(true)" `shouldReturn` VBool True
