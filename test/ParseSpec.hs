@@ -587,3 +587,17 @@ spec = do
       unparseable "/\r/i"
       unparseable "/\x2028/i"
       unparseable "/\x2029/i"
+
+    it "does not allow an escaped newline character in first position" $ do
+      unparseable "/\\\n/i"
+      unparseable "/\\\r/i"
+      unparseable "/\\\x2028/i"
+      unparseable "/\\\x2029/i"
+
+    it "does not allow a newline character" $ do
+      unparseable "/a\n/i"
+      unparseable "/a\r/i"
+      unparseable "/a\x2028/i"
+      unparseable "/a\x2029/i"
+
+

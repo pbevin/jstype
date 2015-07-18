@@ -526,13 +526,13 @@ regexFirstChar = tostr (noneOf "*\\/[\n\r\x2028\x2029")
              <|> regexBackslash
              <|> regexClass
 
-regexChar      = tostr (noneOf "\\/\n")
+regexChar      = tostr (noneOf "\\/\n\r\x2028\x2029")
              <|> regexBackslash
              <|> regexClass
 
 regexBackslash = do
   b <- char '\\'
-  c <- noneOf "\n"
+  c <- noneOf "\n\r\x2028\x2029"
   return [b,c]
 
 regexClass = do
