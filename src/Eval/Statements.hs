@@ -70,7 +70,7 @@ runCode body = do
     CTNormal _ -> return . Right $ VUndef
     CTThrow  v -> return . Left . fromMaybe VUndef $ v
     CTReturn v -> return . Right . fromMaybe VUndef $ v
-    _ -> raiseError "Abnormal exit from function body"
+    x -> raiseError $ "Abnormal exit from function body " ++ show x
 
 
 runProg :: Program -> Runtime (Maybe JSVal)
@@ -103,19 +103,37 @@ data Cont r = Cont {
 
 type StatementAction = Cont (Runtime StmtReturn) -> Runtime StmtReturn
 
+passToThrow :: JSError -> StatementAction
+passToThrow err cont = do
+  val <- exceptionToVal (sourceLocation (stmt cont) :) err
+  thr cont (Just val)
+
+
 returnThrow :: CoreStatement -> JSError -> Runtime StmtReturn
 returnThrow s err = do
   val <- exceptionToVal (sourceLocation s :) err
   return $ CTThrow (Just val)
 
 runStmt :: CoreStatement -> Runtime StmtReturn
-runStmt stmt = coreAction stmt cont `catchError` returnThrow stmt
+runStmt stmt = runS stmt cont `catchError` returnThrow stmt
   where n v   = return . CTNormal           $ v
         b v l = return . CTBreak v          $ l
         c v l = return . CTContinue v       $ l
         r v   = return . CTReturn           $ v
         t v   = return . CTThrow            $ v
         cont  = Cont stmt Nothing n b c r t
+
+sadapt :: Runtime StmtReturn -> StatementAction
+sadapt r cont = r >>= \case
+  CTNormal v -> nor cont v
+  CTBreak v l -> brk cont v l
+  CTContinue v l -> con cont v l
+  CTReturn v -> ret cont v
+  CTThrow v -> thr cont v
+
+
+runS :: CoreStatement -> StatementAction
+runS s cont = coreAction s $ cont { stmt = s }
 
 coreAction :: CoreStatement -> StatementAction
 coreAction stmt = case stmt of
@@ -137,36 +155,35 @@ runCoreBind :: DBIType -> EnvType -> [(Ident, Expr)] -> CoreStatement -> Stateme
 runCoreBind dbiType envType bindings body cont = case envType of
   DeclarativeEnv -> do
     bindAll dbiType NotStrict bindings
-    runStmt body
+    runS body cont
 
   ObjectEnv e -> do
     val <- runExprStmt e
     obj <- toObject =<< getValue val
     oldEnv <- lexEnv <$> getGlobalContext
     newEnv <- newObjectEnvironment obj (Just oldEnv) True
-    withLexEnv newEnv $ runStmt body
+    sadapt (withLexEnv newEnv $ runStmt body) cont
 
 runCoreBlock :: [CoreStatement] -> StatementAction
-runCoreBlock body cont = runAll (CTNormal Nothing) body
+runCoreBlock body cont = runAll Nothing body
   where
-    runAll :: StmtReturn -> [CoreStatement] -> Runtime StmtReturn
-    runAll r [] = return r
+    runAll :: Maybe JSVal -> [CoreStatement] -> Runtime StmtReturn
+    runAll v [] = nor cont v
     runAll _ (s:rest) = do
-      result <- runStmt s
-      case result of
-        CTNormal _ -> runAll result rest
-        _          -> return result
+      runS s $ cont { nor = \v -> runAll v rest }
 
 runCoreExpr :: CompiledExpr -> StatementAction
-runCoreExpr e cont = CTNormal . Just <$> (runExprStmt e >>= getValue)
+runCoreExpr e cont = do
+  (runExprStmt e >>= getValue >>= passNormal) `catchError` \e -> passToThrow e cont
+    where passNormal v = nor cont (Just v)
 
 runCoreIf :: CompiledExpr -> CoreStatement -> Maybe CoreStatement -> StatementAction
 runCoreIf e ifThen ifElse cont = do
   cond <- toBoolean <$> (runExprStmt e >>= getValue)
   case (cond, ifElse) of
-    (True, _)        -> coreAction ifThen cont
-    (False, Just s)  -> coreAction s cont
-    (False, Nothing) -> return (CTNormal Nothing)
+    (True, _)        -> runS ifThen cont
+    (False, Just s)  -> runS s cont
+    (False, Nothing) -> nor cont Nothing
 
 runCoreLoop :: CompiledExpr -> CompiledExpr -> CoreStatement -> CompiledExpr -> StatementAction
 runCoreLoop test inc body postTest cont = keepGoing Nothing where
@@ -175,17 +192,14 @@ runCoreLoop test inc body postTest cont = keepGoing Nothing where
   keepGoing v = do
     willEval <- condition
     if not willEval
-    then return $ CTNormal v
-    else do
-      r <- {-# SCC loop_body #-} runStmt body
-      let v' = rval r <|> v
-      case r of
-        CTBreak    _ (Just l) -> ifCurrentLabel l (return r) (return $ CTNormal v')
-        CTBreak    _ Nothing  -> return (CTNormal v')
-        CTContinue _ (Just l) -> increment >> next v'
-        CTContinue _ Nothing  -> increment >> next v'
-        CTNormal   _          -> increment >> next v'
-        _                     -> return r
+    then nor cont v
+    else {-# SCC loop_body #-} runS body cont { nor = nor', brk = brk', con = con' }
+      where nor' v' = increment >> next (v' <|> v)
+            brk' v' (Just l) = ifCurrentLabel l (brk cont (v' <|> v) (Just l)) (brk' v' Nothing)
+            brk' v' Nothing  = nor cont (v' <|> v)
+            con' v' (Just l) = ifCurrentLabel l (nor' v') (con cont (v' <|> v) (Just l))
+            con' v' Nothing  = nor' v'
+
   next v = do
     shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
     if shouldContinue
@@ -199,17 +213,13 @@ runCoreCont :: Maybe Label -> StatementAction
 runCoreCont label cont = con cont Nothing label
 
 runCoreRet :: CompiledExpr -> StatementAction
-runCoreRet expr cont = do
-  v <- runExprStmt expr >>= getValue
-  ret cont (Just v)
+runCoreRet expr cont = runCoreExpr expr $ cont { nor = \v -> ret cont v }
 
 runCoreThrow :: CompiledExpr -> StatementAction
-runCoreThrow expr cont = do
-  v <- runExprStmt expr >>= getValue
-  thr cont (Just v)
+runCoreThrow expr cont = runCoreExpr expr $ cont { nor = \v -> thr cont v }
 
 runCoreCase :: CompiledExpr -> [(Maybe CompiledExpr, CoreStatement)] -> StatementAction
-runCoreCase scrutinee cases cont = 
+runCoreCase scrutinee cases cont =
   runExprStmt scrutinee >>= getValue >>= go cases
     where
       go :: [(Maybe CompiledExpr, CoreStatement)] -> JSVal -> Runtime StmtReturn
@@ -225,63 +235,57 @@ runCoreCase scrutinee cases cont =
 
       endWith = runToEnd Nothing
 
-      runToEnd v [] = return (CTNormal v)
+      runToEnd v [] = nor cont v
       runToEnd v (s:rest) = do
         r <- runStmt s
         let v' = rval r <|> v
         case r of
           CTNormal _  -> runToEnd v' rest
-          CTBreak _ _ -> return $ CTNormal v'
-          _           -> return $ r { rval = v' }
+          CTBreak _ _ -> nor cont v'
+          CTContinue _ l -> con cont v' l
+          CTReturn _ -> ret cont v'
+          CTThrow _ -> thr cont v'
 
       dflt = map snd . dropWhile (isJust . fst) $ cases
 
 runCoreLabel :: Label -> CoreStatement -> StatementAction
-runCoreLabel lab body cont = do
-  result <- pushLabel lab $ runStmt body
-  case result of
-    CTBreak v l ->
-      if l == Just lab
-      then nor cont v
-      else return result
-    _ -> return result
+runCoreLabel lab body cont =
+  pushLabel lab $ runS body $ cont { brk = brk' }
+    where brk' v l = if l == Just lab
+                     then nor cont v
+                     else brk cont v l
 
 runCoreTry :: CoreStatement -> Maybe (Ident, CoreStatement) -> Maybe CoreStatement -> StatementAction
-runCoreTry body catch finally cont = do
-  br <- runStmt body `catchError` returnThrow (stmt cont)
+runCoreTry body catch finally cont = runS body cont' `catchError` \e -> passToThrow e cont'
+  where
+    cont' = case (catch, finally) of
+      (Just c, Nothing) -> contC c
+      (Nothing, Just f) -> contF f
+      (Just c, Just f)  -> contCF c f
 
-  case (catch, finally) of
-    (Just c, Nothing) -> do
-      case br of
-        CTThrow (Just exc) -> runCatch c exc
-        _                  -> return br
+    contC c    = cont { thr = \(Just exc) -> runCatch c exc cont }
 
-    (Nothing, Just f) -> do
-      fr <- runStmt f
-      case fr of
-        CTNormal _ -> return br
-        _          -> return fr
+    contF f    = cont { nor = \v   -> runS f cont { nor = const $ nor cont v },
+                        brk = \v l -> runS f cont { nor = const $ brk cont v l },
+                        con = \v l -> runS f cont { nor = const $ con cont v l },
+                        ret = \v   -> runS f cont { nor = const $ ret cont v },
+                        thr = \v   -> runS f cont { nor = const $ thr cont v } }
 
-    (Just c, Just f) -> do
-      cr <- case br of
-              CTThrow (Just exc) -> runCatch c exc
-              _                  -> return br
-      fr <- runStmt f
-      case fr of
-        CTNormal _ -> return cr
-        _          -> return fr
-
-    (Nothing, Nothing) -> return br
+    contCF c f = cont { nor = \v   -> runS f cont { nor = const $ nor cont v },
+                        brk = \v l -> runS f cont { nor = const $ brk cont v l },
+                        con = \v l -> runS f cont { nor = const $ con cont v l },
+                        ret = \v   -> runS f cont { nor = const $ ret cont v },
+                        thr = \(Just exc) -> runCatch c exc (contF f) }
 
 -- ref 12.14
-runCatch :: (Ident, CoreStatement) -> JSVal -> Runtime StmtReturn
-runCatch (var, block) c = do
+runCatch :: (Ident, CoreStatement) -> JSVal -> StatementAction
+runCatch (var, block) c cont = do
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True rec
   setMutableBinding var c False rec
-  withLexEnv catchEnv $ runStmt block
+  sadapt (withLexEnv catchEnv $ runStmt block) cont
 
 
 -- ref 12.6.4
@@ -290,14 +294,14 @@ runCoreForIn lhs e stmt cont = do
   exprRef <- runExprStmt e
   exprValue <- getValue exprRef
   if (exprValue == VNull || exprValue == VUndef)
-  then return $ CTNormal Nothing
+  then nor cont Nothing
   else do
     obj <- toObject exprValue
     keys <- propMapKeys . view ownProperties <$> deref obj
-    keepGoing obj keys Nothing where
-      keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> Runtime StmtReturn
-      keepGoing _ [] v = return $ CTNormal v
-      keepGoing obj (p:ps) v = do
+    keepGoing obj keys Nothing cont where
+      keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> StatementAction
+      keepGoing _ [] v cont = nor cont v
+      keepGoing obj (p:ps) v cont = do
         desc <- objGetOwnProperty p obj
         let want = maybe False propIsEnumerable desc
         if want
@@ -307,11 +311,11 @@ runCoreForIn lhs e stmt cont = do
           s <- runStmt stmt
           let nextv = rval s <|> v
           case s of
-            CTBreak _ _    -> return $ CTNormal nextv
-            CTContinue _ _ -> keepGoing obj ps  nextv
-            CTNormal _     -> keepGoing obj ps  nextv
-            _ -> return s
-        else keepGoing obj ps v
+            CTBreak _ _    -> nor cont nextv
+            CTContinue _ _ -> keepGoing obj ps nextv cont
+            CTNormal _     -> keepGoing obj ps nextv cont
+            _ -> sadapt (return s) cont
+        else keepGoing obj ps v cont
 
 runExprStmt :: CompiledExpr -> Runtime JSVal
 runExprStmt e = withEmptyStack $ evalExpr e
