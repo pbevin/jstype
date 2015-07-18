@@ -139,7 +139,7 @@ compileCond e1 e2 e3 =
 
 compileCall :: (Int->CompiledExpr) -> Expr -> [Expr] -> [CompiledExpr]
 compileCall op f args =
-  concatMap compileArg args ++ [ compile f, op (length args) ]
+  [ compile f ] ++ concatMap compileArg args ++ [ op (length args) ]
   where
     compileArg e = [ compile e, OpGetValue ]
 
@@ -150,5 +150,4 @@ compileNewExpr = compileCall OpNewCall
 -- ref 7.8.5
 compileRegExp :: String -> String -> [CompiledExpr]
 compileRegExp r f =
-  [ OpConst (VStr r), OpConst (VStr f),
-               OpVar "RegExp", OpFunCall 2 ]
+  [ OpVar "RegExp", OpConst (VStr r), OpConst (VStr f), OpFunCall 2 ]

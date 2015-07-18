@@ -204,16 +204,16 @@ runStore = do
 -- ref 11.2.2
 runNewCall :: Int -> Runtime ()
 runNewCall n = do
-  func <- getValue =<< pop
   args <- reverse <$> replicateM n pop
+  func <- getValue =<< pop
   assertFunction "(function)" (view cstrMethod) func  -- XXX need to get the name here
   push =<< VObj <$> newObjectFromConstructor func args
 
 -- ref 11.2.3
 runFunCall :: Int -> Runtime ()
 runFunCall n = do
-  func <- pop
   args <- reverse <$> replicateM n pop
+  func <- pop
   push =<< callFunction func args
 
 runLambda :: Runtime ()
