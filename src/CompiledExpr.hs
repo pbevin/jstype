@@ -22,6 +22,7 @@ data OpCode = OpConst JSVal   -- push constant
             | OpMul           -- ...e2 e1 -> ...(e1*e2)
             | OpBinary Ident  -- binary op on top 2
             | OpUnary Ident   -- unary op on TOS
+            | OpPostInc Int   -- Add arg to TOS reference without modifying val
             | OpModify Ident  -- modify TOS reference & eat it
             | OpDelete        -- delete reference at TOS, leave bool
             | OpTypeof        -- replace TOS with its type name

@@ -151,8 +151,8 @@ compileUnary op e =
   else [ compile e, OpGetValue, OpUnary op ]
 
 compilePostOp :: Ident -> Expr -> [CompiledExpr]
-compilePostOp op e =
-  [ compile e, OpDup, OpGetValue, OpToNumber, OpDup, OpRoll3, OpModify op, OpStore, OpDiscard ]
+compilePostOp op e = [ compile e, OpPostInc delta ]
+  where delta = if op == "++" then 1 else -1
 
 compileCond :: Expr -> Expr -> Expr -> [CompiledExpr]
 compileCond e1 e2 e3 =

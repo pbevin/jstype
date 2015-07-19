@@ -101,6 +101,9 @@ spec = do
       runJStr "var a = 5; console.log(a++); console.log(a)"
         `shouldReturn` Right "5\n6\n"
 
+    it "raises ReferenceError when applied to a nonreference" $
+      runJStr "1++" `shouldErrorOfType` ReferenceError
+
     it "converts to numeric" $ do
       runJStr "var a = '5'; console.log(typeof a++, typeof a)"
         `shouldReturn` Right "number number\n"

@@ -38,6 +38,7 @@ runOpCode op = case op of
   OpMul            -> runMul
   OpBinary op      -> runBinaryOp op
   OpUnary op       -> runUnaryOp op
+  OpPostInc delta  -> runOpPostInc delta
   OpModify op      -> runModify op
   OpDelete         -> runDelete
   OpTypeof         -> runTypeof
@@ -163,6 +164,16 @@ runUnaryOp op (e : rest) cont = do
           "~"    -> unaryBitwiseNot
           "void" -> (return . const VUndef)
           _      -> const $ raiseError $ "Prefix not implemented: " ++ op
+
+-- ref 11.3.1
+runOpPostInc :: Int -> OpCodeHandler a
+runOpPostInc delta (lhs : rest) cont = case lhs of
+  VRef ref -> do
+    oldValue <- getValue lhs >>= toNum
+    runAdd [ oldValue, VInt (fromIntegral delta) ] $ \[v] -> do
+      putValue ref v
+      cont (oldValue : rest)
+  _ -> raiseReferenceError "Cannot modify non-reference"
 
 runModify :: Ident -> OpCodeHandler a
 runModify op (val : rest) cont =
