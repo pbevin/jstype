@@ -124,7 +124,19 @@ compileBinOp op e1 e2 =
                 "-" -> OpSub
                 "*" -> OpMul
                 _   -> OpBinary op
-  in [ compile e1, OpGetValue, compile e2, OpGetValue, binop ]
+  in compileAndGetValue e1 ++ compileAndGetValue e2 ++ [binop]
+
+compileAndGetValue :: Expr -> [CompiledExpr]
+compileAndGetValue e
+  | constantExpr e = [ compile e ]
+  | otherwise      = [ compile e, OpGetValue ]
+
+constantExpr :: Expr -> Bool
+constantExpr e = case e of
+  ReadVar _     -> False
+  MemberDot _ _ -> False
+  MemberGet _ _ -> False
+  _             -> True
 
 compileDelete :: Expr -> [CompiledExpr]
 compileDelete e = [ compile e, OpDelete ]
