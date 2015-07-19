@@ -70,7 +70,7 @@ compileSparseArray elts =
 compileObjectLiteral :: [PropertyAssignment] -> [CompiledExpr]
 compileObjectLiteral kvMap = go . reverse $ kvMap
   where
-    go []         = [ OpNewObj (length kvMap) ]
+    go []         = [ OpObjLit (length kvMap) ]
     go ((k,v):xs) = OpConst (VStr k) : val v : go xs
 
     val (Value e)    = BasicBlock [ compile e, OpGetValue ]

@@ -19,6 +19,7 @@ spec = do
     jsEvalExpr "2*3+4" `shouldReturn` VInt 10
     jsEvalExpr "2+3*4" `shouldReturn` VInt 14
     jsEvalExpr "10-2"  `shouldReturn` VInt 8
+    jsEvalExpr "10.0-2"`shouldReturn` VNum 8.0
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum (10/3)
 

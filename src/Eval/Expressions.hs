@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Eval.Expressions (runCompiledExpr, evalExpr) where
+module Eval.Expressions (evalExpr) where
 
 import Control.Lens
 import Control.Monad (void, when, replicateM)
@@ -8,6 +8,9 @@ import CompiledExpr
 import Runtime
 import Expr
 
+
+type Stack = [JSVal]
+type OpCodeHandler a = Stack -> (Stack -> Runtime a) -> Runtime a
 
 debugOp :: CompiledExpr -> Runtime () -> Runtime ()
 debugOp code action = do
@@ -19,21 +22,25 @@ debugOp code action = do
   debug ("after", stack')
   return v
 
-runCompiledExpr :: CompiledExpr -> Runtime ()
-runCompiledExpr op = case op of
-  OpConst v        -> push v
+-- Missed pattern match for [v] means we have a compiler bug!
+evalExpr :: CompiledExpr -> Runtime JSVal
+evalExpr code = runOpCode code [] (\[v] -> return v)
+
+runOpCode :: OpCode -> OpCodeHandler a
+runOpCode op = case op of
+  OpConst v        -> runConst v
   OpThis           -> runOpThis
   OpVar name       -> runOpVar name
   OpArray n        -> runArray n
-  OpNewObj n       -> runNewObj n
+  OpObjLit n       -> runObjLit n
   OpSparse n       -> runSparse n
   OpGet name       -> runOpGet name
   OpGet2           -> runOpGet2
   OpGetValue       -> runOpGetValue
   OpToBoolean      -> runOpToBoolean
   OpToNumber       -> runOpToNumber
-  OpDiscard        -> void pop
-  OpDup            -> topOfStack >>= push
+  OpDiscard        -> runDiscard
+  OpDup            -> runDup
   OpSwap           -> runSwap
   OpRoll3          -> runRoll3
   OpAdd            -> runAdd
@@ -49,114 +56,115 @@ runCompiledExpr op = case op of
   OpNewCall n      -> runNewCall n
   OpLambda         -> runLambda
 
-  BasicBlock ops   -> mapM_ runCompiledExpr ops
-  IfTrue op1 op2   -> runIfTrue runCompiledExpr op1 op2
-  Nop              -> return ()
+  BasicBlock ops   -> runBasicBlock ops
+  IfTrue op1 op2   -> runIfTrue runOpCode op1 op2
+  Nop              -> \s c -> c s
   _                -> error $ "No such opcode: " ++ show op
 
-evalExpr :: CompiledExpr -> Runtime JSVal
-evalExpr code = runCompiledExpr code >> pop
 
-runOpThis :: Runtime ()
-runOpThis = push =<< (thisBinding <$> getGlobalContext)
+runConst :: JSVal -> OpCodeHandler a
+runConst v stack cont = cont (v:stack)
 
-runOpVar :: Ident -> Runtime ()
-runOpVar name = do
+runBasicBlock :: [OpCode] -> OpCodeHandler a
+runBasicBlock [] stack cont = cont stack
+runBasicBlock (op:rest) stack cont = runOpCode op stack runRest
+  where runRest s' = runBasicBlock rest s' cont
+
+runOpThis :: OpCodeHandler a
+runOpThis stack cont = do
+  v <- thisBinding <$> getGlobalContext
+  cont (v : stack)
+
+runOpVar :: Ident -> OpCodeHandler a
+runOpVar name stack cont = do
   cxt <- getGlobalContext
   val <- getIdentifierReference (Just $ lexEnv cxt) name (cxtStrictness cxt)
-  push (VRef val)
+  cont (VRef val : stack)
 
-runArray :: Int -> Runtime ()
-runArray n = do
-  values <- replicateM n pop
-  push =<< createArray (map Just values)
+runArray :: Int -> OpCodeHandler a
+runArray n stack cont =
+  let (values, s') = splitAt n stack
+  in do
+    v <- createArray (map Just values)
+    cont (v : s')
 
-runSparse :: Int -> Runtime ()
-runSparse n = do
-  length <- pop
-  values <- replicateM n $ do
-    v <- pop
-    k <- toInt =<< pop
-    return (k,v)
-  push =<< createSparseArray length values
+runSparse :: Int -> OpCodeHandler a
+runSparse n (length:rest) cont =
+  let pairs 0 stack = return ([], stack)
+      pairs n (v:k:rest) = do
+        k' <- toInt k
+        (ps, s') <- pairs (n-1) rest
+        return ((k',v):ps, s')
+  in do
+    (ps, s') <- pairs n rest
+    v <- createSparseArray length ps
+    cont (v : s')
 
-runNewObj :: Int -> Runtime ()
-runNewObj n = do
-  values <- replicateM n $ do
-    v <- pop
-    VStr k <- pop
-    return (k, v)
-  push =<< createObjectLiteral values
+
+runObjLit :: Int -> OpCodeHandler a
+runObjLit n stack cont =
+  let pairs 0 stack = ([], stack)
+      pairs n (v:VStr k:rest) = ((k,v):ps, s')
+        where (ps, s') = pairs (n-1) rest
+      (ps, s') = pairs n stack
+  in do
+    v <- createObjectLiteral ps
+    cont (v : s')
 
 
 
 -- ref 11.2.1
-runOpGet :: Ident -> Runtime ()
-runOpGet name = do
-  baseValue <- pop
+runOpGet :: Ident -> OpCodeHandler a
+runOpGet name (baseValue:rest) cont = do
   checkObjectCoercible ("Cannot read property " ++ name) baseValue
-  memberGet baseValue name >>= push
+  v <- memberGet baseValue name
+  cont (v : rest)
 
 -- ref 11.2.1
-runOpGet2 :: Runtime ()
-runOpGet2 = do
-  propertyNameValue <- pop
-  baseValue         <- pop
+runOpGet2 :: OpCodeHandler a
+runOpGet2 (propertyNameValue:baseValue:rest) cont = do
   checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
   propertyNameString <- toString propertyNameValue
-  memberGet baseValue propertyNameString >>= push
+  v <- memberGet baseValue propertyNameString
+  cont (v : rest)
 
-runOpGetValue :: Runtime ()
-runOpGetValue = push =<< getValue =<< pop
+runOpGetValue :: OpCodeHandler a
+runOpGetValue (v:rest) cont = do
+  v' <- getValue v
+  cont (v' : rest)
 
-runOpToBoolean :: Runtime ()
+runOpToBoolean :: OpCodeHandler a
 runOpToBoolean = frob (VBool . toBoolean)
 
-runOpToNumber :: Runtime ()
-runOpToNumber = do
-  v <- pop
-  case v of
-    VInt _ -> push v
-    VNum _ -> push v
+runOpToNumber :: OpCodeHandler a
+runOpToNumber (v:rest) cont = case v of
+    VInt _ -> cont (v:rest)
+    VNum _ -> cont (v:rest)
     other  -> do
       n <- toNumber other
-      push (VNum n)
+      cont (VNum n:rest)
 
-runAdd :: Runtime()
-runAdd = do
-  e2 <- pop
-  e1 <- pop
-  case (e1, e2) of
-    (VInt n, VInt m) -> push (VInt $ n+m)
-    _ -> jsAdd e1 e2 >>= push
+runAdd :: OpCodeHandler a
+runAdd (VInt n:VInt m:rest) cont = cont (VInt (m+n) : rest)
+runAdd (e2:e1:rest) cont = do { result <- jsAdd e1 e2 ; cont (result : rest) }
 
-runSub :: Runtime()
-runSub = do
-  e2 <- pop
-  e1 <- pop
-  case (e1, e2) of
-    (VInt n, VInt m) -> push (VInt $ n-m)
-    _ -> numberOp (-) e1 e2 >>= push
+runSub :: OpCodeHandler a
+runSub (VInt n:VInt m:rest) cont = cont (VInt (m-n) : rest)
+runSub (e2:e1:rest) cont = do { result <- numberOp (-) e1 e2 ; cont (result : rest) }
 
-runMul :: Runtime()
-runMul = do
-  e2 <- pop
-  e1 <- pop
-  case (e1, e2) of
-    (VInt n, VInt m) -> push (VInt $ n*m)
-    _ -> numberOp (*) e1 e2 >>= push
+runMul :: OpCodeHandler a
+runMul (VInt n:VInt m:rest) cont = cont (VInt (m*n) : rest)
+runMul (e2:e1:rest) cont = do { result <- numberOp (*) e1 e2 ; cont (result : rest) }
 
-runBinaryOp :: Ident -> Runtime ()
-runBinaryOp op =
-  let action = evalBinOp op
-  in do e2 <- pop
-        e1 <- pop
-        action e1 e2 >>= push
+runBinaryOp :: Ident -> OpCodeHandler a
+runBinaryOp op (e2:e1:rest) cont = do
+  result <- evalBinOp op e1 e2
+  cont (result : rest)
 
-runUnaryOp :: Ident -> Runtime ()
-runUnaryOp op = do
-  e <- pop
-  push =<< f e
+runUnaryOp :: Ident -> OpCodeHandler a
+runUnaryOp op (e : rest) cont = do
+  v <- f e
+  cont (v : rest)
   where
     f = case op of
           "+"    -> unaryPlus
@@ -166,12 +174,12 @@ runUnaryOp op = do
           "void" -> (return . const VUndef)
           _      -> const $ raiseError $ "Prefix not implemented: " ++ op
 
-runModify :: Ident -> Runtime ()
-runModify op =
-  let go f g = pop >>= \case
-                 VNum n -> push (VNum $ f n)
-                 VInt n -> push (VInt $ g n)
-                 val    -> toNumber val >>= push . VNum . f
+runModify :: Ident -> OpCodeHandler a
+runModify op (val : rest) cont =
+  let go f g = case val of
+                 VNum n -> cont (VNum (f n) : rest)
+                 VInt n -> cont (VInt (g n) : rest)
+                 v      -> do { n <- toNumber v; cont (VNum (f n) : rest) }
 
   in case op of
             "++" -> go (+ 1) (+ 1)
@@ -179,28 +187,26 @@ runModify op =
             _    -> raiseError $ "No such modifier: " ++ op
 
 -- ref 11.4.1
-runDelete :: Runtime ()
-runDelete = pop >>= runDelete'
-  where runDelete' val
-          | not (isReference val) = push (VBool True)
-          | isUnresolvableReference ref && isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (1)"
-          | isUnresolvableReference ref = push (VBool True)
-          | isPropertyReference ref = push =<< deleteFromObj ref
-          | isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (2)"
-          | otherwise = push =<< deleteFromEnv ref
-          where
-              ref = unwrapRef val
-              deleteFromObj (JSRef base name strict) = do
-                obj <- toObject base
-                objDelete name (strict == Strict) obj
-              deleteFromEnv (JSRef (VEnv base) name _strict) = deleteBinding name base
+runDelete :: OpCodeHandler a
+runDelete (val:rest) cont
+  | not (isReference val) = cont (VBool True : rest)
+  | isUnresolvableReference ref && isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (1)"
+  | isUnresolvableReference ref = cont (VBool True : rest)
+  | isPropertyReference ref = do { v <- deleteFromObj ref ; cont (v : rest) }
+  | isStrictReference ref = raiseSyntaxError "Delete of an unqualified identifier in strict mode (2)"
+  | otherwise = do { v <- deleteFromEnv ref ; cont (v : rest) }
+  where
+      ref = unwrapRef val
+      deleteFromObj (JSRef base name strict) = do
+        obj <- toObject base
+        objDelete name (strict == Strict) obj
+      deleteFromEnv (JSRef (VEnv base) name _strict) = deleteBinding name base
 
 -- ref 11.4.3
-runTypeof :: Runtime ()
-runTypeof = do
-  val <- pop
+runTypeof :: OpCodeHandler a
+runTypeof (val:rest) cont =
   if isReference val && isUnresolvableReference (unwrapRef val)
-  then push $ VStr "undefined"
+  then cont (VStr "undefined" : rest)
   else do
     resolved <- getValue val
     result <- case resolved of
@@ -217,81 +223,76 @@ runTypeof = do
           TypeNumber    -> "number"
           TypeString    -> "string"
           _ -> showVal resolved
-    push $ VStr result
+    cont (VStr result : rest)
 
-runStore :: Runtime ()
-runStore = do
-  val <- pop
-  lhs <- pop
+runStore :: OpCodeHandler a
+runStore (val:lhs:rest) cont =
   case lhs of
-    VRef ref -> putValue ref val
+    VRef ref -> putValue ref val >> cont (val : rest)
     _        -> raiseReferenceError $ show lhs ++ " is not assignable"
-  push val
 
 -- ref 11.2.2
-runNewCall :: Int -> Runtime ()
-runNewCall n = do
-  args <- reverse <$> replicateM n pop
-  func <- getValue =<< pop
-  assertFunction "(function)" (view cstrMethod) func  -- XXX need to get the name here
-  push =<< VObj <$> newObjectFromConstructor func args
+runNewCall :: Int -> OpCodeHandler a
+runNewCall n stack cont =
+  let (args,(funcRef:rest)) = splitAt n stack
+  in do
+    func <- getValue funcRef
+    assertFunction (show func) (view cstrMethod) func  -- XXX need to get the name here
+    v <- newObjectFromConstructor func (reverse args)
+    cont (VObj v : rest)
+
 
 -- ref 11.2.3
-runFunCall :: Int -> Runtime ()
-runFunCall n = do
-  args <- reverse <$> replicateM n pop
-  func <- pop
-  push =<< callFunction func args
+runFunCall :: Int -> OpCodeHandler a
+runFunCall n stack cont =
+  let (args,(func:rest)) = splitAt n stack
+  in do
+    v <- callFunction func (reverse args)
+    cont (v : rest)
 
-runLambda :: Runtime ()
-runLambda = do
-  VLambda name params strict body <- pop
+runLambda :: OpCodeHandler a
+runLambda stack cont = do
+  (VLambda name params strict body, rest) <- pop stack
   env <- lexEnv <$> getGlobalContext
-  push =<< createFunction name params strict body env
+  func <- createFunction name params strict body env
+  cont (func : rest)
 
+runDiscard :: OpCodeHandler a
+runDiscard (a:rest) cont = cont rest
 
+runDup :: OpCodeHandler a
+runDup (a:rest) cont = cont (a:a:rest)
 
-runSwap :: Runtime ()
-runSwap = do
-  a <- pop
-  b <- pop
-  push a
-  push b
+runSwap :: OpCodeHandler a
+runSwap (a:b:rest) cont = cont (b:a:rest)
 
-runRoll3 :: Runtime ()
-runRoll3 = do
-  a <- pop
-  b <- pop
-  c <- pop
-  push a
-  push c
-  push b
+runRoll3 :: OpCodeHandler a
+runRoll3 (a:b:c:rest) cont = cont (b:c:a:rest)
 
-runIfTrue :: (CompiledExpr -> Runtime ()) -> CompiledExpr -> CompiledExpr -> Runtime ()
-runIfTrue eval ifTrue ifFalse = do
-  val <- pop
+runIfTrue :: (CompiledExpr -> OpCodeHandler a) -> CompiledExpr -> CompiledExpr -> OpCodeHandler a
+runIfTrue eval ifTrue ifFalse stack cont = do
+  (val, s') <- pop stack
   if val == VBool True
-  then eval ifTrue
-  else eval ifFalse
+  then eval ifTrue s' cont
+  else eval ifFalse s' cont
 
+runIfEq :: JSVal -> OpCodeHandler a -> OpCodeHandler a
+runIfEq val action stack cont = do
+  (tos, s') <- pop stack
+  if tos == val
+  then action s' cont
+  else cont s'
 
-runIfEq :: JSVal -> Runtime () -> Runtime ()
-runIfEq val action = do
-  tos <- pop
-  when (tos == val) action
+push :: JSVal -> OpCodeHandler a
+push v stack cont = cont (v:stack)
 
-push :: JSVal -> Runtime ()
-push v = do
-  valueStack %= (v:)
+pop :: Stack -> Runtime (JSVal, Stack)
+pop (x:xs) = return (x, xs)
+pop []     = raiseError "Stack underflow"
 
-pop :: Runtime JSVal
-pop = do
-  v <- topOfStack
-  valueStack %= tail
-  return v
-
-frob :: (JSVal -> JSVal) -> Runtime ()
-frob f = pop >>= push . f
+frob :: (JSVal -> JSVal) -> OpCodeHandler a
+frob f [] cont = cont []
+frob f (x:xs) cont = cont (f x : xs)
 
 topOfStack :: Runtime JSVal
 topOfStack = head <$> use valueStack
