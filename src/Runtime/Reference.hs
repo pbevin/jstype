@@ -79,6 +79,7 @@ hasPrimitiveBase ref =
     VBool _   -> True
     VStr  _   -> True
     VNum  _   -> True
+    VInt  _   -> True
     VNative{} -> True
     _         -> False
 

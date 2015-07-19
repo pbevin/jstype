@@ -36,6 +36,9 @@ runCompiledExpr op = case op of
   OpDup            -> topOfStack >>= push
   OpSwap           -> runSwap
   OpRoll3          -> runRoll3
+  OpAdd            -> runAdd
+  OpSub            -> runSub
+  OpMul            -> runMul
   OpBinary op      -> runBinaryOp op
   OpUnary op       -> runUnaryOp op
   OpModify op      -> runModify op
@@ -110,7 +113,38 @@ runOpToBoolean :: Runtime ()
 runOpToBoolean = frob (VBool . toBoolean)
 
 runOpToNumber :: Runtime ()
-runOpToNumber = pop >>= toNumber >>= push . VNum
+runOpToNumber = do
+  v <- pop
+  case v of
+    VInt _ -> push v
+    VNum _ -> push v
+    other  -> do
+      n <- toNumber other
+      push (VNum n)
+
+runAdd :: Runtime()
+runAdd = do
+  e2 <- pop
+  e1 <- pop
+  case (e1, e2) of
+    (VInt n, VInt m) -> push (VInt $ n+m)
+    _ -> jsAdd e1 e2 >>= push
+
+runSub :: Runtime()
+runSub = do
+  e2 <- pop
+  e1 <- pop
+  case (e1, e2) of
+    (VInt n, VInt m) -> push (VInt $ n-m)
+    _ -> numberOp (-) e1 e2 >>= push
+
+runMul :: Runtime()
+runMul = do
+  e2 <- pop
+  e1 <- pop
+  case (e1, e2) of
+    (VInt n, VInt m) -> push (VInt $ n*m)
+    _ -> numberOp (*) e1 e2 >>= push
 
 runBinaryOp :: Ident -> Runtime ()
 runBinaryOp op =
@@ -134,22 +168,15 @@ runUnaryOp op = do
 
 runModify :: Ident -> Runtime ()
 runModify op =
-  let go f = pop >>= toNumber >>= push . VNum . f
-  in case op of
-            "++" -> go (+ 1)
-            "--" -> go (subtract 1)
-            _    -> raiseError $ "No such modifier: " ++ op
+  let go f g = pop >>= \case
+                 VNum n -> push (VNum $ f n)
+                 VInt n -> push (VInt $ g n)
+                 val    -> toNumber val >>= push . VNum . f
 
--- modifyingOp :: (JSNum -> JSNum) -> Runtime ()
--- modifyingOp op = do
---   lhs <- pop
---   case lhs of
---     VRef ref -> do
---       lval <- getValue lhs
---       val <- toNumber lval
---       putValue ref . VNum $ op val
---       return ()
---     _ -> raiseReferenceError $ show lhs ++ " is not assignable"
+  in case op of
+            "++" -> go (+ 1) (+ 1)
+            "--" -> go (subtract 1) (subtract 1)
+            _    -> raiseError $ "No such modifier: " ++ op
 
 -- ref 11.4.1
 runDelete :: Runtime ()

@@ -62,7 +62,20 @@ jsAdd a b = do
   b' <- toPrimitive HintNone b
   if isString a' || isString b'
   then VStr <$> liftStr (++) a' b'
-  else VNum <$> liftNum (+) a' b'
+  else numOp vAdd a' b'
+  
+numOp :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> Runtime JSVal
+numOp f a b = do
+  a' <- toNum a
+  b' <- toNum b
+  return (f a' b')
+
+
+vAdd :: JSVal -> JSVal -> JSVal
+vAdd (VInt n) (VInt m) = VInt (n+m)
+vAdd (VInt n) (VNum m) = VNum (fromIntegral n + m)
+vAdd (VNum n) (VInt m) = VNum (n + fromIntegral m)
+vAdd (VNum n) (VNum m) = VNum (n + m)
 
 -- ref 11.8.5 (1)
 lessThan :: [Ordering] -> JSVal -> JSVal -> Runtime JSVal
@@ -144,12 +157,19 @@ eqv x y
   | typeof x /= typeof y        = False
   | typeof x == TypeUndefined   = True
   | typeof x == TypeNull        = True
-  | typeof x == TypeNumber      = x == y
-  | typeof x == TypeString      = x == y
-  | typeof x == TypeBoolean     = x == y
-  | typeof x == TypeObject      = x == y
-  | typeof x == TypeFunction    = x == y
+  | typeof x == TypeNumber      = eqvNumber x y
+  | typeof x == TypeString      = x `sameValue` y
+  | typeof x == TypeBoolean     = x `sameValue` y
+  | typeof x == TypeObject      = x `sameValue` y
+  | typeof x == TypeFunction    = x `sameValue` y
   | otherwise = error $ "Can't === " ++ show x ++ " and " ++ show y
+
+eqvNumber :: JSVal -> JSVal -> Bool
+eqvNumber (VNum a) (VNum b) = a == b
+eqvNumber (VNum a) (VInt b) = a == fromIntegral b
+eqvNumber (VInt a) (VNum b) = fromIntegral a == b
+eqvNumber (VInt a) (VInt b) = a == b
+
 
 -- ref 11.9.3
 doubleEquals :: JSVal -> JSVal -> Runtime JSVal
@@ -160,6 +180,9 @@ doubleEquals v1 v2 = eq v1 v2
         eq' VUndef VUndef = True
         eq' VNull VNull = True
         eq' (VNum a) (VNum b) = a == b
+        eq' (VInt a) (VNum b) = fromIntegral a == b
+        eq' (VNum a) (VInt b) = a == fromIntegral b
+        eq' (VInt a) (VInt b) = a == b
         eq' (VStr a) (VStr b) = a == b
         eq' (VBool a) (VBool b) = a == b
         eq' (VObj a) (VObj b) = a == b
@@ -206,25 +229,25 @@ bitwise :: (Word32 -> Word32 -> Word32) -> JSVal -> JSVal -> Runtime JSVal
 bitwise op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
-  return $ VNum $ fromIntegral $ floor n1 `op` floor n2
+  return $ VInt $ fromIntegral $ floor n1 `op` floor n2
 
 lshift :: JSVal -> JSVal -> Runtime JSVal
 lshift lval rval = do
   lnum <- toInt32 lval
   rnum <- toUInt32 rval
-  return $ VNum $ fromIntegral $ shiftL lnum (fromIntegral rnum .&. 0x1f)
+  return $ VInt $ fromIntegral $ shiftL lnum (fromIntegral rnum .&. 0x1f)
 
 rshift :: JSVal -> JSVal -> Runtime JSVal
 rshift lval rval = do
   lnum <- toInt32 lval
   rnum <- toUInt32 rval
-  return $ VNum $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
+  return $ VInt $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
 
 urshift :: JSVal -> JSVal -> Runtime JSVal
 urshift lval rval = do
   lnum <- toUInt32 lval
   rnum <- toUInt32 rval
-  return $ VNum $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
+  return $ VInt $ fromIntegral $ shiftR lnum (fromIntegral rnum .&. 0x1f)
 
 chain :: Monad m => (a->m b) -> (b -> m b) -> (b -> m c) -> a -> m c
 chain f g h a = f a >>= g >>= h
@@ -245,7 +268,7 @@ unaryMinus = unaryNumOp negate
 
 -- ref 11.4.8
 unaryBitwiseNot :: JSVal -> Runtime JSVal
-unaryBitwiseNot = unaryOp (VNum . fromIntegral) toInt32 (complement :: Int32 -> Int32)
+unaryBitwiseNot = unaryOp (VInt . fromIntegral) toInt32 (complement :: Int32 -> Int32)
   -- where toWord32 = toNumber >=> return . floor
 
 -- ref 11.4.9

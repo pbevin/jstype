@@ -52,7 +52,7 @@ buildGlobalObject = do
 
   functionPrototype <- mkObject $ do
     internal callMethod (\_this _args -> return VUndef)
-    property "length" (VNum 0)
+    property "length" (VInt 0)
     method "call" 1 funCallMethod
     method "bind" 1 funBind
     method "apply" 2 funApply
@@ -62,7 +62,7 @@ buildGlobalObject = do
     className "Function"
     property "prototype" (VObj functionPrototype)
     property "name" (VStr "Function")
-    property "length" (VNum 1) -- ref 15.3.3.2
+    property "length" (VInt 1) -- ref 15.3.3.2
     internal callMethod $ funFunction functionPrototype
     internal cstrMethod funConstructor
     internal hasInstanceMethod funHasInstance
@@ -163,9 +163,11 @@ objConstructor _this args = let v = first1 args in do
 
 numConstructor :: JSVal -> [JSVal] -> Runtime JSVal
 numConstructor this args = do
-  num <- VNum <$> if null args
-                  then return 0
-                  else toNumber (head args)
+  num <- case headMay args of
+    Nothing       -> return (VInt 0)
+    Just (VInt n) -> return (VInt n)
+    Just (VNum n) -> return (VNum n)
+    Just other    -> VNum <$> toNumber other
   case this of
     VObj obj -> do
       VObj <$> (setClass "Number" obj >>= objSetPrimitive num)
@@ -177,7 +179,7 @@ arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
 
 createArray :: [Maybe JSVal] -> Runtime JSVal
 createArray vals =
-  let len = VNum $ fromIntegral $ length vals
+  let len = VInt $ fromIntegral $ length vals
       assigns = arrayAssigns vals
   in createSparseArray len assigns
 
@@ -336,7 +338,7 @@ funBind this args = do
                      >>= setCallMethod callMethod
                      >>= setCstrMethod cstrMethod
                      >>= objSetHasInstance funHasInstanceBound
-                     >>= addOwnPropertyDescriptor "length" (dataPD (VNum $ fromIntegral l) False False False)
+                     >>= addOwnPropertyDescriptor "length" (dataPD (VInt $ fromIntegral l) False False False)
                      >>= objSetExtensible True
                      >>= addOwnPropertyDescriptor "caller" throwerProperty
                      >>= addOwnPropertyDescriptor "arguments" throwerProperty
@@ -396,7 +398,7 @@ createFunction name paramList strict body scope =
         return func
 
       lengthProperty = dataPD nparams False False True
-      nparams = VNum $ fromIntegral $ length paramList
+      nparams = VInt $ fromIntegral $ length paramList
       prototypeProperty prototype = dataPD prototype True False False
       nameProperty = fromMaybe "" name
       callMethod func = funcCall name func paramList strict body
@@ -762,7 +764,7 @@ objPropertyIsEnumerable this args = let v = first1 args in do
   return . VBool . maybe False propIsEnumerable $ desc
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
-objId (VObj obj) _args = return $ VNum $ fromIntegral (objid obj)
+objId (VObj obj) _args = return $ VInt $ fromIntegral (objid obj)
 objId x _ = raiseTypeError $ "No objId for " ++ show x
 
 -- ref 15.2.4.5

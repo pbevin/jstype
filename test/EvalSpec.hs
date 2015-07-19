@@ -14,11 +14,11 @@ import Expectations
 spec :: Spec
 spec = do
   it "evaluates arithmetic" $ do
-    jsEvalExpr "3+4"   `shouldReturn` VNum 7
-    jsEvalExpr "1+2+3" `shouldReturn` VNum 6
-    jsEvalExpr "2*3+4" `shouldReturn` VNum 10
-    jsEvalExpr "2+3*4" `shouldReturn` VNum 14
-    jsEvalExpr "10-2"  `shouldReturn` VNum 8
+    jsEvalExpr "3+4"   `shouldReturn` VInt 7
+    jsEvalExpr "1+2+3" `shouldReturn` VInt 6
+    jsEvalExpr "2*3+4" `shouldReturn` VInt 10
+    jsEvalExpr "2+3*4" `shouldReturn` VInt 14
+    jsEvalExpr "10-2"  `shouldReturn` VInt 8
     jsEvalExpr "10/2"  `shouldReturn` VNum 5
     jsEvalExpr "10/3"  `shouldReturn` VNum (10/3)
 
@@ -104,13 +104,16 @@ spec = do
       runJStr "var a = '5'; console.log(typeof a++, typeof a)"
         `shouldReturn` Right "number number\n"
 
+    it "preserves int status" $ do
+      jsEvalExpr "a = 54, a++, a" `shouldReturn` VInt 55
+
   describe "Ternary operator" $ do
     it "acts like if-then-else" $ do
-      jsEvalExpr "true ? 4 : 8" `shouldReturn` VNum 4
-      jsEvalExpr "false ? 4 : 8" `shouldReturn` VNum 8
+      jsEvalExpr "true ? 4 : 8" `shouldReturn` VInt 4
+      jsEvalExpr "false ? 4 : 8" `shouldReturn` VInt 8
 
   it "evaluates a primitive number wrapped in an object" $ do
-    jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VNum 2
+    jsEvalExpr "{valueOf: function() {return 1}} + 1" `shouldReturn` VInt 2
 
   it "evaluates date objects specially" $ do
     runJStr "var date = new Date(); console.log(date + date == date.toString() + date.toString())"
@@ -121,8 +124,8 @@ spec = do
 
   describe "Object literal" $ do
     it "creates properties" $ do
-      jsEvalExpr "{ a: 1, 2: 3 }['a']" `shouldReturn` VNum 1
-      jsEvalExpr "{ a: 1, 2: 3 }['2']" `shouldReturn` VNum 3
+      jsEvalExpr "{ a: 1, 2: 3 }['a']" `shouldReturn` VInt 1
+      jsEvalExpr "{ a: 1, 2: 3 }['2']" `shouldReturn` VInt 3
 
     it "can have a getter" $ do
       let prog = unlines [
@@ -150,42 +153,42 @@ spec = do
       runJStr prog `shouldReturn` Right "3\n42\n41\n"
 
     it "uses the last definition of a value" $ do
-      jsEvalExpr "{ a: 1, a: 2 }['a']" `shouldReturn` VNum 2
+      jsEvalExpr "{ a: 1, a: 2 }['a']" `shouldReturn` VInt 2
 
 
 
   describe "an empty array" $ do
     it "has length 0" $ do
-      jsEvalExpr "[].length" `shouldReturn` VNum 0
+      jsEvalExpr "[].length" `shouldReturn` VInt 0
 
     it "has type object" $ do
       jsEvalExpr "typeof []" `shouldReturn` VStr "object"
 
   describe "an array with 5 elements" $ do
     it "has length 5" $ do
-      jsEvalExpr "[1,2,3,4,5].length" `shouldReturn` VNum 5
+      jsEvalExpr "[1,2,3,4,5].length" `shouldReturn` VInt 5
     it "has properties for each of its indices" $ do
-      jsEvalExpr "[1,2,3,4,5][0]" `shouldReturn` VNum 1
-      jsEvalExpr "[1,2,3,4,5][1]" `shouldReturn` VNum 2
-      jsEvalExpr "[1,2,3,4,5][2]" `shouldReturn` VNum 3
-      jsEvalExpr "[1,2,3,4,5][3]" `shouldReturn` VNum 4
-      jsEvalExpr "[1,2,3,4,5][4]" `shouldReturn` VNum 5
+      jsEvalExpr "[1,2,3,4,5][0]" `shouldReturn` VInt 1
+      jsEvalExpr "[1,2,3,4,5][1]" `shouldReturn` VInt 2
+      jsEvalExpr "[1,2,3,4,5][2]" `shouldReturn` VInt 3
+      jsEvalExpr "[1,2,3,4,5][3]" `shouldReturn` VInt 4
+      jsEvalExpr "[1,2,3,4,5][4]" `shouldReturn` VInt 5
 
   describe "an array with 1 elision" $ do
     it "has length 1" $ do
-      jsEvalExpr "[,].length" `shouldReturn` VNum 1
+      jsEvalExpr "[,].length" `shouldReturn` VInt 1
 
   describe "an array with 2 elisions" $ do
     it "has length 2" $ do
-      jsEvalExpr "[,,].length" `shouldReturn` VNum 2
+      jsEvalExpr "[,,].length" `shouldReturn` VInt 2
 
   describe "an array with many elisions at the end" $ do
     it "has the right length" $ do
-      jsEvalExpr "[4,5].length" `shouldReturn` VNum 2
-      jsEvalExpr "[4,5,].length" `shouldReturn` VNum 2
-      jsEvalExpr "[4,5,,].length" `shouldReturn` VNum 3
-      jsEvalExpr "[4,5,,,].length" `shouldReturn` VNum 4
-      jsEvalExpr "[4,5,,,,].length" `shouldReturn` VNum 5
+      jsEvalExpr "[4,5].length" `shouldReturn` VInt 2
+      jsEvalExpr "[4,5,].length" `shouldReturn` VInt 2
+      jsEvalExpr "[4,5,,].length" `shouldReturn` VInt 3
+      jsEvalExpr "[4,5,,,].length" `shouldReturn` VInt 4
+      jsEvalExpr "[4,5,,,,].length" `shouldReturn` VInt 5
 
   describe "[a,b,,d,e]" $ do
     it "has a at [0]" $ do
@@ -242,7 +245,7 @@ spec = do
       jsEvalExpr "false && false" `shouldReturn` VBool False
 
     it "does not evaluate the RHS if the LHS is false" $ do
-      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VNum 1
+      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VInt 1
 
   describe "||" $ do
     it "is false if both sides are false" $ do
@@ -254,20 +257,20 @@ spec = do
       jsEvalExpr "true  || true " `shouldReturn` VBool True
 
     it "does not evaluate the RHS if the LHS is false" $ do
-      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VNum 1
+      jsEvalExpr "x=1, (false && x++), x" `shouldReturn` VInt 1
 
   it "does bitshift operations" $ do
-    jsEvalExpr "3 << 2" `shouldReturn` VNum 12
-    jsEvalExpr "12 >> 2" `shouldReturn` VNum 3
+    jsEvalExpr "3 << 2" `shouldReturn` VInt 12
+    jsEvalExpr "12 >> 2" `shouldReturn` VInt 3
 
   it "does bitwise not" $ do
-    jsEvalExpr "~0" `shouldReturn` VNum (-1)
+    jsEvalExpr "~0" `shouldReturn` VInt (-1)
 
   describe "left shift" $ do
     it "does hard case 5" $ do
-      jsEvalExpr "6442450943.1 << 0" `shouldReturn` VNum 2147483647
+      jsEvalExpr "6442450943.1 << 0" `shouldReturn` VInt 2147483647
     it "does hard case 6" $ do
-      jsEvalExpr "-2147483649.1 << 0" `shouldReturn` VNum 2147483647
+      jsEvalExpr "-2147483649.1 << 0" `shouldReturn` VInt 2147483647
 
   it "runs loops" $ do
     runJStr "var t = 0, i; for (i = 0; i < 10; i++) { t += i }; console.log(t);" `shouldReturn` Right "45\n"
@@ -293,11 +296,11 @@ spec = do
 
   it "can break out of a for loop from a catch block" $ do
     jsEvalExpr "(function(x){FOR : for(;;){ try{ x++; throw 1; } catch(e){ break FOR; }}; return x })(0)"
-      `shouldReturn` VNum 1
+      `shouldReturn` VInt 1
 
   it "does not attach a break label after a newline" $ do
     jsEvalExpr "(function() {FOR1 : for(var i=1;i<2;i++){ LABEL1 : do {var x =1;break\nFOR1;var y=2;} while(0);} return i;})()"
-      `shouldReturn` VNum 2
+      `shouldReturn` VInt 2
 
   it "runs a for..var loop" $ do
     runJStr "for (var i = 0, t = 0; i < 10; i++, t+=i); console.log(t);" `shouldReturn` Right "55\n"
@@ -342,11 +345,11 @@ spec = do
     runJStr "console.log(Function('return 42')())" `shouldReturn` Right "42\n"
 
   it "can do ===" $ do
-    runJStr "if (1 === 1) console.log(\"OK\")" `shouldReturn` Right "OK\n"
+    runJStr "if (1 === 1) console.log(\"OK 1\")" `shouldReturn` Right "OK 1\n"
     runJStr "if (1 === 0) console.log(\"wrong\")" `shouldReturn` Right ""
     runJStr "if ('a' === 'b') console.log(\"wrong\")" `shouldReturn` Right ""
-    runJStr "if ('a' === 'a') console.log(\"OK\")" `shouldReturn` Right "OK\n"
-    runJStr "if (console === console) console.log(\"OK\")" `shouldReturn` Right "OK\n"
+    runJStr "if ('a' === 'a') console.log(\"OK 2\")" `shouldReturn` Right "OK 2\n"
+    runJStr "if (console === console) console.log(\"OK 3\")" `shouldReturn` Right "OK 3\n"
     runJStr "if (console === this) console.log(\"wrong\")" `shouldReturn` Right ""
 
   it "can call a method on true" $ do
@@ -390,7 +393,7 @@ spec = do
     runJStr prog `shouldReturn` Right "prior to throw\n"
 
   it "can catch a reference error" $ do
-    jsEvalExpr "(function f() {try { return x; } catch(e) { return 71; }})()" `shouldReturn` VNum 71
+    jsEvalExpr "(function f() {try { return x; } catch(e) { return 71; }})()" `shouldReturn` VInt 71
 
   it "throws an error if the LHS of a comma expr fails" $ do
     runJStr "try { x, 1; throw new Error('a'); } catch (e) { console.log(e.toString()) }"
@@ -419,7 +422,7 @@ spec = do
 
     it "treats white space with respect" $ do
       -- test262: 11.6.1_A1
-      jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VNum 2
+      jsEvalExpr "eval(\"1\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u2029+\\u0009\\u000B\\u000C\\u0020\\u00A0\\u000A\\u000D\\u2028\\u20291\")" `shouldReturn` VInt 2
 
     it "throws a SyntaxError if parsing fails" $ do
       runJStr "try { eval('var'); } catch (e) { if (e instanceof SyntaxError) { console.log('OK 1') } }" `shouldReturn` Right "OK 1\n"
@@ -451,7 +454,7 @@ spec = do
       jsEvalExpr "new Boolean(true).valueOf()" `shouldReturn` VBool True
 
     it "can act as a number" $ do
-      jsEvalExpr "new Boolean(true) + 1" `shouldReturn` VNum 2
+      jsEvalExpr "new Boolean(true) + 1" `shouldReturn` VInt 2
 
   describe "Directive Prologue" $ do
     it "is evaluated" $
@@ -646,7 +649,7 @@ spec = do
         `shouldReturn` Right "ok\n"
 
     it "supplies .length for a native function" $ do
-      jsEvalExpr "Object.defineProperty.length" `shouldReturn` (VNum 3)
+      jsEvalExpr "Object.defineProperty.length" `shouldReturn` (VInt 3)
 
     it "handles arguments.constructor properly" $ do
       -- language/arguments-object/S10.6_A2

@@ -421,7 +421,7 @@ simple = parens expr
      <|> regexLiteral
      <|> this
      <|> literal
-     <|> Num <$> numericLiteral
+     <|> numericLiteral
      <|> ReadVar <$> identifier
      <|> Str <$> quotedString
 
@@ -551,5 +551,7 @@ literal = try $ (keyword "true"  >> return (Boolean True))
             <|> (keyword "false" >> return (Boolean False))
             <|> (keyword "null"  >> return LiteralNull)
 
-numericLiteral :: JSParser JSNum
-numericLiteral = number
+numericLiteral :: JSParser Expr
+numericLiteral = num >>= \case
+  Left int    -> return $ INum int
+  Right float -> return $ Num float

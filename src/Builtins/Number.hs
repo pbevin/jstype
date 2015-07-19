@@ -39,6 +39,7 @@ numberToString :: JSFunction
 numberToString this _args =
   case this of
     VNum num -> return . VStr . showVal $ this
+    VInt num -> return . VStr . showVal $ this
     VObj obj -> do
       cls <- view objClass <$> deref obj
       if cls == "Number"
@@ -51,10 +52,11 @@ numberValueOf :: JSFunction
 numberValueOf this _args =
   case this of
     VNum num -> return this
+    VInt num -> return this
     VObj obj -> do
       cls <- view objClass <$> deref obj
       if cls == "Number"
-      then fromMaybe (VNum 0) . view objPrimitiveValue <$> deref obj
+      then fromMaybe (VInt 0) . view objPrimitiveValue <$> deref obj
       else error
     _ -> error
   where error = raiseTypeError "Not a number"
@@ -62,13 +64,13 @@ numberValueOf this _args =
 
 numberFunction :: JSFunction
 numberFunction this args =
-  let val = headDef (VNum 0) args
-  in VNum <$> toNumber val
+  let val = headDef (VInt 0) args
+  in toNum val
 
 
 numberConstructor :: JSFunction
 numberConstructor this args = 
-  let val = headDef (VNum 0) args
+  let val = headDef (VInt 0) args
   in case this of
     VObj obj -> do
       prototype <- objFindPrototype "Number"

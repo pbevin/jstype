@@ -64,6 +64,7 @@ data PropertyValue = Value Expr
                    deriving (Show, Eq)
 
 data Expr = Num JSNum
+          | INum Integer
           | Str String
           | Boolean Bool
           | LiteralNull

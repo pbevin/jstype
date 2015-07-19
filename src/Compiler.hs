@@ -20,6 +20,7 @@ straighten ops = case mergeBlocks ops of
 compile :: Expr -> OpCode
 compile expr = mergeBlocks $ case expr of
   Num n            -> [ OpConst (VNum n)  ]
+  INum n           -> [ OpConst (VInt n)  ]
   Str s            -> [ OpConst (VStr s)  ]
   Boolean b        -> [ OpConst (VBool b) ]
   LiteralNull      -> [ OpConst (VNull)   ]
@@ -63,8 +64,8 @@ compileSparseArray elts =
       go n []     = [ OpConst (vnum $ length elts), OpSparse n ]
       go n (x:xs) = case x of
         (_, Nothing) -> go n xs
-        (k, Just e) -> OpConst (VNum k) : compile e : go (n+1) xs
-      vnum k = VNum (fromIntegral k)
+        (k, Just e) -> OpConst (VInt k) : compile e : go (n+1) xs
+      vnum k = VInt (fromIntegral k)
 
 compileObjectLiteral :: [PropertyAssignment] -> [CompiledExpr]
 compileObjectLiteral kvMap = go . reverse $ kvMap
@@ -75,8 +76,6 @@ compileObjectLiteral kvMap = go . reverse $ kvMap
     val (Value e)    = BasicBlock [ compile e, OpGetValue ]
     val (Getter s)   = OpConst (VGetter s)
     val (Setter e s) = OpConst (VSetter e s)
-
-    vnum k = VNum (fromIntegral k)
 
 compileFunctionLiteral :: JSVal -> [CompiledExpr]
 compileFunctionLiteral func = [ OpConst func, OpLambda ]
@@ -120,7 +119,12 @@ compileSequence e1 e2 =
 
 compileBinOp :: Ident -> Expr -> Expr -> [CompiledExpr]
 compileBinOp op e1 e2 =
-  [ compile e1, OpGetValue, compile e2, OpGetValue, OpBinary op ]
+  let binop = case op of
+                "+" -> OpAdd
+                "-" -> OpSub
+                "*" -> OpMul
+                _   -> OpBinary op
+  in [ compile e1, OpGetValue, compile e2, OpGetValue, binop ]
 
 compileDelete :: Expr -> [CompiledExpr]
 compileDelete e = [ compile e, OpDelete ]

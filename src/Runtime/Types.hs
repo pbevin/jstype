@@ -15,6 +15,7 @@ import Expr
 import JSNum
 
 data JSVal = VNum JSNum
+           | VInt Integer
            | VStr String
            | VBool Bool
            | VRef JSRef
@@ -31,6 +32,7 @@ data JSVal = VNum JSNum
 
 instance Show JSVal where
   show (VNum a)         = "VNum " ++ show a
+  show (VInt n)         = "VInt " ++ show n
   show (VStr a)         = "VStr " ++ show a
   show (VBool a)        = "VBool " ++ if a then "True" else "False"
   show (VRef ref)       = "VRef " ++ show ref
@@ -65,6 +67,7 @@ isPrimitive VUndef    = True
 isPrimitive VNull     = True
 isPrimitive (VBool _) = True
 isPrimitive (VNum _)  = True
+isPrimitive (VInt _)  = True
 isPrimitive (VStr _)  = True
 isPrimitive _         = False
 
@@ -147,6 +150,7 @@ data JSType = TypeUndefined
 typeof :: JSVal -> JSType
 typeof v = case v of
   VNum _        -> TypeNumber
+  VInt _        -> TypeNumber
   VStr _        -> TypeString
   VBool _       -> TypeBoolean
   VRef  _       -> TypeReference
@@ -159,6 +163,7 @@ typeof v = case v of
 
 instance Eq JSVal where
   VNum a == VNum b               = a == b
+  VInt a == VInt b               = a == b
   VStr a == VStr b               = a == b
   VObj a == VObj b               = a == b
   VBool a == VBool b             = a == b
@@ -174,6 +179,8 @@ sameValue :: JSVal -> JSVal -> Bool
 sameValue (VNum x) (VNum y)
   | isNaN x && isNaN y = True
   | otherwise          =  x == y
+sameValue (VNum x) (VInt y) = x == fromIntegral y
+sameValue (VInt x) (VNum y) = fromIntegral x == y
 sameValue (VObj x) (VObj y) = x == y
 sameValue x y = x == y
 

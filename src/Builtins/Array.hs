@@ -17,7 +17,7 @@ makeArrayClass = do
     className "Array"
     prototype objectPrototype
 
-    property "length" (VNum 0)
+    property "length" (VInt 0)
 
     method "toString" 0 arrayToString
     method "reduce"   1 arrayReduce
@@ -34,7 +34,7 @@ makeArrayClass = do
 
     property "name" (VStr "Array")
     property "prototype" (VObj arrayPrototype)
-    property "length" (VNum 0)
+    property "length" (VInt 0)
     method   "isArray" 1 isArray
 
   addOwnProperty "constructor" (VObj obj) arrayPrototype
@@ -56,7 +56,7 @@ arrayConstructor this args =
 
 arrayConstructorLength :: Shared JSObj -> JSVal -> Runtime (Shared JSObj)
 arrayConstructorLength obj length = do
-  len <- VNum . fromIntegral <$> toInt length
+  len <- VInt . fromIntegral <$> toInt length
   cstr <- getGlobalProperty "Array"
   o <- setClass "Array" obj
     >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
@@ -65,7 +65,7 @@ arrayConstructorLength obj length = do
 
 arrayConstructorElements :: Shared JSObj -> [JSVal] -> Runtime (Shared JSObj)
 arrayConstructorElements obj args = do
-  let len = VNum $ fromIntegral $ length args
+  let len = VInt $ fromIntegral $ length args
   o <- arrayConstructorLength obj len
 
   forM_ (zip args [0..]) $ \(item, idx) -> do
@@ -112,7 +112,7 @@ arrayPush this args = do
   obj <- toObject this
   lenVal <- objGet "length" obj
   n <- toInt lenVal
-  n' <- VNum . fromIntegral <$> placeValues obj n args
+  n' <- VInt . fromIntegral <$> placeValues obj n args
   objPut "length" n' True obj
   return n'
 

@@ -37,7 +37,7 @@ arrayReduce this args = do
       case (val, acc) of
         (Nothing, _)      -> return acc
         (Just _, Nothing) -> return val
-        (Just y, Just x)  -> Just <$> callback VUndef [x, y, VNum $ fromIntegral k, VObj obj]
+        (Just y, Just x)  -> Just <$> callback VUndef [x, y, VInt $ fromIntegral k, VObj obj]
 
 atIndex :: Int -> Shared JSObj -> Runtime (Maybe JSVal)
 atIndex k obj = do

@@ -30,4 +30,4 @@ spec = do
 
   it "can run a String->Int function" $ do
     let f = adapt strlen
-    run (f VUndef [VStr "hello world"]) `shouldReturn` VNum 11
+    run (f VUndef [VStr "hello world"]) `shouldReturn` VInt 11

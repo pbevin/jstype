@@ -5,6 +5,7 @@ module Parse ( parseJS
              , parseInFunction
              , parseExpr
              , parseNumber
+             , parseNum
              , parseDecimal
              , ParseError) where
 
@@ -51,12 +52,19 @@ parseNumber str = case jsParse numberParser NotStrict False "" str of
   Right Nothing    -> 0
   Left err         -> jsNaN
 
+parseNum :: String -> Either Integer Double
+parseNum str = case jsParse (numericParser num <* eof) NotStrict False "" str of
+  Right (Just (Right dbl)) -> Right dbl
+  Right (Just (Left int))  -> Left int
+  Right Nothing            -> Left 0
+  Left err                 -> Right jsNaN
+
 parseDecimal :: String -> Maybe JSNum
 parseDecimal str = case jsParse decimalParser NotStrict False "" str of
   Left err -> Nothing
   Right v  -> v
 
-numericParser :: JSParser Double -> JSParser (Maybe Double)
+numericParser :: Num a => JSParser a -> JSParser (Maybe a)
 numericParser p = do
   whiteSpace
   plusMinus <- optional (oneOf "+-")
@@ -69,6 +77,10 @@ numericParser p = do
                      then negate n
                      else n
 
+instance (Num a, Num b) => Num (Either a b)
+  where
+    negate (Left a) = Left (negate a)
+    negate (Right b) = Right (negate b)
 
 numberParser, decimalParser :: JSParser (Maybe Double)
 numberParser = numericParser number <* eof

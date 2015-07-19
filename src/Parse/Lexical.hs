@@ -161,6 +161,17 @@ number, decimal :: JSParser Double
 number = read . snd <$> np
 decimal = read . snd <$> decimalNumber True
 
+num :: JSParser (Either Integer Double)
+num = readNum . snd <$> np
+
+readNum :: String -> Either Integer Double
+readNum str
+  | 'x' `elem` s = Left  (read str)
+  | '.' `elem` s = Right (read str)
+  | 'e' `elem` s = Right (read str)
+  | otherwise    = Left  (read str)
+  where s = map toLower str
+
 numberText :: JSParser String
 numberText = fst <$> np
 

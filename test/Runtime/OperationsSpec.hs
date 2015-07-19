@@ -22,9 +22,11 @@ spec = do
 
     it "adds two numbers" $ do
       testAdd (VNum 1) (VNum 3) `shouldReturn` Right (VNum 4)
+      testAdd (VInt 1) (VInt 3) `shouldReturn` Right (VInt 4)
 
     it "adds a bool and a number" $ do
       testAdd (VBool True) (VNum 1) `shouldReturn` Right (VNum 2)
+      testAdd (VBool True) (VInt 1) `shouldReturn` Right (VInt 2)
 
     it "adds a number and a string" $ do
       testAdd (VNum 1) (VStr "3") `shouldReturn` Right (VStr "13")
@@ -34,8 +36,8 @@ spec = do
     let eq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
-      eq (VNum 1) (VNum 1) `shouldReturn` True
-      eq (VNum 1) (VNum 2) `shouldReturn` False
+      eq (VInt 1) (VInt 1) `shouldReturn` True
+      eq (VInt 1) (VInt 2) `shouldReturn` False
 
     it "compares two strings" $ do
       eq (VStr "a") (VStr "a") `shouldReturn` True
@@ -48,31 +50,31 @@ spec = do
       eq VNull VNull   `shouldReturn` True
 
     it "compares a number and a string" $ do
-      eq (VNum 1) (VStr "1") `shouldReturn` True
-      eq (VNum 1) (VStr "2") `shouldReturn` False
-      eq (VStr "1") (VNum 1) `shouldReturn` True
-      eq (VStr "2") (VNum 1) `shouldReturn` False
+      eq (VInt 1) (VStr "1") `shouldReturn` True
+      eq (VInt 1) (VStr "2") `shouldReturn` False
+      eq (VStr "1") (VInt 1) `shouldReturn` True
+      eq (VStr "2") (VInt 1) `shouldReturn` False
 
     it "compares a number and a bool" $ do
-      eq (VNum 0) (VBool True) `shouldReturn` False
-      eq (VNum 0) (VBool False) `shouldReturn` True
-      eq (VNum 1) (VBool True) `shouldReturn` True
-      eq (VNum 1) (VBool False) `shouldReturn` False
-      eq (VNum 2) (VBool True) `shouldReturn` False
-      eq (VNum 2) (VBool False) `shouldReturn` False
-      eq (VBool True) (VNum 0) `shouldReturn` False
-      eq (VBool False) (VNum 0) `shouldReturn` True
-      eq (VBool True) (VNum 1) `shouldReturn` True
-      eq (VBool False) (VNum 1) `shouldReturn` False
-      eq (VBool True) (VNum 2) `shouldReturn` False
-      eq (VBool False) (VNum 2) `shouldReturn` False
+      eq (VInt 0) (VBool True) `shouldReturn` False
+      eq (VInt 0) (VBool False) `shouldReturn` True
+      eq (VInt 1) (VBool True) `shouldReturn` True
+      eq (VInt 1) (VBool False) `shouldReturn` False
+      eq (VInt 2) (VBool True) `shouldReturn` False
+      eq (VInt 2) (VBool False) `shouldReturn` False
+      eq (VBool True) (VInt 0) `shouldReturn` False
+      eq (VBool False) (VInt 0) `shouldReturn` True
+      eq (VBool True) (VInt 1) `shouldReturn` True
+      eq (VBool False) (VInt 1) `shouldReturn` False
+      eq (VBool True) (VInt 2) `shouldReturn` False
+      eq (VBool False) (VInt 2) `shouldReturn` False
 
   describe "tripleEquals" $ do
     let eqq a b = runtime (doubleEquals a b) >>= return . fromRight
 
     it "compares two numbers" $ do
-      eqq (VNum 1) (VNum 1) `shouldReturn` True
-      eqq (VNum 1) (VNum 2) `shouldReturn` False
+      eqq (VInt 1) (VInt 1) `shouldReturn` True
+      eqq (VInt 1) (VInt 2) `shouldReturn` False
       eqq (VNum $ 1/0) (VNum $ 1/0) `shouldReturn` True
 
   describe "fmod" $ do
@@ -88,5 +90,4 @@ spec = do
 
   describe "bitwise" $ do
     it "can logical-and two numbers" $ do
-      runtime (bitwise (.&.) (VNum 3) (VNum 26)) `shouldReturn` Right (VNum 2)
-
+      runtime (bitwise (.&.) (VInt 3) (VInt 26)) `shouldReturn` Right (VInt 2)

@@ -37,10 +37,10 @@ spec = do
 
   describe "String.prototype.search" $ do
     it "finds the match index of a regex" $ do
-      jsEvalExpr "'test string'.search(/r/)" `shouldReturn` VNum 7
+      jsEvalExpr "'test string'.search(/r/)" `shouldReturn` VInt 7
 
     it "converts a string to regexp" $ do
-      jsEvalExpr "'test string'.search('s.*s')" `shouldReturn` VNum 2
+      jsEvalExpr "'test string'.search('s.*s')" `shouldReturn` VInt 2
 
   describe "String.prototype.charAt" $ do
     it "returns a single character" $ do
@@ -53,9 +53,9 @@ spec = do
 
   describe "String.prototype.lastIndexOf" $ do
     it "finds the rightmost match if one exists" $ do
-      jsEvalExpr "'abcabc'.lastIndexOf('b')" `shouldReturn` VNum 4
-      jsEvalExpr "'abcabc'.lastIndexOf('a')" `shouldReturn` VNum 3
-      jsEvalExpr "'abcabc'.lastIndexOf('cab')" `shouldReturn` VNum 2
+      jsEvalExpr "'abcabc'.lastIndexOf('b')" `shouldReturn` VInt 4
+      jsEvalExpr "'abcabc'.lastIndexOf('a')" `shouldReturn` VInt 3
+      jsEvalExpr "'abcabc'.lastIndexOf('cab')" `shouldReturn` VInt 2
 
     it "returns -1 if it does not find a match" $ do
-      jsEvalExpr "'abcabc'.lastIndexOf('x')" `shouldReturn` VNum (-1)
+      jsEvalExpr "'abcabc'.lastIndexOf('x')" `shouldReturn` VInt (-1)

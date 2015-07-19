@@ -80,7 +80,7 @@ spec :: Spec
 spec = do
   describe "ParseExpr" $ do
     it "parses a number" $ do
-      parseExpr "1" `shouldBe` Num 1
+      parseExpr "1" `shouldBe` INum 1
       parseExpr "1.3" `shouldBe` Num 1.3
       parseExpr "1.3e3" `shouldBe` Num 1300
       parseExpr "1.4E3" `shouldBe` Num 1400
@@ -91,11 +91,15 @@ spec = do
       parseExpr "5." `shouldBe` Num 5
       parseExpr "5.e1" `shouldBe` Num 50
 
+    it "distinguishes between num and float" $ do
+      parseExpr "1" `shouldBe` INum 1
+      parseExpr "1.0" `shouldBe` Num 1
+
     it "doesn't mistake other things for numbers" $ do
       parseExpr "e1" `shouldBe` ReadVar "e1"
 
     it "parses a negative number" $ do
-      parseExpr "-1" `shouldBe` UnOp "-" (Num 1)
+      parseExpr "-1" `shouldBe` UnOp "-" (INum 1)
 
     it "parses literals" $ do
       parseExpr "true" `shouldBe` Boolean True
@@ -156,19 +160,19 @@ spec = do
     describe "Object literals" $ do
       it "parses object literals" $ do
         parseExpr "{}" `shouldBe` ObjectLiteral []
-        parseExpr "{a: 1}" `shouldBe` ObjectLiteral [("a", Value $ Num 1)]
+        parseExpr "{a: 1}" `shouldBe` ObjectLiteral [("a", Value $ INum 1)]
         parseExpr "{a: 1, b: 2}" `shouldBe`
-          ObjectLiteral [("a", Value $ Num 1),
-                         ("b", Value $ Num 2)]
+          ObjectLiteral [("a", Value $ INum 1),
+                         ("b", Value $ INum 2)]
         parseExpr "{a: 1, 2: 3}" `shouldBe`
-          ObjectLiteral [("a", Value $ Num 1),
-                         ("2", Value $ Num 3)]
+          ObjectLiteral [("a", Value $ INum 1),
+                         ("2", Value $ INum 3)]
 
       it "parses an object literal with a trailing comma" $ do
         parseExpr "{a: 1, }" `shouldBe` parseExpr "{a: 1}"
 
       it "parses an object literal with a getter" $ do
-        let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (Num 1) ]) ]
+        let obj = ObjectLiteral [ ("x", Getter [ Return s $ Just (INum 1) ]) ]
         testParse "var a = { get x() { return 1; } }" `shouldBe`
           Program NotStrict [ VarDecl s  [("a", Just $ obj)] ]
 
@@ -184,7 +188,7 @@ spec = do
 
       it "allows reserved words as names" $ do
         parseExpr "{ var: 3 }" `shouldBe`
-          ObjectLiteral [ ("var", Value $ Num 3) ]
+          ObjectLiteral [ ("var", Value $ INum 3) ]
 
     describe "Array literals" $ do
       it "parses an empty array literal" $ do
@@ -194,21 +198,21 @@ spec = do
         parseExpr "[,]" `shouldBe` ArrayLiteral [Nothing]
 
       it "parses an array literal with one element" $ do
-        parseExpr "[1]" `shouldBe` ArrayLiteral [Just $ Num 1]
+        parseExpr "[1]" `shouldBe` ArrayLiteral [Just $ INum 1]
 
       it "parses an array literal with 2 elements" $ do
-        parseExpr "[1,2]" `shouldBe` ArrayLiteral [Just $ Num 1, Just $ Num 2]
+        parseExpr "[1,2]" `shouldBe` ArrayLiteral [Just $ INum 1, Just $ INum 2]
 
       it "parses an array literal with elision in the middle" $ do
-        parseExpr "[1,,2]" `shouldBe` ArrayLiteral [Just $ Num 1, Nothing, Just $ Num 2 ]
+        parseExpr "[1,,2]" `shouldBe` ArrayLiteral [Just $ INum 1, Nothing, Just $ INum 2 ]
 
       it "parses an array literal with elision at the end" $ do
         parseExpr "[1,2,]" `shouldBe`
-          ArrayLiteral [Just $ Num 1, Just $ Num 2 ]
+          ArrayLiteral [Just $ INum 1, Just $ INum 2 ]
 
       it "parses an array literal with elision at the start" $ do
         parseExpr "[,1,2]" `shouldBe`
-          ArrayLiteral [Nothing, Just $ Num 1, Just $ Num 2 ]
+          ArrayLiteral [Nothing, Just $ INum 1, Just $ INum 2 ]
 
       it "parses an array literal with only elision" $ do
         parseExpr "[,,]" `shouldBe` ArrayLiteral [Nothing,Nothing]
@@ -217,17 +221,17 @@ spec = do
       parseExpr "++u" `shouldBe` UnOp "++" (ReadVar "u")
 
     it "parses a unop assignment" $ do
-      parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num 1))
+      parseExpr "e = -1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (INum 1))
 
     it "parses a chained assignment" $ do
-      parseExpr "x = x = 1" `shouldBe` Assign (ReadVar "x") "=" (Assign (ReadVar "x") "=" (Num 1))
+      parseExpr "x = x = 1" `shouldBe` Assign (ReadVar "x") "=" (Assign (ReadVar "x") "=" (INum 1))
 
     it "parses a plus-equals" $ do
       parseExpr "a += b" `shouldBe` Assign (ReadVar "a") "+=" (ReadVar "b")
 
     it "parses lvars" $ do
-      parseExpr "a.b = 1" `shouldBe` Assign (MemberDot (ReadVar "a") "b") "=" (Num 1)
-      parseExpr "a[i] = 1" `shouldBe` Assign (MemberGet (ReadVar "a") (ReadVar "i")) "=" (Num 1)
+      parseExpr "a.b = 1" `shouldBe` Assign (MemberDot (ReadVar "a") "b") "=" (INum 1)
+      parseExpr "a[i] = 1" `shouldBe` Assign (MemberGet (ReadVar "a") (ReadVar "i")) "=" (INum 1)
 
     it "interprets this tricky case right" $ do
       parseExpr "a++ + ++b" `shouldBe` BinOp "+" (PostOp "++" (ReadVar "a")) (UnOp "++" (ReadVar "b"))
@@ -236,11 +240,11 @@ spec = do
       evaluate (parseExpr "a++ +++b") `shouldThrow` anyException
 
     it "parses a unop assignment without spaces" $ do
-      parseExpr "e=-1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (Num 1))
+      parseExpr "e=-1" `shouldBe` Assign (ReadVar "e") "=" (UnOp "-" (INum 1))
 
     it "parses a binop" $ do
-      parseExpr "1+2" `shouldBe` BinOp "+" (Num 1) (Num 2)
-      parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (Num 1) (Num 2)
+      parseExpr "1+2" `shouldBe` BinOp "+" (INum 1) (INum 2)
+      parseExpr "(1)&&(2)" `shouldBe` BinOp "&&" (INum 1) (INum 2)
 
     it "parses a chained binop" $ do
       parseExpr "a+b+c" `shouldBe` BinOp "+" (BinOp "+" (ReadVar "a") (ReadVar "b")) (ReadVar "c")
@@ -266,7 +270,7 @@ spec = do
       parseExpr "f(x,y)" `shouldBe` FunCall (ReadVar "f") [ReadVar "x", ReadVar "y"]
 
     it "parses a chained function call" $ do
-      parseExpr "f(1)(2)" `shouldBe` FunCall (FunCall (ReadVar "f") [Num 1]) [Num 2]
+      parseExpr "f(1)(2)" `shouldBe` FunCall (FunCall (ReadVar "f") [INum 1]) [INum 2]
 
     it "parses a chained member access with a function call" $ do
       parseExpr "a.b.c()" `shouldBe` FunCall (MemberDot (MemberDot (ReadVar "a") "b") "c") []
@@ -279,10 +283,10 @@ spec = do
 
     describe "The comma operator" $ do
       it "separates expressions" $ do
-        parseExpr "1,2" `shouldBe` BinOp "," (Num 1) (Num 2)
+        parseExpr "1,2" `shouldBe` BinOp "," (INum 1) (INum 2)
 
       it "separates assignments" $ do
-        parseExpr "a = 1,2" `shouldBe` BinOp "," (Assign (ReadVar "a") "=" (Num 1)) (Num 2)
+        parseExpr "a = 1,2" `shouldBe` BinOp "," (Assign (ReadVar "a") "=" (INum 1)) (INum 2)
 
   describe "Parsing programs" $ do
     it "parses a strict-mode program" $ do
@@ -317,23 +321,23 @@ spec = do
       testParse "var a;" `shouldBe` Program NotStrict [VarDecl s [("a", Nothing)]]
       testParse "var a, b;" `shouldBe` Program NotStrict [VarDecl s [("a", Nothing),
                                                            ("b", Nothing)]]
-      testParse "var a = 1, b;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ Num 1),
+      testParse "var a = 1, b;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ INum 1),
                                                                ("b", Nothing)]]
-      testParse "var a = 1, b = a;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ Num 1),
+      testParse "var a = 1, b = a;" `shouldBe` Program NotStrict [VarDecl s [("a", Just $ INum 1),
                                                                    ("b", (Just $ ReadVar "a"))]]
 
     it "ignores comments at the start of the file" $ do
       testParse "" `shouldBe` Program NotStrict []
       testParse "// this is a comment\n" `shouldBe` Program NotStrict []
-      testParse "// a\n//b\n2\n" `shouldBe` Program NotStrict [ExprStmt s (Num 2)]
+      testParse "// a\n//b\n2\n" `shouldBe` Program NotStrict [ExprStmt s (INum 2)]
       testParse "//s" `shouldBe` Program NotStrict []
 
     it "resolves the if-then-else ambiguity" $ do
       testParse "if (a) if (b) 1; else 2" `shouldBe`
         Program NotStrict [IfStatement s (ReadVar "a")
                                (IfStatement s (ReadVar "b")
-                                              (ExprStmt s $ Num 1)
-                                              (Just $ ExprStmt s $ Num 2))
+                                              (ExprStmt s $ INum 1)
+                                              (Just $ ExprStmt s $ INum 2))
                                Nothing]
 
     it "parses a continue statement" $ do
@@ -396,7 +400,7 @@ spec = do
       testParse "function b() { return 3 }" `shouldBe` testParse "function b() { return 3; }"
 
     it "is OK with a semicolon in an if" $ do
-      testParse "if (1) { x = 2; }" `shouldBe` Program NotStrict [IfStatement s (Num 1) (ExprStmt s (Assign (ReadVar "x") "=" (Num 2))) Nothing]
+      testParse "if (1) { x = 2; }" `shouldBe` Program NotStrict [IfStatement s (INum 1) (ExprStmt s (Assign (ReadVar "x") "=" (INum 2))) Nothing]
 
     it "treats semicolons as optional" $ do
       testParse "a()\nb()\n" `shouldBe` testParse "a(); b();"
@@ -406,11 +410,11 @@ spec = do
 
     it "parses a return statement with a value" $ do
       testParse "function f() { return 4 }" `shouldBe`
-        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s $ Just $ Num 4 ] ]
+        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s $ Just $ INum 4 ] ]
 
     it "does not let a return statement break onto a newline" $ do
       testParse "function f() { return\n5\n}" `shouldBe`
-        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s Nothing, ExprStmt s (Num 5) ] ]
+        Program NotStrict [ FunDecl s "f" [] NotStrict $ [ Return s Nothing, ExprStmt s (INum 5) ] ]
 
     it "splits a statement on ++ if on a new line" $ do
       testParse "a=b\n++c" `shouldBe`
@@ -420,8 +424,8 @@ spec = do
   describe "Unicode whitespace" $ do
     describe "Newline characters" $ do
       let expectedParse =
-            Program NotStrict [ ExprStmt s (Num 1),
-                                ExprStmt s (Num 2) ]
+            Program NotStrict [ ExprStmt s (INum 1),
+                                ExprStmt s (INum 2) ]
 
       it "treats \\n as a line break" $
         testParse "1\n2" `shouldBe` expectedParse
@@ -441,15 +445,15 @@ spec = do
     describe "Line number counting" $ do
       it "treats \\n as a newline" $ do
         simpleParse "\n\n1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
 
       it "treats \\n\\r as a newline" $ do
         simpleParse "\r\n\r\n1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
 
       it "treats \\r as a newline" $ do
         simpleParse "\r\r1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (Num 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
 
     it "understands other kinds of whitespace" $ do
       testParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` testParse "1 + 1"
@@ -535,7 +539,7 @@ spec = do
 
       testParse "var \\u0078 = 1" `shouldBe` testParse "var x = 1"
       testParse "var \\u0418 = 1" `shouldBe`
-        Program NotStrict [ VarDecl s [("И", Just $ Num 1)] ]
+        Program NotStrict [ VarDecl s [("И", Just $ INum 1)] ]
 
   describe "Punctuation" $ do
     it "cannot be made of unicode" $ do
@@ -546,11 +550,11 @@ spec = do
       testParse "switch (e) { case 1: a = 2; break; }" `shouldBe`
         Program NotStrict [
           SwitchStatement s (ReadVar "e") $
-            ([ CaseClause (Num 1) [ ExprStmt s (Assign (ReadVar "a") "=" (Num 2)), BreakStatement s Nothing ] ], Nothing, [] ) ]
+            ([ CaseClause (INum 1) [ ExprStmt s (Assign (ReadVar "a") "=" (INum 2)), BreakStatement s Nothing ] ], Nothing, [] ) ]
 
   describe "number parsing" $ do
     it "can parse a decimal int" $ do
-      parseExpr "123" `shouldBe` Num 123
+      parseExpr "123" `shouldBe` INum 123
 
     it "can parse a decimal with a fraction" $ do
       parseExpr "123.456" `shouldBe` Num 123.456
@@ -562,14 +566,14 @@ spec = do
 
     it "can parse a hex number" $ do
       map parseExpr [ "0x2e", "0x2E", "0X2e", "0X2E" ]
-        `shouldBe`  [ Num 46, Num 46, Num 46, Num 46 ]
+        `shouldBe`  [ INum 46, INum 46, INum 46, INum 46 ]
 
     it "does not parse a hex number without any digits" $ do
       unparseable "0x"
       unparseable "0X"
 
     it "can parse an octal number" $ do
-      parseExpr "010" `shouldBe` Num 8
+      parseExpr "010" `shouldBe` INum 8
 
     it "refuses to parse a number in strict mode" $ do
       unparseableInStrictMode "010"

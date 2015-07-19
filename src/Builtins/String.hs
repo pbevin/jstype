@@ -46,7 +46,7 @@ makeStringClass = do
     >>= setCstrMethod strConstructor
     >>= objSetHasInstance funHasInstance
     >>= addMethod "fromCharCode" 1 fromCharCode
-    >>= addOwnConstant "length" (VNum 1)
+    >>= addOwnConstant "length" (VInt 1)
     >>= addOwnConstant "prototype" (VObj stringPrototype)
 
 -- ref 15.5.1.1
@@ -67,7 +67,7 @@ strConstructor this args =
       setClass "String" obj >>= objSetPrototype proto
                             >>= objSetExtensible True
                             >>= objSetPrimitive (VStr str)
-                            >>= addOwnConstant "length" (VNum $ fromIntegral $ length str)
+                            >>= addOwnConstant "length" (VInt $ fromIntegral $ length str)
                             >>= addOwnProperty "constructor" stringObject
                             >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
@@ -94,7 +94,7 @@ charAt = charAtMethod "charAt" (VStr . maybe "" (replicate 1))
 
 -- ref 15.5.4.5
 charCodeAt :: JSFunction
-charCodeAt = charAtMethod "charCodeAt" $ maybe (VNum jsNaN) (VNum . fromIntegral . ord)
+charCodeAt = charAtMethod "charCodeAt" $ maybe (VNum jsNaN) (VInt . fromIntegral . ord)
 
 charAtMethod :: String -> (Maybe Char -> JSVal) -> JSFunction
 charAtMethod name f this args =
@@ -121,7 +121,7 @@ indexOf this args = do
       haystack     = T.drop start (T.pack s)
       (pre, match) = T.breakOn needle haystack
       index        = if match == "" then -1 else start + T.length pre
-  return . VNum . fromIntegral $ index
+  return . VInt . fromIntegral $ index
 
 
 lastIndexOf :: JSFunction
@@ -140,7 +140,7 @@ lastIndexOf this args = do
       haystack     = T.take start (T.pack s)
       (pre, match) = T.breakOnEnd needle haystack
       index        = if pre == "" then -1 else T.length pre - T.length needle
-  return . VNum . fromIntegral $ index
+  return . VInt . fromIntegral $ index
 
 split :: JSFunction
 split _this _args = return VUndef
@@ -195,7 +195,7 @@ replace this args =
           Nothing -> raiseTypeError "Replace value is not a function"
           Just call -> do
             let offset = T.length before
-            result <- call VUndef [VStr $ T.unpack match, VNum (fromIntegral offset), VStr string]
+            result <- call VUndef [VStr $ T.unpack match, VInt (fromIntegral offset), VStr string]
             replacement <- toString result
             return . VStr . T.unpack $ T.concat [before, T.pack replacement, after]
 
@@ -216,7 +216,7 @@ search this args = do
   view objPrimitiveValue <$> (deref o) >>= \case
     Just (VRegExp p _f) -> do
       let (offset, _) = string =~ p :: (MatchOffset, MatchLength)
-      return (VNum . fromIntegral $ offset)
+      return (VInt . fromIntegral $ offset)
     _ -> raiseSyntaxError "No regexp found"
 
 

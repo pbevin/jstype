@@ -162,8 +162,7 @@ objDefaultValue hint objRef = case hint of
           mm <- view callMethod <$> deref mRef
           case mm of
             Nothing -> return Nothing
-            Just f -> do
-              Just <$> f (VObj objRef) []
+            Just f  -> Just <$> f (VObj objRef) []
         _ -> return Nothing
 
 
@@ -367,6 +366,7 @@ assertType :: JSType -> JSVal -> Runtime ()
 assertType TypeBoolean (VBool _) = return ()
 assertType TypeString  (VStr _)  = return ()
 assertType TypeNumber  (VNum _)  = return ()
+assertType TypeNumber  (VInt _)  = return ()
 assertType ty (VObj obj) = do
   cls <- view objClass <$> deref obj
   case (ty, cls) of

@@ -35,7 +35,7 @@ instance Adaptable Double where
   adapt d _ _ = return $ VNum d
 
 instance Adaptable Int where
-  adapt n _ _ = return . VNum $ fromIntegral n
+  adapt n _ _ = return . VInt $ fromIntegral n
 
 instance Adaptable JSVal where
   adapt v _ _ = return v

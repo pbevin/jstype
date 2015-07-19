@@ -12,15 +12,15 @@ spec = do
     let a = VStr "a"
 
     it "has the right length" $ do
-      arrayLength [] `shouldReturnResult` VNum 0
+      arrayLength [] `shouldReturnResult` VInt 0
     it "has the right length" $ do
-      arrayLength [Just (VStr "a")] `shouldReturnResult` VNum 1
+      arrayLength [Just (VStr "a")] `shouldReturnResult` VInt 1
     it "has the right length" $ do
-      arrayLength [Nothing] `shouldReturnResult` VNum 1
+      arrayLength [Nothing] `shouldReturnResult` VInt 1
     it "has the right length" $ do
-      arrayLength [Nothing, Nothing] `shouldReturnResult` VNum 2
+      arrayLength [Nothing, Nothing] `shouldReturnResult` VInt 2
     it "has the right length" $ do
-      arrayLength [Just a, Nothing, Nothing] `shouldReturnResult` VNum 3
+      arrayLength [Just a, Nothing, Nothing] `shouldReturnResult` VInt 3
 
   describe "Object.prototype" $ do
     it "is the global object prototype" $ runjs $ do

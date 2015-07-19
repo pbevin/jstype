@@ -13,7 +13,7 @@ import Runtime.Object
 import Runtime.NumberToString
 import Runtime.PropertyDescriptor
 import Runtime.Shared
-import Parse
+import Parse (parseNumber, parseNum)
 
 
 -- ref 9.1, incomplete
@@ -28,6 +28,7 @@ toBoolean VUndef    = False
 toBoolean VNull     = False
 toBoolean (VBool b) = b
 toBoolean (VNum n)  = n /= 0 && not (isNaN n)
+toBoolean (VInt n)  = n /= 0
 toBoolean (VStr "") = False
 toBoolean _         = True
 
@@ -37,15 +38,32 @@ toNumber VUndef     = return jsNaN
 toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
 toNumber (VNum n)   = return n
+toNumber (VInt n)   = return $ fromIntegral n
 toNumber (VStr s)   = return $ strToNumber s
 toNumber v@(VObj _) = toPrimitive HintNumber v >>= toNumber
 toNumber _ = return 7
+
+toNum :: JSVal -> Runtime JSVal
+toNum val = case val of
+  VNum _  -> return val
+  VInt _  -> return val
+  VBool b -> return . VInt $ if b then 1 else 0
+  VStr s  -> return (strToNum s)
+  _       -> VNum <$> toNumber val
 
 strToNumber :: String -> JSNum
 strToNumber str = case str of
   "Infinity"  -> jsInf
   "-Infinity" -> negate jsInf
   _           -> parseNumber str
+
+strToNum :: String -> JSVal
+strToNum str = case str of
+  "Infinity"  -> VNum jsInf
+  "-Infinity" -> VNum (negate jsInf)
+  _           -> case parseNum str of
+                   Left  int -> VInt int
+                   Right dbl -> VNum dbl
 
 isString :: JSVal -> Bool
 isString (VStr _) = True
@@ -54,6 +72,7 @@ isString _ = False
 showVal :: JSVal -> String
 showVal (VStr s) = s
 showVal (VNum n) = numberToString n
+showVal (VInt n) = show n
 showVal (VBool a) = if a then "true" else "false"
 showVal (VRef ref) = "(reference " ++ show ref ++ ")"
 showVal VUndef = "undefined"
@@ -102,6 +121,7 @@ toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
 toString (VNum n)  = return $ numberToString n
+toString (VInt n)  = return $ show n
 toString v@(VObj _) = toPrimitive HintString v >>= toString
 toString (VStacktrace st) = return $ unlines (map show st)
 toString other = return $ show other
@@ -122,6 +142,7 @@ toObject val = case val of
   VStr _        -> wrapPrimitive "String" val
   VBool _       -> wrapPrimitive "Boolean" val
   VNum _        -> wrapPrimitive "Number" val
+  VInt _        -> wrapPrimitive "Number" val
   VNative n l f -> wrapNative n l f
   VNull         -> raiseProtoError TypeError "null has no properties"
   VUndef        -> raiseProtoError TypeError "undefined has no properties"
@@ -140,7 +161,7 @@ wrapNative :: String -> Int -> JSFunction -> Runtime (Shared JSObj)
 wrapNative name len f = do
   funPrototype <- objFindPrototype "Function"
   newObject
-    >>= addOwnPropDesc "length" (dataPD (VNum $ fromIntegral len) True True True)
+    >>= addOwnPropDesc "length" (dataPD (VInt $ fromIntegral len) True True True)
     >>= addOwnProperty "call" (VNative name len $ nativeCall f)
 
 nativeCall :: JSFunction -> JSFunction

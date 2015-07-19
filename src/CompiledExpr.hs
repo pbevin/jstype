@@ -17,6 +17,9 @@ data OpCode = OpConst JSVal   -- push constant
             | OpDup           -- duplicate TOS
             | OpSwap          -- swap top 2 items on stack
             | OpRoll3         -- move TOS down 2
+            | OpAdd           -- ...e2 e1 -> ...(e1+e2)
+            | OpSub           -- ...e2 e1 -> ...(e1-e2)
+            | OpMul           -- ...e2 e1 -> ...(e1*e2)
             | OpBinary Ident  -- binary op on top 2
             | OpUnary Ident   -- unary op on TOS
             | OpModify Ident  -- modify TOS reference & eat it
