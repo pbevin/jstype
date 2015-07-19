@@ -246,8 +246,7 @@ data JSGlobal = JSGlobal {
 }
 
 data Store = Store {
-  _storeNextID :: Int,
-  _valueStack :: [JSVal]
+  _storeNextID :: Int
 }
 
 raiseError :: String -> Runtime a

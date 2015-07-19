@@ -93,7 +93,7 @@ initialState = do
   (pro, obj, env) <- createInitialSharedObjects
 
   let globals   = JSGlobal obj pro [] evalCode runCode env cxt
-      store     = Store 4 []
+      store     = Store 4
 
       cxt       = JSCxt env env (VObj obj) NotStrict
 

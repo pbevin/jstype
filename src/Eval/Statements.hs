@@ -320,17 +320,7 @@ runCoreForIn lhs e stmt cont = do
         else keepGoing obj ps v cont
 
 runExprStmt :: CompiledExpr -> Runtime JSVal
-runExprStmt e = withEmptyStack $ evalExpr e
-
-withEmptyStack :: Runtime JSVal -> Runtime JSVal
-withEmptyStack action = do
-  oldStack <- use valueStack
-  valueStack .= []
-  result <- action
-  stack <- use valueStack
-  valueStack .= oldStack
-  return result
-
+runExprStmt = evalExpr
 
 createNewEnv :: EnvRec -> JSEnv -> Runtime (Shared LexEnv)
 createNewEnv rec parent = do

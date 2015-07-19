@@ -12,16 +12,6 @@ import Expr
 type Stack = [JSVal]
 type OpCodeHandler a = Stack -> (Stack -> Runtime a) -> Runtime a
 
-debugOp :: CompiledExpr -> Runtime () -> Runtime ()
-debugOp code action = do
-  stack <- use valueStack
-  debug code
-  debug ("before", stack)
-  v <- action
-  stack' <- use valueStack
-  debug ("after", stack')
-  return v
-
 -- Missed pattern match for [v] means we have a compiler bug!
 evalExpr :: CompiledExpr -> Runtime JSVal
 evalExpr code = runOpCode code [] (\[v] -> return v)
@@ -293,6 +283,3 @@ pop []     = raiseError "Stack underflow"
 frob :: (JSVal -> JSVal) -> OpCodeHandler a
 frob f [] cont = cont []
 frob f (x:xs) cont = cont (f x : xs)
-
-topOfStack :: Runtime JSVal
-topOfStack = head <$> use valueStack
