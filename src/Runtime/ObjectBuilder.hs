@@ -8,7 +8,6 @@ import Data.Maybe
 import Runtime.Types
 import Runtime.Shared
 import Runtime.PropertyDescriptor
-import Runtime.Adaptable
 import Runtime.Function
 import Runtime.Object
 
@@ -44,16 +43,8 @@ property name val = modify $ objSetProperty name val
 descriptor :: PropertyName -> PropDesc JSVal -> Builder ()
 descriptor name desc = modify $ objSetPropertyDescriptor name desc
 
-constant :: Adaptable a => PropertyName -> a -> Builder ()
-constant name val = do
-  v <- liftR $ adapt val VUndef []
-  descriptor name (dataPD v False False False)
-
 method :: PropertyName -> Int -> JSFunction -> Builder ()
 method name arity fn = property name (VNative name arity fn)
-
-native :: Adaptable a => PropertyName -> Int -> a -> Builder ()
-native name arity f = liftR (return $ adapt f) >>= method name arity
 
 isFunctionObject :: Builder ()
 isFunctionObject = do

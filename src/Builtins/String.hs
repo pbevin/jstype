@@ -14,28 +14,29 @@ import Safe
 import Runtime
 import Parse
 import Builtins.RegExp
+import Polyvariadic
 
 
 makeStringClass :: Runtime (Shared JSObj)
 makeStringClass = do
-  stringPrototype <- newObject
-    >>= setClass "String"
-    >>= addMethod "constructor"  1 strConstructor
-    >>= addMethod "toString"     0 stringToString
-    >>= addMethod "valueOf"      0 stringValueOf
-    >>= addMethod "charAt"       1 charAt
-    >>= addMethod "charCodeAt"   1 charCodeAt
-    >>= addMethod "indexOf"      1 indexOf
-    >>= addMethod "lastIndexOf"  1 lastIndexOf
-    >>= addMethod "split"        2 split
-    >>= addMethod "substring"    2 substring
-    >>= addMethod "toLocaleLowerCase"  0 toLowerCase
-    >>= addMethod "toLocaleUpperCase"  0 toUpperCase
-    >>= addMethod "toLowerCase"  0 toLowerCase
-    >>= addMethod "toUpperCase"  0 toUpperCase
-    >>= addMethod "replace"      2 replace
-    >>= addMethod "search"       1 search
-    >>= addMethod "trim"         0 trim
+  stringPrototype <- mkObject $ do
+    className "String"
+    method "constructor"  1 strConstructor
+    method "toString"     0 stringToString
+    method "valueOf"      0 stringValueOf
+    method "charAt"       1 charAt
+    method "charCodeAt"   1 charCodeAt
+    method "indexOf"      1 indexOf
+    method "lastIndexOf"  1 lastIndexOf
+    method "substring"    2 substring
+    method "toLocaleLowerCase"  0 toLowerCase
+    method "toLocaleUpperCase"  0 toUpperCase
+    method "toLowerCase"  0 toLowerCase
+    method "toUpperCase"  0 toUpperCase
+    method "replace"      2 replace
+    method "search"       1 search
+    method "trim"         0 trim
+    native "split"        2 split
 
   functionPrototype <- objFindPrototype "Function"
 
@@ -142,8 +143,8 @@ lastIndexOf this args = do
       index        = if pre == "" then -1 else T.length pre - T.length needle
   return . VInt . fromIntegral $ index
 
-split :: JSFunction
-split _this _args = return VUndef
+split :: Text -> Maybe Text -> Maybe Int -> [Text]
+split str (Just sep) Nothing = T.splitOn sep str
 
 substring :: JSFunction
 substring _this _args = return VUndef

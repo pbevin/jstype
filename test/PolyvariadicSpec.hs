@@ -1,12 +1,9 @@
-module Runtime.AdaptableSpec where
+module PolyvariadicSpec where
 
 import Test.Hspec
 import Expectations
 import Runtime
-
-
-
-
+import Polyvariadic
 
 sq :: Double -> Double
 sq x = x*x
@@ -21,13 +18,13 @@ strlen = length
 spec :: Spec
 spec = do
   it "can run a function of 1 arg and no `this`" $ do
-    let f = adapt sq
-    run (f VUndef [VNum 3]) `shouldReturn` VNum 9
+    let f = papply sq
+    run (f [VNum 3]) `shouldReturn` VNum 9
 
   it "can run a function of 2 args and no `this`" $ do
-    let f = adapt hyp
-    run (f VUndef [VNum 3, VNum 4]) `shouldReturn` VNum 5
+    let f = papply hyp
+    run (f [VNum 3, VNum 4]) `shouldReturn` VNum 5
 
   it "can run a String->Int function" $ do
-    let f = adapt strlen
-    run (f VUndef [VStr "hello world"]) `shouldReturn` VInt 11
+    let f = papply strlen
+    run (f [VStr "hello world"]) `shouldReturn` VInt 11

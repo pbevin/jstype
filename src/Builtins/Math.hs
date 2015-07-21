@@ -3,6 +3,7 @@ module Builtins.Math where
 import Control.Monad (liftM)
 import Control.Arrow
 import Runtime
+import Polyvariadic
 
 
 mathObject :: Runtime (Shared JSObj)
@@ -18,16 +19,16 @@ mathObject = mkObject $ do
   constant "LOG10E"  $ (1 / log 10  :: Double)
   constant "LOG2E"   $ (1 / log 2   :: Double)
 
-  native "abs"    1 (abs  :: Double -> Double)
-  native "log"    1 (log  :: Double -> Double)
-  native "exp"    1 (exp  :: Double -> Double)
-  native "sin"    1 (sin  :: Double -> Double)
-  native "cos"    1 (cos  :: Double -> Double)
-  native "tan"    1 (tan  :: Double -> Double)
-  native "asin"   1 (asin :: Double -> Double)
-  native "acos"   1 (acos :: Double -> Double)
-  native "atan"   1 (atan :: Double -> Double)
-  native "sqrt"   1 (sqrt :: Double -> Double)
+  static "abs"    1 (abs  :: Double -> Double)
+  static "log"    1 (log  :: Double -> Double)
+  static "exp"    1 (exp  :: Double -> Double)
+  static "sin"    1 (sin  :: Double -> Double)
+  static "cos"    1 (cos  :: Double -> Double)
+  static "tan"    1 (tan  :: Double -> Double)
+  static "asin"   1 (asin :: Double -> Double)
+  static "acos"   1 (acos :: Double -> Double)
+  static "atan"   1 (atan :: Double -> Double)
+  static "sqrt"   1 (sqrt :: Double -> Double)
 
   method "ceil"   1 (roundish ceiling)
   method "round"  1 (roundish jsRound)

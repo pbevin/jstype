@@ -59,3 +59,10 @@ spec = do
 
     it "returns -1 if it does not find a match" $ do
       jsEvalExpr "'abcabc'.lastIndexOf('x')" `shouldReturn` VInt (-1)
+
+  describe "String.prototype.split" $ do
+    it "can split a string on comma" $ do
+      jsEvalExpr "'a,b,c'.split(',').length" `shouldReturn` VInt 3
+      jsEvalExpr "'a,b,c'.split(',')[0]" `shouldReturn` VStr "a"
+      jsEvalExpr "'a,b,c'.split(',')[1]" `shouldReturn` VStr "b"
+      jsEvalExpr "'a,b,c'.split(',')[2]" `shouldReturn` VStr "c"

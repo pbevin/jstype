@@ -16,7 +16,6 @@ import Safe
 
 import Runtime.Reference as X
 import Runtime.Types as X
-import Runtime.Adaptable as X
 import Runtime.Object as X
 import Runtime.Operations as X
 import Runtime.Conversion as X

@@ -5,6 +5,7 @@ import Control.Arrow
 import Text.Printf
 import Safe
 import Runtime
+import Polyvariadic
 import Builtins.Array
 import Builtins.String
 import Builtins.Boolean
@@ -58,12 +59,12 @@ configureBuiltins = do
     method   "eval"                1 (objEval IndirectEvalCall)
     method   "isNaN"               1 objIsNaN
     method   "isFinite"            1 objIsFinite
-    native   "parseInt"            2 parseInt
-    native   "parseFloat"          1 parseFloat
-    native   "decodeURI"           1 decodeURI
-    native   "decodeURIComponent"  1 decodeURIComponent
-    native   "encodeURI"           1 encodeURI
-    native   "encodeURIComponent"  1 encodeURIComponent
+    static   "parseInt"            2 parseInt
+    static   "parseFloat"          1 parseFloat
+    static   "decodeURI"           1 decodeURI
+    static   "decodeURIComponent"  1 decodeURIComponent
+    static   "encodeURI"           1 encodeURI
+    static   "encodeURIComponent"  1 encodeURIComponent
 
     property "console"        ( VObj console        )
     property "String"         ( VObj string         )
