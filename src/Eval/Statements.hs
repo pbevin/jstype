@@ -171,8 +171,13 @@ runCoreBlock body cont = runAll Nothing body
   where
     runAll :: Maybe JSVal -> [CoreStatement] -> Runtime StmtReturn
     runAll v [] = nor cont v
-    runAll _ (s:rest) = do
-      runS s $ cont { nor = \v -> runAll v rest }
+    runAll v (s:rest) = runS s cont'
+      where
+        cont' = cont { nor = \v' -> runAll (v' <|> v) rest,
+                       brk = \v' l -> brk cont (v' <|> v) l,
+                       con = \v' l -> con cont (v' <|> v) l,
+                       ret = \v'   -> ret cont (v' <|> v),
+                       thr = \v'   -> thr cont (v' <|> v) }
 
 runCoreExpr :: CompiledExpr -> StatementAction
 runCoreExpr e cont = do

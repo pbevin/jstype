@@ -308,6 +308,9 @@ spec = do
     runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
       `shouldReturn` Right "3\n2\n1\n"
 
+  it "returns a value from a do-while loop in eval" $ do
+    jsEvalExpr "eval('do {a=1; break; b=2;} while(0)')" `shouldReturn` VInt 1
+
   it "can break out of an outer loop" $ do
     runJStr "var x = 1; L1: do { L2: do { x++; break L1; x++ } while (0); x++; } while (0); console.log(x);"
       `shouldReturn` Right "2\n"
