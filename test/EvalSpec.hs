@@ -290,6 +290,20 @@ spec = do
     runJStr "for (i=0; i<5; i++) { if(i%2==1)continue; console.log(i) }"
       `shouldReturn` Right "0\n2\n4\n"
 
+  it "can continue with a label" $ do
+    -- test S12.6.3_A11.1_T2
+    let prog = unlines [
+                 " __str=''; ",
+                 " outer: for (var i = 0; i < 4; i++) { ",
+                 "   for(var j = 0; j <= i; j++) { ",
+                 "     if (i*j == 6) continue outer; ",
+                 "     __str += ' ' + i + j; ",
+                 "   }  ",
+                 " } ",
+                 " console.log(__str); "
+               ]
+    runJStr prog `shouldReturn` Right " 00 10 11 20 21 22 30 31\n"
+
   it "runs do-while loops" $ do
     runJStr "var t = 3; do { console.log(t--) } while (t > 0);"
       `shouldReturn` Right "3\n2\n1\n"

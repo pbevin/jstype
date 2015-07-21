@@ -143,7 +143,7 @@ coreAction stmt = case stmt of
       CoreBlock body                 -> {-# SCC coreBlock #-}  runCoreBlock   body
       CoreExpr _loc e                -> {-# SCC coreExpr #-}   runCoreExpr    e
       CoreIf _loc e ifThen ifElse    -> {-# SCC coreIf #-}     runCoreIf      e ifThen ifElse
-      CoreLoop _loc test inc body e2 -> {-# SCC coreLoop #-}   runCoreLoop    test inc body e2
+      CoreLoop loc test inc body e2  -> {-# SCC coreLoop #-}   runCoreLoop    (srcLabel loc) test inc body e2
       CoreForIn _loc e1 e2 body      -> {-# SCC coreLoop #-}   runCoreForIn   e1 e2 body
       CoreBreak _loc lab             -> {-# SCC coreBreak #-}  runCoreBreak   lab
       CoreCont _loc lab              -> {-# SCC coreCont #-}   runCoreCont    lab
@@ -187,26 +187,34 @@ runCoreIf e ifThen ifElse cont = do
     (False, Just s)  -> runS s cont
     (False, Nothing) -> nor cont Nothing
 
-runCoreLoop :: CompiledExpr -> CompiledExpr -> CoreStatement -> CompiledExpr -> StatementAction
-runCoreLoop test inc body postTest cont = keepGoing Nothing where
-  condition = toBoolean <$> (runExprStmt test >>= getValue)
-  increment = runExprStmt inc >>= getValue
-  keepGoing v = do
-    willEval <- condition
-    if not willEval
-    then nor cont v
-    else {-# SCC loop_body #-} runS body cont { nor = nor', brk = brk', con = con' }
-      where nor' v' = increment >> next (v' <|> v)
-            brk' v' (Just l) = ifCurrentLabel l (brk cont (v' <|> v) (Just l)) (brk' v' Nothing)
-            brk' v' Nothing  = nor cont (v' <|> v)
-            con' v' (Just l) = ifCurrentLabel l (nor' v') (con cont (v' <|> v) (Just l))
-            con' v' Nothing  = nor' v'
+runCoreLoop :: [Label] -> CompiledExpr -> CompiledExpr -> CoreStatement -> CompiledExpr -> StatementAction
+runCoreLoop labelSet test inc body postTest cont = do
+  keepGoing labelSet Nothing where
+    condition = toBoolean <$> (runExprStmt test >>= getValue)
+    increment = runExprStmt inc >>= getValue
+    keepGoing labelSet v = do
+      willEval <- condition
+      if not willEval
+      then nor cont v
+      else {-# SCC loop_body #-} runS body cont { nor = nor', brk = brk', con = con' }
+        where nor' v' = nextIter v'
+              brk' v' (Just l) = if l `elem` labelSet
+                                 then breakOut v'
+                                 else brk cont (v' <|> v) (Just l)
+              brk' v' Nothing  = breakOut v'
+              con' v' (Just l) = if l `elem` labelSet
+                                 then nextIter v'
+                                 else con cont (v' <|> v) (Just l)
+              con' v' Nothing  = nextIter v'
 
-  next v = do
-    shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
-    if shouldContinue
-    then keepGoing v
-    else return $ CTNormal v
+              nextIter v' = increment >> next labelSet (v' <|> v)
+              breakOut v' = nor cont (v' <|> v)
+
+    next labelSet v = do
+      shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
+      if shouldContinue
+      then keepGoing labelSet v
+      else nor cont v
 
 runCoreBreak :: Maybe Label -> StatementAction
 runCoreBreak label cont = brk cont Nothing label
@@ -252,7 +260,7 @@ runCoreCase scrutinee cases cont =
 
 runCoreLabel :: Label -> CoreStatement -> StatementAction
 runCoreLabel lab body cont =
-  pushLabel lab $ runS body $ cont { brk = brk' }
+  runS body $ cont { brk = brk' }
     where brk' v l = if l == Just lab
                      then nor cont v
                      else brk cont v l

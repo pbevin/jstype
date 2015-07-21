@@ -238,7 +238,6 @@ exit = throwError EarlyExit
 data JSGlobal = JSGlobal {
   globalObject          :: Shared JSObj,
   globalObjectPrototype :: Shared JSObj,
-  _globalLabelStack     :: [Label],
   globalEvaluator       :: EvalCallType -> String -> Runtime JSVal,
   globalRun             :: [Statement] -> Runtime (Either JSVal JSVal),
   globalEnvironment     :: Shared LexEnv,

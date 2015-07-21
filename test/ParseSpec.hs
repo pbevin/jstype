@@ -10,7 +10,7 @@ import Parse
 import Eval
 
 s :: SrcLoc
-s = SrcLoc "" 0 0 Nothing
+s = SrcLoc "" 0 0 Nothing []
 
 testParseStrict :: String -> Program
 testParseStrict input = eraseSrcLoc prog
@@ -348,6 +348,7 @@ spec = do
         Program NotStrict [LabelledStatement s "retry" $
                   WhileStatement s (Boolean False) $
                     ContinueStatement s $ Just "retry"]
+
     it "can break a line before a continue semicolon" $ do
       testParse "while (false) { continue\n; }" `shouldBe`
         Program NotStrict [WhileStatement s (Boolean False) $
@@ -373,6 +374,15 @@ spec = do
       testParse "xyz: f()" `shouldBe`
         Program NotStrict [ LabelledStatement s "xyz" $
                    ExprStmt s $ FunCall (ReadVar "f")[] ]
+
+    it "keeps track of current labels" $ do
+      simpleParse "xyz: while (1) { abc: while (1) { } }" `shouldBe`
+        Program NotStrict [
+          LabelledStatement (SrcLoc "" 1 1 Nothing []) "xyz" $
+            WhileStatement (SrcLoc "" 1 12 Nothing ["xyz"]) (INum 1) $
+              LabelledStatement (SrcLoc "" 1 18 Nothing []) "abc" $
+                WhileStatement (SrcLoc "" 1 29 Nothing ["abc"]) (INum 1) $
+                  Block (SrcLoc "" 1 33 Nothing []) [] ]
 
     it "parses a new object" $ do
       testParse "new X()" `shouldBe`
@@ -445,15 +455,15 @@ spec = do
     describe "Line number counting" $ do
       it "treats \\n as a newline" $ do
         simpleParse "\n\n1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing []) (INum 1) ]
 
       it "treats \\n\\r as a newline" $ do
         simpleParse "\r\n\r\n1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing []) (INum 1) ]
 
       it "treats \\r as a newline" $ do
         simpleParse "\r\r1" `shouldBe`
-          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing) (INum 1) ]
+          Program NotStrict [ ExprStmt (SrcLoc "" 3 1 Nothing []) (INum 1) ]
 
     it "understands other kinds of whitespace" $ do
       testParse "1\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029+\x0009\x000B\x000C\x0020\x00A0\x000A\x000D\x2028\x2029\&1" `shouldBe` testParse "1 + 1"

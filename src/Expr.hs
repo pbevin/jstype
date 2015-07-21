@@ -9,11 +9,11 @@ data SrcLoc = SrcLoc {
   srcFilename :: String,
   srcLine :: Int,
   srcColumn :: Int,
-  srcContext :: Maybe String
-} deriving (Eq, Ord)
+  srcContext :: Maybe String,
+  srcLabel :: [String]
+} deriving (Eq, Ord, Show)
 
-instance Show SrcLoc where
-  show (SrcLoc file line col cxt) = "at " ++ file ++ ":" ++ show line ++ ":" ++ show col ++ maybe "" (" in " ++) cxt
+showSrcLoc (SrcLoc file line col cxt _) = "at " ++ file ++ ":" ++ show line ++ ":" ++ show col ++ maybe "" (" in " ++) cxt
 
 type Ident = String
 type Label = String

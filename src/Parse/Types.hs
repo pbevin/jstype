@@ -11,5 +11,6 @@ data ParseState = ParseState {
   insideDirectivePrologue :: Bool,
   strictnessState :: Strictness,
   labelSet :: [String],
+  immediateLabelSet :: [String],
   contextDescription :: Maybe String } deriving Show
 type JSParser = Parsec String ParseState

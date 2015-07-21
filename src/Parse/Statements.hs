@@ -57,7 +57,10 @@ terminated p = do
   return result
 
 statement :: JSParser Statement
-statement = choice [ block <?> "block",
+statement = clearCurrentLabelSet parseStmt
+
+parseStmt :: JSParser Statement
+parseStmt = choice [ block <?> "block",
                      funDecl <?> "function declaration",
                      labelledStmt <?> "label",
                      terminated exprStmt <?> "expression",
@@ -111,7 +114,7 @@ labelledStmt = do
     lab <- identifier
     tok ":"
     return (loc, lab)
-  LabelledStatement loc lab <$> withLabel lab statement
+  LabelledStatement loc lab <$> withLabel lab parseStmt
 
 varDecl :: JSParser Statement
 varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma) <?> "variable declaration"
@@ -269,7 +272,8 @@ srcLoc :: JSParser SrcLoc
 srcLoc = do
   pos <- getPosition
   cxt <- currentContext
-  return $ SrcLoc (sourceName pos) (sourceLine pos) (sourceColumn pos) cxt
+  lab <- currentLabelSet
+  return $ SrcLoc (sourceName pos) (sourceLine pos) (sourceColumn pos) cxt lab
 
 
 

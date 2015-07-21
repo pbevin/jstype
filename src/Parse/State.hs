@@ -21,6 +21,7 @@ initialParseState strict inFunction =
                insideDirectivePrologue = False,
                strictnessState = strict,
                labelSet = [],
+               immediateLabelSet = [],
                contextDescription = Nothing }
 
 removeIn :: [String] -> JSParser [String]
@@ -32,7 +33,7 @@ removeIn ops = do
 
 withLabel :: Label -> JSParser a -> JSParser a
 withLabel label = recurseState addLabel
-  where addLabel st = st { labelSet = label : labelSet st }
+  where addLabel st = st { labelSet = label : labelSet st, immediateLabelSet = label : immediateLabelSet st }
 
 withStrictness :: Strictness -> JSParser a -> JSParser a
 withStrictness isStrict = recurseState $ \st -> st { strictnessState = isStrict }
@@ -89,6 +90,13 @@ fromLabelSet p = do
   then return label
   else fail "Can't break or continue outside current label set"
 
+clearCurrentLabelSet :: JSParser a -> JSParser a
+clearCurrentLabelSet = recurseState $ \st -> st { immediateLabelSet = [] }
+
+
+
+currentLabelSet :: JSParser [String]
+currentLabelSet = immediateLabelSet <$> getState
 
 currentContext :: JSParser (Maybe String)
 currentContext = contextDescription <$> getState

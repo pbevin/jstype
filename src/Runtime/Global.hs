@@ -54,13 +54,3 @@ withStrictness strictness = withGlobalContext $ \cxt -> cxt { cxtStrictness = st
 
 withLexEnv :: JSEnv -> Runtime a -> Runtime a
 withLexEnv env = withGlobalContext $ \cxt -> cxt { lexEnv = env }
-
-pushLabel :: Label -> Runtime a -> Runtime a
-pushLabel label action = local (over globalLabelStack (label:)) action
-
-ifCurrentLabel :: Label -> Runtime a -> Runtime a -> Runtime a
-ifCurrentLabel label onStack notOnStack = do
-  stack <- view globalLabelStack <$> ask
-  if label `elem` stack
-  then onStack
-  else notOnStack
