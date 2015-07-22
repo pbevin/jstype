@@ -9,7 +9,7 @@ import Control.Monad.Writer
 import Control.Applicative
 import Control.Arrow
 import Data.Maybe
-import Data.List (intercalate)
+import Data.List (intercalate, nub)
 import Data.Bits
 import Data.Foldable
 import Text.Show.Functions
@@ -312,12 +312,12 @@ runCoreForIn lhs e stmt cont = do
   then nor cont Nothing
   else do
     obj <- toObject exprValue
-    keys <- propMapKeys . view ownProperties <$> deref obj
+    keys <- nub <$> recursivelyFindKeys obj
     keepGoing obj keys Nothing cont where
       keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> StatementAction
       keepGoing _ [] v cont = nor cont v
       keepGoing obj (p:ps) v cont = do
-        desc <- objGetOwnProperty p obj
+        desc <- objGetProperty p obj
         let want = maybe False propIsEnumerable desc
         if want
         then do
@@ -331,6 +331,16 @@ runCoreForIn lhs e stmt cont = do
             CTNormal _     -> keepGoing obj ps nextv cont
             _ -> sadapt (return s) cont
         else keepGoing obj ps v cont
+
+    -- propMapKeys . view ownProperties <$> deref obj
+
+recursivelyFindKeys :: Shared JSObj -> Runtime [String]
+recursivelyFindKeys obj = do
+  myKeys <- propMapKeys . view ownProperties <$> deref obj
+  proto <- view objPrototype <$> deref obj
+  case proto of
+    Nothing -> return myKeys
+    Just p  -> (myKeys ++) <$> recursivelyFindKeys p
 
 runExprStmt :: CompiledExpr -> Runtime JSVal
 runExprStmt = evalExpr
