@@ -6,13 +6,15 @@ import Control.Lens
 import Control.Monad.Except
 import Text.Regex.Posix
 import Runtime
+import Polyvariadic
 
 makeRegExpClass :: Runtime (Shared JSObj)
 makeRegExpClass = do
   regExpPrototype <- makePrototype "RegExp"
-    >>= addMethod      "exec"        1 regExpExec
-    >>= addMethod      "test"        1 regExpTest
-    >>= addMethod      "toString"    0 regExpToString
+  updateObject regExpPrototype $ do
+    method "exec"     1 regExpExec
+    method "toString" 0 regExpToString
+    native "test"     1 regExpTest
 
   functionPrototype <- findPrototypeForClass "Function"
 
@@ -93,9 +95,8 @@ makeRE pattern flags = do
   return (p, parseFlags f)
 
 
-regExpExec, regExpTest, regExpToString :: JSFunction
+regExpExec, regExpToString :: JSFunction
 regExpExec _ _ = return VNull
-regExpTest = error "regExpTest"
 regExpToString this _args = do
   VRegExp p f <- getPrimitiveRegex this
   return . VStr $ "/" ++ p ++ "/" ++ f
@@ -109,6 +110,8 @@ getPrimitiveRegex v =
         _                  -> raiseTypeError "Not a regexp"
     _ -> raiseTypeError "Not a regexp"
 
+regExpTest :: JSVal -> String -> Bool
+regExpTest this string = True
 
 
 

@@ -46,11 +46,18 @@ instance (Polyvariadic a) => Polyvariadic (Maybe String -> a) where
   papply f (d : args) = do a <- Just <$> toString d
                            papply (f a) args
 
+instance (Polyvariadic a) => Polyvariadic (JSVal -> a) where
+  papply f []         = papply (f VUndef) []
+  papply f (a : args) = do papply (f a) args
+
 instance Polyvariadic Double where
   papply d _ = return $ VNum d
 
 instance Polyvariadic Int where
   papply n _ = return . VInt $ fromIntegral n
+
+instance Polyvariadic Bool where
+  papply b _ = return $ VBool b
 
 instance Polyvariadic JSVal where
   papply v _ = return v
