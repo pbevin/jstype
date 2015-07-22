@@ -347,7 +347,7 @@ callExpr p = do
     where
       addons :: Expr -> JSParser Expr
       addons base = (parens argumentList >>= \args -> addons $ FunCall base args)
-                <|> ((char '.' >> identifier) >>= \name -> addons $ MemberDot base name)
+                <|> ((tok "." >> identifier) >>= \name -> addons $ MemberDot base name)
                 <|> (brackets expr >>= \e -> addons $ MemberGet base e)
                 <|> return base
 

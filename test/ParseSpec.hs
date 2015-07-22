@@ -256,6 +256,9 @@ spec = do
     it "allows keywords after a dot" $ do
       parseExpr "a.in" `shouldBe` MemberDot (ReadVar "a") "in"
 
+    it "allows spaces after a dot" $ do
+      parseExpr "f(). b" `shouldBe` MemberDot (FunCall (ReadVar "f") []) "b"
+
 
     it "parses a []" $ do
       parseExpr "a[\"b\"]" `shouldBe` MemberGet (ReadVar "a") (Str "b")
