@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.RegExpSpec where
 
 import Test.Hspec

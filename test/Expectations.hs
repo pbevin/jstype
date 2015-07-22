@@ -6,6 +6,8 @@ import Control.Monad.Trans (liftIO)
 import Control.Monad.Except
 import Test.Hspec
 import Data.List (isPrefixOf)
+import qualified Data.Text as T
+import Data.Text (Text)
 import Runtime
 import Eval
 
@@ -39,7 +41,7 @@ shouldValue val expected = val >>= \case
   Left err -> expectationFailure $ "raised an error (" ++ show err ++ ")"
   Right v  -> v `shouldBe` expected
 
-runJStr :: String -> IO (Either RuntimeError String)
+runJStr :: Text -> IO (Either RuntimeError String)
 runJStr str = runJS "" str >>= \case
   Left (_, err) -> return $ Left err
   Right out     -> return $ Right out
@@ -55,7 +57,7 @@ arrayLength xs = runtime' $ do
 runjs :: Runtime a -> IO ()
 runjs a = runtime a >> return ()
 
-jsEval :: String -> Runtime JSVal
+jsEval :: Text -> Runtime JSVal
 jsEval = liftIO . jsEvalExpr
 
 run :: Runtime a -> IO a
@@ -64,7 +66,7 @@ run a = runtime a >>= \(Right r) -> return r
 handleException :: JSError -> Runtime a
 handleException err = exceptionToVal id err >>= stringifyException >>= throwError
 
-evalE :: String -> IO (Either RuntimeError (Maybe JSVal))
+evalE :: Text -> IO (Either RuntimeError (Maybe JSVal))
 evalE str = evalJS "" str
 
 runE :: Runtime a -> IO (Either RuntimeError a)

@@ -12,6 +12,7 @@ import Data.Maybe
 import Data.List (intercalate, nub)
 import Data.Bits
 import Data.Foldable
+import qualified Data.Text as T
 import Text.Show.Functions
 import Eval.Expressions
 import Compiler
@@ -35,11 +36,11 @@ data Result a = CTNormal   { rval :: Maybe a }
 
 -- | Global interface to eval()
 evalCode :: EvalCallType -> String -> Runtime JSVal
-evalCode callType text = do
+evalCode callType str = do
   currentStrictness <- case callType of
     DirectEvalCall -> return . cxtStrictness =<< getGlobalContext
     IndirectEvalCall -> return NotStrict
-  case parseJS'' text "(eval)" currentStrictness False of
+  case parseJS'' (T.pack str) "(eval)" currentStrictness False of
     Left err -> raiseSyntaxError (show err)
     Right prog -> do
       result <- runInEvalContext callType prog

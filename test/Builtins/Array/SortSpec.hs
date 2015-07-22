@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Array.SortSpec where
 
 import Test.Hspec

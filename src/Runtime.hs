@@ -12,6 +12,7 @@ import Control.Applicative
 import Control.Arrow
 import Text.Printf
 import Data.Maybe
+import qualified Data.Text as T
 import Safe
 
 import Runtime.Reference as X
@@ -268,7 +269,7 @@ funConstructor this args = case this of
     body <- toString arg
     params <- mapM toString paramList
 
-    case parseInFunction body of
+    case parseInFunction (T.pack body) of
       Left err -> raiseSyntaxError (show err)
       Right (Program strictness stmts) -> do
         globalEnv <- getGlobalEnvironment

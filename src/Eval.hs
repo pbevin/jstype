@@ -14,6 +14,8 @@ import Data.Maybe
 import Data.List (intercalate)
 import Data.Bits
 import Data.Foldable
+import qualified Data.Text as T
+import Data.Text (Text)
 import Text.Show.Functions
 import Parse
 import Expr
@@ -36,19 +38,19 @@ instance Show RuntimeError where
 
 
 
-evalJS :: String -> String -> IO (Either RuntimeError (Maybe JSVal))
+evalJS :: String -> Text -> IO (Either RuntimeError (Maybe JSVal))
 evalJS sourceName input = do
   runJS' sourceName input >>= \case
     (Left err, _) -> return $ Left $ toRuntimeError err
     (Right v, _)  -> return $ Right v
 
-runJS :: String -> String -> IO (Either (String, RuntimeError) String)
+runJS :: String -> Text -> IO (Either (String, RuntimeError) String)
 runJS sourceName input = do
   runJS' sourceName input >>= \case
     (Left err, output)     -> return $ Left (output, toRuntimeError err)
     (Right _, output) -> return $ Right output
 
-jsEvalExpr :: String -> IO JSVal
+jsEvalExpr :: Text -> IO JSVal
 jsEvalExpr input = do
   result <- runtime $ (runExprStmt (compile $ parseExpr input) >>= getValue) `catchError` rethrowAsString
   case result of
@@ -67,7 +69,7 @@ toRuntimeError :: JSError -> RuntimeError
 toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
 toRuntimeError e = error $ "Runtime did not convert error to string: " ++ show e
 
-runJS' :: String -> String -> IO (Either JSError (Maybe JSVal), String)
+runJS' :: String -> Text -> IO (Either JSError (Maybe JSVal), String)
 runJS' sourceName input =
   case parseJS' input sourceName of
     Left err -> return (Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), "")

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.MathSpec where
 
 import Test.Hspec

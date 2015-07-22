@@ -1,5 +1,6 @@
 module Parse.Types where
 
+import Data.Text
 import Text.Parsec (Parsec)
 import Expr (Strictness)
 
@@ -13,4 +14,4 @@ data ParseState = ParseState {
   labelSet :: [String],
   immediateLabelSet :: [String],
   contextDescription :: Maybe String } deriving Show
-type JSParser = Parsec String ParseState
+type JSParser = Parsec Text ParseState

@@ -3,6 +3,7 @@ module Builtins.ParseFloat (parseFloat) where
 import Control.Applicative
 import Data.Char (toLower)
 import Data.List (elemIndex)
+import qualified Data.Text as T
 import Data.Maybe
 import Unicode
 import JSNum
@@ -16,4 +17,4 @@ parseFloat str =
   "Infinity" -> Just jsInf
   '+':rest   -> parseFloat rest
   '-':rest   -> negate <$> parseFloat rest
-  _          -> parseDecimal str
+  _          -> parseDecimal (T.pack str)

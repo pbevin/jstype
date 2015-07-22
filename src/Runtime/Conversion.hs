@@ -6,6 +6,7 @@ import Control.Lens
 import Data.Maybe
 import Data.Word
 import Data.Int
+import qualified Data.Text as T
 import Safe
 import JSNum
 import Runtime.Types
@@ -55,13 +56,13 @@ strToNumber :: String -> JSNum
 strToNumber str = case str of
   "Infinity"  -> jsInf
   "-Infinity" -> negate jsInf
-  _           -> parseNumber str
+  _           -> parseNumber (T.pack str)
 
 strToNum :: String -> JSVal
 strToNum str = case str of
   "Infinity"  -> VNum jsInf
   "-Infinity" -> VNum (negate jsInf)
-  _           -> case parseNum str of
+  _           -> case parseNum (T.pack str) of
                    Left  int -> VInt int
                    Right dbl -> VNum dbl
 

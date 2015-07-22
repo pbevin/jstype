@@ -1,8 +1,12 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module EvalSpec where
 
 import Test.Hspec
+
+import qualified Data.Text as T
+
+import Data.Monoid
 
 import Expr
 import Eval
@@ -53,7 +57,7 @@ spec = do
       runJStr "'use strict'; var arguments = 42;" `shouldErrorOfType` SyntaxError
 
     it "applies to an eval in a strict function" $ do
-      let prog = unlines [ "function f() {",
+      let prog = T.unlines [ "function f() {",
                            "  'use strict';",
                            "  eval('var public = 1; console.log(\"no\");');",
                            "}",
@@ -62,7 +66,7 @@ spec = do
       runJStr prog `shouldError` "SyntaxError: \"(eval)\" (line 1, column 12):\nunexpected reserved word \"public\"\nexpecting var declaration"
 
     it "applies to an eval in a strict function (case 2)" $ do
-      let prog = unlines [ "function testcase() {",
+      let prog = T.unlines [ "function testcase() {",
                            "    \"use strict\";",
                            "    try {",
                            "        eval(\"_11_13_2_1 *= 1;\");",
@@ -132,7 +136,7 @@ spec = do
       jsEvalExpr "{ a: 1, 2: 3 }['2']" `shouldReturn` VInt 3
 
     it "can have a getter" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var obj = { ",
                   "    get x() { return 1; } ",
                   "  }; ",
@@ -140,7 +144,7 @@ spec = do
       runJStr prog `shouldReturn` Right "1\n"
 
     it "can have a setter" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var v = 2; ",
                   "  var obj = { ",
                   "    get foo() { ",
@@ -292,7 +296,7 @@ spec = do
 
   it "can continue with a label" $ do
     -- test S12.6.3_A11.1_T2
-    let prog = unlines [
+    let prog = T.unlines [
                  " __str=''; ",
                  " outer: for (var i = 0; i < 4; i++) { ",
                  "   for(var j = 0; j <= i; j++) { ",
@@ -381,7 +385,7 @@ spec = do
     jsEvalExpr "'abc'[1]" `shouldReturn` VStr "b"
 
   it "can define a simple object" $ do
-    let prog = unlines [
+    let prog = T.unlines [
           "function Counter(v) { this.val = v; };",
           "Counter.prototype.inc = function() { this.val++ };",
           "var counter = new Counter(5);",
@@ -399,7 +403,7 @@ spec = do
     `shouldReturn` Right "hi\n";
 
   it "encapsulates the catch block arg in its own lexical environment" $ do
-    let prog = unlines [
+    let prog = T.unlines [
                   "  function captured() {return e}; ",
                   "  e = \"prior to throw\"; ",
                   "  try { ",
@@ -431,7 +435,7 @@ spec = do
     runJStr "var a; a();" `shouldError` "TypeError: a is undefined"
 
   it "can throw an exception from a function" $ do
-    let prog = unlines [
+    let prog = T.unlines [
                  " function f(m) { throw new Error(m); } " ,
                  " f('abc'); " ]
     runJStr prog `shouldError` "Error: abc"
@@ -506,7 +510,7 @@ spec = do
 
   describe "Object" $ do
     it "can define a property with a constant value" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var obj = {}; ",
                   "  Object.defineProperty(obj, 'prop', { ",
                   "    value: 'cheese' ",
@@ -516,7 +520,7 @@ spec = do
 
 
     it "can define a property with a getter" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var obj = {}; ",
                   "  Object.defineProperty(obj, 'prop', { ",
                   "    get: function () { ",
@@ -552,7 +556,7 @@ spec = do
 
   describe "the 'with' statement" $ do
     it "creates variables in the outer environment" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  try { var obj = { x: 9 }; ",
                   "  var x = 4; ",
                   "  with (obj) { ",
@@ -563,7 +567,7 @@ spec = do
       runJStr prog `shouldReturn` Right "4 3\n"
 
     it "can delete a property from its own getter" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var x = 0; ",
                   "  var scope = { ",
                   "    get x() { ",
@@ -578,7 +582,7 @@ spec = do
       runJStr prog `shouldReturn` Right "0 1\n"
 
     it "gives functions access to its scope" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                   "  var a = 1; ",
                   "  var obj = {a:2}; ",
                   "  with (obj) { ",
@@ -682,7 +686,7 @@ spec = do
 
   describe "scope" $ do
     it "allows access to the outer scope in a catch block" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                     "  function f(a, x) { ",
                     "    try { ",
                     "      throw new Error(); ",
@@ -696,7 +700,7 @@ spec = do
       runJStr prog `shouldReturn` Right "8\n"
 
     it "brings back scope after an exception in a function" $ do
-      let prog = unlines [
+      let prog = T.unlines [
                 "  function err() { throw 'aa'; } ",
                 "  function f(x) { ",
                 "    try{ ",
@@ -712,7 +716,7 @@ spec = do
 
   describe "the switch statement" $ do
     -- 12.11_A1_T1
-    let prog = unlines [
+    let prog = T.unlines [
                 "  function test(value){ ",
                 "    var result = 0; ",
                 "    switch(value) { ",
@@ -725,7 +729,7 @@ spec = do
                 "    } ",
                 "    console.log(result); ",
                 "  }; " ]
-    let test val = runJStr (prog ++ "test(" ++ val ++ ");")
+    let test val = runJStr (prog <> "test(" <> val <> ");")
 
     specify "case 0" $ test "0" `shouldReturn` Right "6\n"
     specify "case 1" $ test "1" `shouldReturn` Right "4\n"

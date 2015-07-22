@@ -11,6 +11,7 @@ module Parse ( parseJS
 
 import Control.Applicative
 import Text.Parsec hiding (optional)
+import Data.Text (Text)
 import Expr
 import JSNum
 
@@ -21,45 +22,45 @@ import Parse.Statements
 
 import Debug.Trace
 
-parseJS :: String -> Either ParseError Program
+parseJS :: Text -> Either ParseError Program
 parseJS str = parseJS' str ""
 
-parseJS' :: String -> String -> Either ParseError Program
+parseJS' :: Text -> String -> Either ParseError Program
 parseJS' str filename = jsParse (whiteSpace >> prog <* eof) NotStrict False filename str
 
-parseJS'' :: String -> String -> Strictness -> Bool -> Either ParseError Program
+parseJS'' :: Text -> String -> Strictness -> Bool -> Either ParseError Program
 parseJS'' str filename strict inFunction = jsParse (whiteSpace >> prog <* eof) strict inFunction filename str
 
-parseInFunction ::String -> Either ParseError Program
+parseInFunction :: Text -> Either ParseError Program
 parseInFunction str = parseJS'' str "" NotStrict True
 
-simpleParse :: String -> Program
+simpleParse :: Text -> Program
 simpleParse str = case parseJS str of
   Right p  -> p
   Left err -> error (show err)
 
-parseExpr :: String -> Expr
+parseExpr :: Text -> Expr
 parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
   Right e  -> e
   Left err -> error (show err)
 
-jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> String -> Either ParseError a
+jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> Text -> Either ParseError a
 jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text
 
-parseNumber :: String -> JSNum
+parseNumber :: Text -> JSNum
 parseNumber str = case jsParse numberParser NotStrict False "" str of
   Right (Just num) -> num
   Right Nothing    -> 0
   Left err         -> jsNaN
 
-parseNum :: String -> Either Integer Double
+parseNum :: Text -> Either Integer Double
 parseNum str = case jsParse (numericParser num <* eof) NotStrict False "" str of
   Right (Just (Right dbl)) -> Right dbl
   Right (Just (Left int))  -> Left int
   Right Nothing            -> Left 0
   Left err                 -> Right jsNaN
 
-parseDecimal :: String -> Maybe JSNum
+parseDecimal :: Text -> Maybe JSNum
 parseDecimal str = case jsParse decimalParser NotStrict False "" str of
   Left err -> Nothing
   Right v  -> v

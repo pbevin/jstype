@@ -1,8 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ParseSpec where
 
 import Control.Exception (evaluate)
 import Control.Arrow (second)
 import Data.Either
+import Data.Text (Text)
 import Test.Hspec
 
 import Expr
@@ -12,14 +14,14 @@ import Eval
 s :: SrcLoc
 s = SrcLoc "" 0 0 Nothing []
 
-testParseStrict :: String -> Program
+testParseStrict :: Text -> Program
 testParseStrict input = eraseSrcLoc prog
   where prog = case parseJS'' input "" Strict False of
                 Right p -> p
                 Left err -> error (show err)
 
 
-testParse :: String -> Program
+testParse :: Text -> Program
 testParse input = eraseSrcLoc (simpleParse input)
 
 eraseSrcLoc :: Program -> Program
@@ -64,10 +66,10 @@ eraseSrcLoc (Program strictness stmts) =
       fixDefaultClause (DefaultClause b) = DefaultClause (overrideAll b)
   in Program strictness $ overrideAll stmts
 
-unparseable :: String -> IO ()
+unparseable :: Text -> IO ()
 unparseable str = parseJS str `shouldSatisfy` isLeft
 
-unparseableInStrictMode :: String -> IO ()
+unparseableInStrictMode :: Text -> IO ()
 unparseableInStrictMode str = do
   case parseJS'' str "" Strict False of
     Left _ -> return ()
