@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.PropDesc (fromPropertyDescriptor) where
 
 import Safe

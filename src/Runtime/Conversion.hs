@@ -1,4 +1,4 @@
-{-# Language LambdaCase #-}
+{-# Language LambdaCase, OverloadedStrings #-}
 
 module Runtime.Conversion where
 
@@ -7,6 +7,8 @@ import Data.Maybe
 import Data.Word
 import Data.Int
 import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
 import Safe
 import JSNum
 import Runtime.Types
@@ -52,17 +54,17 @@ toNum val = case val of
   VStr s  -> return (strToNum s)
   _       -> VNum <$> toNumber val
 
-strToNumber :: String -> JSNum
+strToNumber :: Text -> JSNum
 strToNumber str = case str of
   "Infinity"  -> jsInf
   "-Infinity" -> negate jsInf
-  _           -> parseNumber (T.pack str)
+  _           -> parseNumber str
 
-strToNum :: String -> JSVal
+strToNum :: Text -> JSVal
 strToNum str = case str of
   "Infinity"  -> VNum jsInf
   "-Infinity" -> VNum (negate jsInf)
-  _           -> case parseNum (T.pack str) of
+  _           -> case parseNum str of
                    Left  int -> VInt int
                    Right dbl -> VNum dbl
 
@@ -70,18 +72,18 @@ isString :: JSVal -> Bool
 isString (VStr _) = True
 isString _ = False
 
-showVal :: JSVal -> String
+showVal :: JSVal -> Text
 showVal (VStr s) = s
-showVal (VNum n) = numberToString n
-showVal (VInt n) = show n
+showVal (VNum n) = T.pack $ numberToString n
+showVal (VInt n) = T.pack $ show n
 showVal (VBool a) = if a then "true" else "false"
-showVal (VRef ref) = "(reference " ++ show ref ++ ")"
+showVal (VRef ref) = T.pack $ "(reference " ++ show ref ++ ")"
 showVal VUndef = "undefined"
 showVal VNull  = "null"
 showVal (VObj _) = "[object Object]"
-showVal (VNative n _ _) = "function/" ++ n
-showVal (VStacktrace st) = "Stacktrace " ++ show st
-showVal other = show other
+showVal (VNative n _ _) = "function/" <> n
+showVal (VStacktrace st) = "Stacktrace " <> T.pack (show st)
+showVal other = T.pack $ show other
 
 toInt :: JSVal -> Runtime Int
 toInt val = do
@@ -116,16 +118,16 @@ makeInt number = sign number * floor (abs number)
     where sign a = floor (signum a)
 
 -- ref 9.8
-toString :: JSVal -> Runtime String
+toString :: JSVal -> Runtime Text
 toString VUndef    = return "undefined"
 toString VNull     = return "null"
 toString (VBool b) = return $ if b then "true" else "false"
 toString (VStr s)  = return s
-toString (VNum n)  = return $ numberToString n
-toString (VInt n)  = return $ show n
+toString (VNum n)  = return . T.pack $ numberToString n
+toString (VInt n)  = return . T.pack $ show n
 toString v@(VObj _) = toPrimitive HintString v >>= toString
-toString (VStacktrace st) = return $ unlines (map show st)
-toString other = return $ show other
+toString (VStacktrace st) = return . T.pack $ unlines (map show st)
+toString other = return . T.pack $ show other
 
 -- ref 9.10
 checkObjectCoercible :: String -> JSVal -> Runtime ()
@@ -149,16 +151,16 @@ toObject val = case val of
   VUndef        -> raiseProtoError TypeError "undefined has no properties"
   _             -> toString val >>= toObject . VStr
 
-wrapPrimitive :: String -> JSVal -> Runtime (Shared JSObj)
+wrapPrimitive :: Text -> JSVal -> Runtime (Shared JSObj)
 wrapPrimitive typeName val = do
   this <- newObject
   typeRef <- toObj <$> getGlobalProperty typeName
   obj <- deref typeRef
   case view cstrMethod obj of
-    Nothing -> raiseProtoError TypeError $ "Can't create " ++ typeName ++ " object"
+    Nothing -> raiseProtoError TypeError . T.unpack $ "Can't create " <> typeName <> " object"
     Just cstr -> toObj <$> cstr (VObj this) [val]
 
-wrapNative :: String -> Int -> JSFunction -> Runtime (Shared JSObj)
+wrapNative :: Text -> Int -> JSFunction -> Runtime (Shared JSObj)
 wrapNative name len f = do
   funPrototype <- objFindPrototype "Function"
   newObject

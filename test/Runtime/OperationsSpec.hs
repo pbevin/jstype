@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.OperationsSpec where
 
 import Test.Hspec

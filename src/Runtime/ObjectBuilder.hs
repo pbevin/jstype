@@ -1,17 +1,20 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, TemplateHaskell, RankNTypes #-}
+
 module Runtime.ObjectBuilder where
 
 import Control.Lens
 import Control.Monad.State
 import Control.Monad.Reader
 import Data.Maybe
+import Data.Monoid
+import Data.Text (Text)
 import Runtime.Types
 import Runtime.Shared
 import Runtime.PropertyDescriptor
 import Runtime.Function
 import Runtime.Object
 
-type PropertyName = String
+type PropertyName = Text
 
 newtype Builder a = B { unbuild :: StateT JSObj Runtime a }
   deriving (Monad, MonadState JSObj, Applicative, Functor)
@@ -64,7 +67,7 @@ internal l f = modify $ set l (Just f)
 onHasInstance :: (Shared JSObj -> JSVal -> Runtime Bool) -> Builder ()
 onHasInstance f = modify $ set hasInstanceMethod (Just f)
 
-className :: String -> Builder ()
+className :: Text -> Builder ()
 className name = modify $ set objClass name
 
 extensible :: Builder ()

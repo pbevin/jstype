@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.Function where
 
 import Safe
 
 import Control.Lens
+import Data.Text (Text)
 import Runtime.Types
 import Runtime.Object
 import Runtime.Error
@@ -11,7 +14,7 @@ import Runtime.Conversion
 
 
 
-functionObject :: String -> Shared JSObj -> Runtime (Shared JSObj)
+functionObject :: Text -> Shared JSObj -> Runtime (Shared JSObj)
 functionObject name prototype =
 
   newObject

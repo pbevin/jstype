@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Math where
 
 import Control.Monad (liftM)

@@ -1,10 +1,12 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Parse.State where
 
 import Control.Monad (void)
 import Control.Applicative
 import Text.Parsec (getState, putState)
+import qualified Data.Text as T
+import Data.Text (Text)
 import Data.List
 import Data.Maybe
 import Expr
@@ -24,7 +26,7 @@ initialParseState strict inFunction =
                immediateLabelSet = [],
                contextDescription = Nothing }
 
-removeIn :: [String] -> JSParser [String]
+removeIn :: [Text] -> JSParser [Text]
 removeIn ops = do
   st <- getState
   return $ if inKeywordAllowed st
@@ -53,7 +55,7 @@ enterSwitch = recurseState $ \st -> st { insideSwitch = True }
 enterFunction :: JSParser a -> JSParser a
 enterFunction = recurseState $ \st -> st { insideIteration = False, insideSwitch = False }
 
-withFunctionContext :: Maybe String -> JSParser a -> JSParser a
+withFunctionContext :: Maybe Text -> JSParser a -> JSParser a
 withFunctionContext fname =
   let here = fromMaybe "anonymous function" fname
   in recurseState $ \st -> st { contextDescription = Just here,
@@ -82,7 +84,7 @@ ifInDirectivePrologue :: JSParser a -> JSParser a -> JSParser a
 ifInDirectivePrologue = flip (ifContext insideDirectivePrologue)
 
 
-fromLabelSet :: JSParser String -> JSParser String
+fromLabelSet :: JSParser Text -> JSParser Text
 fromLabelSet p = do
   st <- getState
   label <- p
@@ -95,10 +97,10 @@ clearCurrentLabelSet = recurseState $ \st -> st { immediateLabelSet = [] }
 
 
 
-currentLabelSet :: JSParser [String]
+currentLabelSet :: JSParser [Text]
 currentLabelSet = immediateLabelSet <$> getState
 
-currentContext :: JSParser (Maybe String)
+currentContext :: JSParser (Maybe Text)
 currentContext = contextDescription <$> getState
 
 ifStrict :: JSParser a -> JSParser ()

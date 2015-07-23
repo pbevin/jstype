@@ -1,9 +1,11 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Builtins.Array.Sort (arraySort) where
 
 import Control.Monad (void)
 import qualified Data.Sequence as Seq
+import qualified Data.Text as T
+import Data.Text (Text)
 import Data.Foldable
 import Safe
 import Runtime
@@ -17,7 +19,7 @@ arraySort this args =
     len <- toInt =<< objGet "length" obj
     arr <- slurp len obj
     sorted <- sortByM comparefn arr
-    spew len obj sorted
+    spew obj sorted
 
     return (VObj obj)
 
@@ -46,14 +48,14 @@ arraySort this args =
     slurp len obj = sequence $ toList $ Seq.fromFunction len readFromObj
       where
         readFromObj :: Int -> Runtime (Maybe JSVal)
-        readFromObj i = objGetMaybe (show i) obj
+        readFromObj i = objGetMaybe (T.pack $ show i) obj
 
-    spew :: Int -> Shared JSObj -> [Maybe JSVal] -> Runtime ()
-    spew len obj vals = do
+    spew :: Shared JSObj -> [Maybe JSVal] -> Runtime ()
+    spew obj vals = do
       forM_ (zip [0..] vals) $ \(i,v) -> do
         case v of
-          Nothing  -> void $ objDelete (show i) True obj
-          Just val -> objPut (show i) val True obj
+          Nothing  -> void $ objDelete (T.pack $ show i) True obj
+          Just val -> objPut (T.pack $ show i) val True obj
 
 
 -- https://unknownparallel.wordpress.com/2012/07/03/using-monadic-effects-to-reverse-a-merge-sort/

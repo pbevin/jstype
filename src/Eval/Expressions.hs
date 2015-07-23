@@ -1,9 +1,12 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Eval.Expressions (evalExpr) where
 
 import Control.Lens
 import Control.Monad (void, when, replicateM)
+import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
 import CompiledExpr
 import Runtime
 import Expr
@@ -107,16 +110,16 @@ runObjLit n stack cont =
 -- ref 11.2.1
 runOpGet :: Ident -> OpCodeHandler a
 runOpGet name (baseValue:rest) cont = do
-  checkObjectCoercible ("Cannot read property " ++ name) baseValue
-  v <- memberGet baseValue name
+  checkObjectCoercible ("Cannot read property " ++ T.unpack name) baseValue
+  v <- memberGet baseValue (T.unpack name)
   cont (v : rest)
 
 -- ref 11.2.1
 runOpGet2 :: OpCodeHandler a
 runOpGet2 (propertyNameValue:baseValue:rest) cont = do
-  checkObjectCoercible ("Cannot read property " ++ showVal (propertyNameValue)) baseValue
+  checkObjectCoercible ("Cannot read property " ++ T.unpack (showVal propertyNameValue)) baseValue
   propertyNameString <- toString propertyNameValue
-  v <- memberGet baseValue propertyNameString
+  v <- memberGet baseValue $ T.unpack propertyNameString
   cont (v : rest)
 
 runOpGetValue :: OpCodeHandler a
@@ -163,7 +166,7 @@ runUnaryOp op (e : rest) cont = do
           "!"    -> unaryNot
           "~"    -> unaryBitwiseNot
           "void" -> (return . const VUndef)
-          _      -> const $ raiseError $ "Prefix not implemented: " ++ op
+          _      -> const $ raiseError $ "Prefix not implemented: " <> op
 
 -- ref 11.3.1
 runOpPostInc :: Int -> OpCodeHandler a
@@ -185,7 +188,7 @@ runModify op (val : rest) cont =
   in case op of
             "++" -> go (+ 1) (+ 1)
             "--" -> go (subtract 1) (subtract 1)
-            _    -> raiseError $ "No such modifier: " ++ op
+            _    -> raiseError $ "No such modifier: " <> op
 
 -- ref 11.4.1
 runDelete :: OpCodeHandler a
@@ -230,7 +233,7 @@ runStore :: OpCodeHandler a
 runStore (val:lhs:rest) cont =
   case lhs of
     VRef ref -> putValue ref val >> cont (val : rest)
-    _        -> raiseReferenceError $ show lhs ++ " is not assignable"
+    _        -> raiseReferenceError . T.pack $ show lhs ++ " is not assignable"
 
 -- ref 11.2.2
 runNewCall :: Int -> OpCodeHandler a
@@ -238,7 +241,7 @@ runNewCall n stack cont =
   let (args,(funcRef:rest)) = splitAt n stack
   in do
     func <- getValue funcRef
-    assertFunction (show func) (view cstrMethod) func  -- XXX need to get the name here
+    assertFunction (T.pack $ show func) (view cstrMethod) func  -- XXX need to get the name here
     v <- newObjectFromConstructor func (reverse args)
     cont (VObj v : rest)
 

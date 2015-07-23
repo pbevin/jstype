@@ -60,19 +60,19 @@ jsEvalExpr input = do
 
 rethrowAsString :: JSError -> Runtime a
 rethrowAsString err = case err of
-  JSProtoError (etype, msg) -> throwError $ JSError (VStr $ show etype ++ ": " ++ msg, [])
+  JSProtoError (etype, msg) -> throwError $ JSError (VStr . T.pack $ show etype ++ ": " ++ msg, [])
   JSError (e, s) -> do
     v <- toString e
     throwError $ JSError (VStr v, s)
 
 toRuntimeError :: JSError -> RuntimeError
-toRuntimeError (JSError (VStr err, stack)) = RuntimeError err (VStr err) (reverse $ map show stack)
+toRuntimeError (JSError (VStr err, stack)) = RuntimeError (T.unpack err) (VStr err) (reverse $ map show stack)
 toRuntimeError e = error $ "Runtime did not convert error to string: " ++ show e
 
 runJS' :: String -> Text -> IO (Either JSError (Maybe JSVal), String)
 runJS' sourceName input =
   case parseJS' input sourceName of
-    Left err -> return (Left $ JSError (VStr $ "SyntaxError: " ++ show err, []), "")
+    Left err -> return (Left $ JSError (VStr . T.pack $ "SyntaxError: " ++ show err, []), "")
     Right ast -> doJS (runProg ast)
 
 doJS :: Runtime a -> IO (Either JSError a, String)

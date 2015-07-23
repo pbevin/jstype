@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module PolyvariadicSpec where
 
 import Test.Hspec

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.ConversionSpec where
 
 import Test.QuickCheck

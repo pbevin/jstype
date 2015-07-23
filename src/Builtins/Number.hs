@@ -1,10 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Number (makeNumberClass) where
 
 import Control.Lens
 import Safe
 import Text.Printf
-import Runtime
 import Data.Maybe
+import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
+import Runtime
 
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do
@@ -20,7 +25,7 @@ makeNumberClass = do
     >>= addMethod "isNaN" 1 objIsNaN
     >>= addReadOnlyConstants numberConstants
 
-numberConstants :: [(String, JSNum)]
+numberConstants :: [(Text, JSNum)]
 numberConstants = [ ("NaN", jsNaN),
                     ("POSITIVE_INFINITY",  jsInf),
                     ("NEGATIVE_INFINITY", -jsInf),
@@ -33,7 +38,7 @@ toFixed this args = do
   fractionDigits <- toInt (first1 args)
   let fmt = "%." ++ show fractionDigits ++ "f"
   x <- toNumber this
-  return $ VStr $ printf fmt x
+  return . VStr . T.pack $ printf fmt x
 
 numberToString :: JSFunction
 numberToString this _args =
@@ -69,7 +74,7 @@ numberFunction this args =
 
 
 numberConstructor :: JSFunction
-numberConstructor this args = 
+numberConstructor this args =
   let val = headDef (VInt 0) args
   in case this of
     VObj obj -> do
@@ -79,4 +84,4 @@ numberConstructor this args =
         >>= objSetPrimitive num
         >>= objSetPrototype prototype
       return (VObj obj)
-    _ -> raiseError $ "Number constructor called with this = " ++ show this
+    _ -> raiseError . T.pack $ "Number constructor called with this = " ++ show this

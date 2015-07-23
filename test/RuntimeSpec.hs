@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module RuntimeSpec where
 
 import Control.Monad.Trans

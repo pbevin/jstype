@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving, DeriveAnyClass #-}
 module Parse ( parseJS
              , parseJS'
              , parseJS''
@@ -44,28 +45,36 @@ parseExpr str = case jsParse (expr <* eof) NotStrict False "" str of
   Right e  -> e
   Left err -> error (show err)
 
+class Negatable a where
+  neg :: a -> a
+instance Negatable Integer where neg = negate
+instance Negatable Double where neg = negate
+instance (Negatable a, Negatable b) => Negatable (Either a b) where
+  neg (Left a) = Left (neg a)
+  neg (Right a) = Right (neg a)
+
 jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> Text -> Either ParseError a
-jsParse p strict inFunction name text = runP p (initialParseState strict inFunction) name text
+jsParse p strict inFunction name str = runP p (initialParseState strict inFunction) name str
 
 parseNumber :: Text -> JSNum
 parseNumber str = case jsParse numberParser NotStrict False "" str of
   Right (Just num) -> num
   Right Nothing    -> 0
-  Left err         -> jsNaN
+  Left _err        -> jsNaN
 
 parseNum :: Text -> Either Integer Double
 parseNum str = case jsParse (numericParser num <* eof) NotStrict False "" str of
   Right (Just (Right dbl)) -> Right dbl
   Right (Just (Left int))  -> Left int
   Right Nothing            -> Left 0
-  Left err                 -> Right jsNaN
+  Left _err                -> Right jsNaN
 
 parseDecimal :: Text -> Maybe JSNum
 parseDecimal str = case jsParse decimalParser NotStrict False "" str of
-  Left err -> Nothing
-  Right v  -> v
+  Right v   -> v
+  Left _err -> Nothing
 
-numericParser :: Num a => JSParser a -> JSParser (Maybe a)
+numericParser :: Negatable a => JSParser a -> JSParser (Maybe a)
 numericParser p = do
   whiteSpace
   plusMinus <- optional (oneOf "+-")
@@ -75,13 +84,12 @@ numericParser p = do
   return $ case num of
     Nothing -> Nothing
     Just n -> Just $ if plusMinus == Just '-'
-                     then negate n
+                     then neg n
                      else n
 
-instance (Num a, Num b) => Num (Either a b)
-  where
-    negate (Left a) = Left (negate a)
-    negate (Right b) = Right (negate b)
+-- negateEither :: (Num a, Num b) => Num (Either a b)
+-- negateEither (Left a) = Left (negate a)
+-- negateEither (Right b) = Right (negate b)
 
 numberParser, decimalParser :: JSParser (Maybe Double)
 numberParser = numericParser number <* eof

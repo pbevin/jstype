@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
 module Runtime.Arguments (createArgumentsObject) where
 
@@ -6,6 +6,9 @@ import Prelude hiding (map)
 import Control.Lens hiding (strict)
 import Control.Monad (forM_, when, void)
 import Data.Maybe
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text (Text)
 import Runtime.Object
 import Runtime.Reference
 import Runtime.Error
@@ -33,13 +36,13 @@ createArgumentsObject func names args env strict =
 
 
     forM_ (zip3 (names ++ repeat "") args [0..]) $ \(name, val, indx) -> do
-      defineOwnProperty (show indx) (dataPD val True True True) False obj
+      defineOwnProperty (T.pack $ show indx) (dataPD val True True True) False obj
 
       when (strict == NotStrict && name /= "") $
-        let getter _       = getBindingValue name strict env
-            setter _this a = setMutableBinding name a (strict == Strict) env
+        let getter _       = getBindingValue (T.pack name) strict env
+            setter _this a = setMutableBinding (T.pack name) a (strict == Strict) env
             desc           = accessorPD (Just getter) (Just setter) True True
-        in void $ defineOwnProperty (show indx) desc False map
+        in void $ defineOwnProperty (T.pack $ show indx) desc False map
 
     case strict of
       NotStrict -> addOwnPropDesc "callee" (dataPD func True False True) obj
@@ -53,13 +56,13 @@ createArgumentsObject func names args env strict =
 
     return (VObj obj)
 
-argGet :: Shared JSObj -> String -> Shared JSObj -> Runtime JSVal
+argGet :: Shared JSObj -> Text -> Shared JSObj -> Runtime JSVal
 argGet map p obj = do
   objGetOwnProperty p map >>= \case
     Just _  -> objGetObj p map
     Nothing -> objGetObj p obj
 
-argGetOwnProperty :: Shared JSObj -> String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+argGetOwnProperty :: Shared JSObj -> Text -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 argGetOwnProperty map p obj = do
   desc <- objGetOwnPropertyObj p obj
   case desc of
@@ -72,13 +75,13 @@ argGetOwnProperty map p obj = do
           val <- objGet p map
           return $ Just $ (d `mappend` valuePD val)
 
-argDefineOwnProperty :: Shared JSObj -> String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
+argDefineOwnProperty :: Shared JSObj -> Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
 argDefineOwnProperty map p desc throw obj = do
   isMapped <- objGetOwnProperty p map
   allowed  <- objDefineOwnPropertyObject p desc throw obj
   if not allowed
   then if throw
-       then raiseTypeError $ "Cannot set arguments[" ++ p ++ "]"
+       then raiseTypeError $ "Cannot set arguments[" <> p <> "]"
        else return False
   else do
     when (isJust isMapped) $

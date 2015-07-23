@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, LambdaCase, TemplateHaskell, RankNTypes #-}
 
 module Runtime.Types (module Runtime.Types, liftIO) where
 
@@ -8,6 +8,8 @@ import Control.Monad.Except
 import Control.Applicative
 import Text.Show.Functions
 import qualified Data.Map as M
+import qualified Data.Text as T
+import Data.Text (Text)
 import Data.Maybe
 import Data.IORef
 import Runtime.PropMap
@@ -16,16 +18,16 @@ import JSNum
 
 data JSVal = VNum JSNum
            | VInt Integer
-           | VStr String
+           | VStr Text
            | VBool Bool
            | VRef JSRef
            | VUndef
            | VNull
            | VObj (Shared JSObj)
-           | VNative String Int (JSVal -> [JSVal] -> Runtime JSVal)
+           | VNative Text Int (JSVal -> [JSVal] -> Runtime JSVal)
            | VStacktrace [SrcLoc]
            | VEnv EnvRec
-           | VRegExp String String
+           | VRegExp Text Text
            | VGetter [Statement]
            | VSetter Ident [Statement]
            | VLambda (Maybe Ident) [Ident] Strictness [Statement]
@@ -39,7 +41,7 @@ instance Show JSVal where
   show VUndef           = "VUndef"
   show VNull            = "VNull"
   show (VObj ref)       = "VObj " ++ show ref
-  show (VNative n _ _)  = "VNative " ++ n
+  show (VNative n _ _)  = "VNative " ++ T.unpack n
   show (VStacktrace st) = "VStacktrace " ++ show st
   show (VEnv env)       = "VEnv " ++ show env
   show (VRegExp p f)    = "VRegExp " ++ show p ++ " " ++ show f
@@ -73,15 +75,15 @@ isPrimitive _         = False
 
 
 data JSObj = JSObj {
-  _objClass :: String,
+  _objClass :: Text,
   _ownProperties :: PropertyMap,
   _objPrototype :: Maybe (Shared JSObj),
   _callMethod :: Maybe JSFunction,
   _cstrMethod :: Maybe JSFunction,
-  _getMethod :: Maybe (String -> Shared JSObj -> Runtime JSVal),
-  _getOwnPropertyMethod :: Maybe (String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
+  _getMethod :: Maybe (Text -> Shared JSObj -> Runtime JSVal),
+  _getOwnPropertyMethod :: Maybe (Text -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
   _hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
-  _defineOwnPropertyMethod :: Maybe (String -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
+  _defineOwnPropertyMethod :: Maybe (Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
   _objPrimitiveValue :: Maybe JSVal,
   _objParameterMap :: Maybe (Shared JSObj),
   _objScope :: Maybe (Shared LexEnv),
@@ -144,7 +146,7 @@ data JSType = TypeUndefined
             | TypeFunction
             | TypeReference
             | TypeList
-            | TypeOther String
+            | TypeOther Text
             deriving (Show, Eq)
 
 typeof :: JSVal -> JSType
@@ -238,7 +240,7 @@ exit = throwError EarlyExit
 data JSGlobal = JSGlobal {
   globalObject          :: Shared JSObj,
   globalObjectPrototype :: Shared JSObj,
-  globalEvaluator       :: EvalCallType -> String -> Runtime JSVal,
+  globalEvaluator       :: EvalCallType -> Text -> Runtime JSVal,
   globalRun             :: [Statement] -> Runtime (Either JSVal JSVal),
   globalEnvironment     :: Shared LexEnv,
   globalContext         :: JSCxt
@@ -248,7 +250,7 @@ data Store = Store {
   _storeNextID :: Int
 }
 
-raiseError :: String -> Runtime a
+raiseError :: Text -> Runtime a
 raiseError s = throwError $ JSError (VStr s, [])
 
 raiseProtoError :: ErrorType -> String -> Runtime a

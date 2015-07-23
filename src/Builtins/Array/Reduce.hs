@@ -1,15 +1,17 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Builtins.Array.Reduce (arrayReduce) where
 
 import Control.Monad (foldM, when)
 import Data.Maybe
+import Data.Monoid
+import qualified Data.Text as T
 import Safe
 import Runtime
 
 mustBeCallable :: JSVal -> Runtime JSFunction
 mustBeCallable val = isCallable val >>= \case
-  Nothing -> raiseTypeError $ showVal val ++ " is not a function"
+  Nothing -> raiseTypeError $ showVal val <> " is not a function"
   Just fn -> return fn
 
 -- ref 15.4.4.21, incomplete
@@ -41,7 +43,7 @@ arrayReduce this args = do
 
 atIndex :: Int -> Shared JSObj -> Runtime (Maybe JSVal)
 atIndex k obj = do
-    exists <- objHasProperty (show k) obj
+    exists <- objHasProperty (T.pack $ show k) obj
     if exists
-    then Just <$> objGet (show k) obj
+    then Just <$> objGet (T.pack $ show k) obj
     else return Nothing

@@ -1,7 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins where
 
 import Control.Monad
 import Control.Arrow
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text (Text)
 import Text.Printf
 import Safe
 import Runtime
@@ -90,7 +95,7 @@ configureBuiltins = do
   return ()
 
 
-errorSubtype :: String -> JSVal -> Runtime (Shared JSObj)
+errorSubtype :: Text -> JSVal -> Runtime (Shared JSObj)
 errorSubtype name parentPrototype = do
   prototype <-
     newObject >>= setClass "Error"
@@ -107,7 +112,7 @@ jsonStringify :: JSVal -> [JSVal] -> Runtime JSVal
 jsonStringify _this _args = return $ VStr "not implemented"
 
 objIsFinite :: JSFunction
-objIsFinite this args =
+objIsFinite _this args =
   let arg = first1 args
   in VBool . isFinite <$> toNumber arg
     where isFinite x

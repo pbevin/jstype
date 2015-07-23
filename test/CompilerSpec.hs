@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module CompilerSpec where
 
 import Test.Hspec

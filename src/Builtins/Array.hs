@@ -1,7 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Array (makeArrayClass) where
 
 import Control.Monad
 import Data.List (intercalate)
+import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
 import Safe
 import Data.Int
 import Runtime
@@ -52,11 +57,11 @@ arrayConstructor this args =
   case (this, args) of
     (VObj obj, [len]) -> VObj <$> arrayConstructorLength obj len
     (VObj obj, _)     -> VObj <$> arrayConstructorElements obj args
-    _ -> raiseError $ "arrayConstructor called with this = " ++ show this
+    _ -> raiseError . T.pack $ "arrayConstructor called with this = " ++ show this
 
 arrayConstructorLength :: Shared JSObj -> JSVal -> Runtime (Shared JSObj)
-arrayConstructorLength obj length = do
-  len <- VInt . fromIntegral <$> toInt length
+arrayConstructorLength obj arrayLen = do
+  len <- VInt . fromIntegral <$> toInt arrayLen
   cstr <- getGlobalProperty "Array"
   o <- setClass "Array" obj
     >>= addOwnPropertyDescriptor "constructor" (dataPD cstr True False True)
@@ -69,7 +74,7 @@ arrayConstructorElements obj args = do
   o <- arrayConstructorLength obj len
 
   forM_ (zip args [0..]) $ \(item, idx) -> do
-    addOwnProperty (show idx) item o
+    addOwnProperty (T.pack $ show idx) item o
 
   return o
       
@@ -90,12 +95,12 @@ arrayJoin this args =
     then return (VStr "")
     else do
       d <- forM [0..len-1] $ getString o
-      return $ VStr (intercalate sep d)
+      return $ VStr (T.intercalate sep d)
 
   where
-    getString :: Show a => Shared JSObj -> a -> Runtime String
-    getString o k = objGet (show k) o >>= stringOrEmpty
-    stringOrEmpty :: JSVal -> Runtime String
+    getString :: Show a => Shared JSObj -> a -> Runtime Text
+    getString o k = objGet (T.pack $ show k) o >>= stringOrEmpty
+    stringOrEmpty :: JSVal -> Runtime Text
     stringOrEmpty VUndef = return ""
     stringOrEmpty VNull  = return ""
     stringOrEmpty val    = toString val
@@ -119,4 +124,4 @@ arrayPush this args = do
   where
     placeValues :: Shared JSObj -> Int -> [JSVal] -> Runtime Int
     placeValues   _ n []     = return n
-    placeValues obj n (e:es) = objPut (show n) e True obj >> placeValues obj (n+1) es
+    placeValues obj n (e:es) = objPut (T.pack $ show n) e True obj >> placeValues obj (n+1) es

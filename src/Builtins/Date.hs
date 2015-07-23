@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Date (makeDateClass) where
 
 import Runtime

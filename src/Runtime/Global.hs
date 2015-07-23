@@ -3,6 +3,8 @@ module Runtime.Global where
 import Control.Lens
 import Control.Monad.Reader
 import qualified Data.Map as M
+import qualified Data.Text as T
+import Data.Text (Text)
 import Data.Maybe
 import Runtime.Types
 import Runtime.PropMap
@@ -11,7 +13,7 @@ import Expr
 type SourceName = String
 type SourceCode = String
 
-jsEvalCode :: EvalCallType -> String -> Runtime JSVal
+jsEvalCode :: EvalCallType -> Text -> Runtime JSVal
 jsEvalCode callType str = do
   f <- asks globalEvaluator
   f callType str

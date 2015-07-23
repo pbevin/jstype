@@ -1,6 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Compiler (module Compiler, module CompiledExpr) where
 
 import Data.Maybe
+import qualified Data.Text as T
+import Data.Text (Text)
 import CompiledExpr
 import Runtime.Types
 import Expr
@@ -98,7 +102,7 @@ compileCompoundAssignment :: Expr -> Ident -> Expr -> [CompiledExpr]
 compileCompoundAssignment lhs op e =
   [ compile lhs, OpDup, OpGetValue,
                  compile e, OpGetValue,
-                 OpBinary (init op), OpStore ]
+                 OpBinary (T.init op), OpStore ]
 
 
 compileShortCircuitAnd :: Expr -> Expr -> [CompiledExpr]
@@ -172,6 +176,6 @@ compileFunCall = compileCall OpFunCall
 compileNewExpr = compileCall OpNewCall
 
 -- ref 7.8.5
-compileRegExp :: String -> String -> [CompiledExpr]
+compileRegExp :: Text -> Text -> [CompiledExpr]
 compileRegExp r f =
   [ OpVar "RegExp", OpConst (VStr r), OpConst (VStr f), OpFunCall 2 ]

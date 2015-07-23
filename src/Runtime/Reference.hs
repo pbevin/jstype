@@ -1,9 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.Reference where
 
 import Control.Lens hiding (enum, strict)
 import Control.Monad hiding (guard)
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Map as M
+import qualified Data.Text as T
+import Data.Text (Text)
 import Runtime.Object
 import Runtime.Types
 import Runtime.Global (getGlobalObject)
@@ -18,12 +23,12 @@ import Expr
 getValue :: JSVal -> Runtime JSVal
 getValue v
   | typeof v /= TypeReference   = return v
-  | isUnresolvableReference ref = raiseReferenceError $ "No such variable " ++ getReferencedName ref
+  | isUnresolvableReference ref = raiseReferenceError $ "No such variable " <> getReferencedName ref
   | isPropertyReference ref     = case base of
       VObj objRef -> objGetProperty name objRef >>= toValue
       _           -> toObject base >>= objGetProperty name >>= toValue
   | VEnv env <- base            = getBindingValue name strict env
-  | otherwise                   = raiseReferenceError $ "Can't lookup " ++ show name ++ " in reference " ++ show ref
+  | otherwise                   = raiseReferenceError . T.pack $ "Can't lookup " ++ show name ++ " in reference " ++ show ref
     where ref@(JSRef base name strict) = unwrapRef v
           toValue desc = case desc of
               Nothing -> return VUndef
@@ -39,13 +44,13 @@ putValue ref@(JSRef base name strict) w
           putUnresolvable :: JSRef -> JSVal -> Runtime ()
           putUnresolvable ref val =
             if isStrictReference ref
-            then raiseReferenceError $ getReferencedName ref ++ " is not defined"
+            then raiseReferenceError $ getReferencedName ref <> " is not defined"
             else void $ getGlobalObject >>= objPut (getReferencedName ref) val (isStrictReference ref)
 
           guard :: Bool -> Runtime ()
           guard cond = unless (cond) $ do
             if strict == Strict
-            then raiseTypeError $ "Cannot set " ++ name
+            then raiseTypeError $ "Cannot set " <> name
             else exit
 
           putPropertyReference :: JSRef -> JSVal -> Runtime ()
@@ -149,7 +154,7 @@ getBindingValue n s env = case env of
 
 -- ref 10.2.1.1.5
 -- ref 10.2.1.2.5
-deleteBinding :: String -> EnvRec -> Runtime JSVal
+deleteBinding :: Text -> EnvRec -> Runtime JSVal
 deleteBinding _ (DeclEnvRec _) = return (VBool False)
 deleteBinding n (ObjEnvRec obj _) = objDelete n False obj
 

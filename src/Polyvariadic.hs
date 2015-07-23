@@ -23,18 +23,18 @@ instance Polyvariadic a => Polyvariadic (Double -> a) where
 
 instance Polyvariadic a => Polyvariadic (String -> a) where
   papply f []         = papply (f "") []
-  papply f (d : args) = do a <- toString d
+  papply f (d : args) = do a <- T.unpack <$> toString d
                            papply (f a) args
 
 instance Polyvariadic a => Polyvariadic (Text -> a) where
   papply f []         = papply (f T.empty) []
   papply f (d : args) = do a <- toString d
-                           papply (f (T.pack a)) args
+                           papply (f a) args
 
 instance Polyvariadic a => Polyvariadic (Maybe Text -> a) where
   papply f []         = papply (f Nothing) []
   papply f (d : args) = do a <- toString d
-                           papply (f (Just $ T.pack a)) args
+                           papply (f (Just a)) args
 
 instance (Polyvariadic a) => Polyvariadic (Maybe Int -> a) where
   papply f []         = papply (f Nothing) []
@@ -43,7 +43,7 @@ instance (Polyvariadic a) => Polyvariadic (Maybe Int -> a) where
 
 instance (Polyvariadic a) => Polyvariadic (Maybe String -> a) where
   papply f []         = papply (f Nothing) []
-  papply f (d : args) = do a <- Just <$> toString d
+  papply f (d : args) = do a <- Just . T.unpack <$> toString d
                            papply (f a) args
 
 instance (Polyvariadic a) => Polyvariadic (JSVal -> a) where
@@ -63,16 +63,16 @@ instance Polyvariadic JSVal where
   papply v _ = return v
 
 instance Polyvariadic String where
-  papply s _ = return . VStr $ s
+  papply s _ = return . VStr . T.pack $ s
 
 instance Polyvariadic (Maybe Double) where
   papply d _ = return . VNum $ fromMaybe jsNaN d
 
 instance Polyvariadic (Runtime String) where
-  papply v _ = VStr <$> v
+  papply v _ = VStr . T.pack <$> v
 
 instance Polyvariadic [Text] where
-  papply ts _ = createArray . map (Just . VStr . T.unpack) $ ts
+  papply ts _ = createArray . map (Just . VStr) $ ts
 
 static :: Polyvariadic a => PropertyName -> Int -> a -> Builder ()
 static name arity f = liftR (return $ papplyNoThis f) >>= method name arity

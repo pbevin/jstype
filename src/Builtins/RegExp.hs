@@ -1,10 +1,13 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Builtins.RegExp where
 
 import Control.Lens
 import Control.Monad.Except
 import Text.Regex.Posix
+import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
 import Runtime
 import Polyvariadic
 
@@ -61,13 +64,13 @@ regExpConstructor this args =
               case v of
                 Just (VRegExp p f) -> return (p, parseFlags f)
                 _                  -> makeRE pattern flags
-            _ -> raiseTypeError ("copying RegExp with " ++ show flags)
+            _ -> raiseTypeError . T.pack $ "copying RegExp with " ++ show flags
 
       maybe (raiseSyntaxError "Bad RegExp flags") (initializeObject objRef p) f
     _ -> raiseTypeError "Bad type for RegExp constructor"
 
   where
-    initializeObject :: Shared JSObj -> String -> RegExpFlags -> Runtime JSVal
+    initializeObject :: Shared JSObj -> Text -> RegExpFlags -> Runtime JSVal
     initializeObject obj p f = do
       proto <- objFindPrototype "RegExp"
       setClass "RegExp" obj
@@ -79,7 +82,7 @@ regExpConstructor this args =
         >>= addOwnProperty "multiline"  (VBool $ multiline f)
       return $ VObj obj
 
-objectWithClass :: String -> JSVal -> Runtime (Maybe (Shared JSObj))
+objectWithClass :: Text -> JSVal -> Runtime (Maybe (Shared JSObj))
 objectWithClass name val = case val of
   VObj obj -> do
     cls <- view objClass <$> deref obj
@@ -88,7 +91,7 @@ objectWithClass name val = case val of
     else return Nothing
   _ -> return Nothing
 
-makeRE :: JSVal -> JSVal -> Runtime (String, Maybe RegExpFlags)
+makeRE :: JSVal -> JSVal -> Runtime (Text, Maybe RegExpFlags)
 makeRE pattern flags = do
   p <- toString pattern
   f <- toString flags
@@ -99,7 +102,7 @@ regExpExec, regExpToString :: JSFunction
 regExpExec _ _ = return VNull
 regExpToString this _args = do
   VRegExp p f <- getPrimitiveRegex this
-  return . VStr $ "/" ++ p ++ "/" ++ f
+  return . VStr $ "/" <> p <> "/" <> f
 
 getPrimitiveRegex :: JSVal -> Runtime JSVal
 getPrimitiveRegex v =
@@ -118,15 +121,15 @@ regExpTest this string = True
 
 
 data RegExpFlags = RegExpFlags { global :: Bool, ignoreCase :: Bool, multiline :: Bool }
-parseFlags :: String -> Maybe RegExpFlags
+parseFlags :: Text -> Maybe RegExpFlags
 parseFlags flags = RegExpFlags <$> g <*> i <*> m
   where g = checkFor 'g'
         i = checkFor 'i'
         m = checkFor 'm'
-        checkFor f = case length $ filter (== f) flags of
+        checkFor f = case length . filter (== f) . T.unpack $ flags of
           0 -> Just False
           1 -> Just True
           _ -> Nothing
 
-flagsToString :: RegExpFlags -> String
-flagsToString f = map fst . filter snd $ [ ('g', global f), ('i', ignoreCase f), ('m', multiline f) ]
+flagsToString :: RegExpFlags -> Text
+flagsToString f = T.pack $ map fst . filter snd $ [ ('g', global f), ('i', ignoreCase f), ('m', multiline f) ]

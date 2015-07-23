@@ -1,8 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Runtime.Error where
 
 import Control.Monad.Except
 import Control.Applicative
 import Data.Maybe
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text (Text)
 import Runtime.Types
 import Runtime.Object
 import Runtime.Conversion
@@ -13,16 +18,16 @@ import Runtime.Conversion
 raise :: JSVal -> Runtime a
 raise err = throwError $ JSError (err, [])
 
-raiseReferenceError :: String -> Runtime a
+raiseReferenceError :: Text -> Runtime a
 raiseReferenceError msg = createError ReferenceError (VStr msg) >>= raise
 
-raiseSyntaxError :: String -> Runtime a
+raiseSyntaxError :: Text -> Runtime a
 raiseSyntaxError msg = createError SyntaxError (VStr msg) >>= raise
 
-raiseTypeError :: String -> Runtime a
+raiseTypeError :: Text -> Runtime a
 raiseTypeError msg = createError TypeError (VStr msg) >>= raise
 
-raiseURIError :: String -> Runtime a
+raiseURIError :: Text -> Runtime a
 raiseURIError msg = createError URIError (VStr msg) >>= raise
 
 createError :: ErrorType -> JSVal -> Runtime JSVal
@@ -33,7 +38,7 @@ createError errorType message = do
                    >>= addOwnProperty "constructor" cstr
                    >>= objSetPrototype prototype
   errConstructor (VObj obj) [message]
-  where name = show errorType
+  where name = T.pack $ show errorType
 
 errFunction :: Shared JSObj -> JSVal -> [JSVal] -> Runtime JSVal
 errFunction prototype _this args = do
@@ -56,7 +61,7 @@ errorToString :: JSFunction
 errorToString (VObj this) _args = do
   name <- dflt (VStr "Error") <$> objGet "name" this
   msg  <- objGet "message" this
-  return $ VStr $ showVal name ++ ": " ++ showVal msg
+  return $ VStr $ showVal name <> ": " <> showVal msg
   where
     dflt :: JSVal -> JSVal -> JSVal
     dflt d prop = case prop of

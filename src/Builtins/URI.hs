@@ -4,13 +4,14 @@ module Builtins.URI where
 
 import Control.Applicative
 import Data.Char
+import qualified Data.Text as T
 import Runtime
 
 decodeURI, encodeURI, decodeURIComponent, encodeURIComponent :: String -> Runtime String
 
 -- ref 15.1.3.1
 decodeURI str = case decode str of
-  Nothing -> raiseURIError str
+  Nothing -> raiseURIError $ T.pack str
   Just s  -> return s
 
 
@@ -77,8 +78,8 @@ binary :: Int -> EChar -> [Bool]
 binary k (Hex _ n) = reverse . take k $ (bits n) ++ repeat False
   where bits :: Int -> [Bool]
         bits 0 = []
-        bits n = odd n : bits (n `div` 2)
-binary k (Chr ch) = error $ "char " ++ show [ch]
+        bits m = odd m : bits (m `div` 2)
+binary _ (Chr ch) = error $ "char " ++ show [ch]
 
 
 -- ref 15.1.3.2

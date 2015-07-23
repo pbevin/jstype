@@ -1,4 +1,4 @@
-{-# Language LambdaCase #-}
+{-# Language LambdaCase, OverloadedStrings #-}
 
 module Runtime.Operations where
 
@@ -11,15 +11,18 @@ import Data.Word
 import Data.Int
 import Data.Bits
 import Data.Maybe
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text (Text)
 import Expr
 import JSNum
-import Runtime.Types hiding (rval)
+import Runtime.Types
 import Runtime.Conversion
 import Runtime.Object
 import Runtime.Shared
 import Runtime.PropMap
 
-evalBinOp :: String -> JSVal -> JSVal -> Runtime JSVal
+evalBinOp :: Text -> JSVal -> JSVal -> Runtime JSVal
 evalBinOp op = case op of
   "==="        -> {-# SCC binOp3q #-}         tripleEquals
   "!=="        -> {-# SCC binOpN3q #-}        invert tripleEquals
@@ -48,10 +51,11 @@ evalBinOp op = case op of
                                   VUndef      -> return (VBool False)
                                   VBool True  -> return (VBool False)
                                   VBool False -> return (VBool True)
+                                  v  -> error $ "Can't invert " ++ show v
 
-noSuchBinop :: String -> JSVal -> JSVal -> Runtime JSVal
-noSuchBinop op a b = raiseError $
-  "No binop `" ++ op ++ "' on " ++ show (a, b)
+noSuchBinop :: Text -> JSVal -> JSVal -> Runtime JSVal
+noSuchBinop op a b = raiseError . T.pack $
+  "No binop `" ++ (T.unpack op) ++ "' on " ++ show (a, b)
 
 
 
@@ -61,7 +65,7 @@ jsAdd a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   if isString a' || isString b'
-  then VStr <$> liftStr (++) a' b'
+  then VStr <$> liftStr (<>) a' b'
   else numOp vAdd a' b'
   
 numOp :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> Runtime JSVal
@@ -76,6 +80,7 @@ vAdd (VInt n) (VInt m) = VInt (n+m)
 vAdd (VInt n) (VNum m) = VNum (fromIntegral n + m)
 vAdd (VNum n) (VInt m) = VNum (n + fromIntegral m)
 vAdd (VNum n) (VNum m) = VNum (n + m)
+vAdd a b = error $ unwords [ "Can't add", show a, " and ", show b ]
 
 -- ref 11.8.5 (1)
 lessThan :: [Ordering] -> JSVal -> JSVal -> Runtime JSVal
@@ -141,7 +146,7 @@ liftNum op a b = do
   n2 <- toNumber b
   return $ n1 `op` n2
 
-liftStr :: (String -> String -> a) -> JSVal -> JSVal -> Runtime a
+liftStr :: (Text -> Text -> a) -> JSVal -> JSVal -> Runtime a
 liftStr op a b = do
   n1 <- toString a
   n2 <- toString b
@@ -169,6 +174,7 @@ eqvNumber (VNum a) (VNum b) = a == b
 eqvNumber (VNum a) (VInt b) = a == fromIntegral b
 eqvNumber (VInt a) (VNum b) = fromIntegral a == b
 eqvNumber (VInt a) (VInt b) = a == b
+eqvNumber _ _ = False
 
 
 -- ref 11.9.3

@@ -1,6 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Expr where
 
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Maybe
+import Data.Monoid
 import JSNum
 
 data Program = Program Strictness [Statement] deriving (Show, Eq)
@@ -9,15 +14,17 @@ data SrcLoc = SrcLoc {
   srcFilename :: String,
   srcLine :: Int,
   srcColumn :: Int,
-  srcContext :: Maybe String,
-  srcLabel :: [String]
+  srcContext :: Maybe Text,
+  srcLabel :: [Text]
 } deriving (Eq, Ord, Show)
 
-showSrcLoc (SrcLoc file line col cxt _) = "at " ++ file ++ ":" ++ show line ++ ":" ++ show col ++ maybe "" (" in " ++) cxt
+showSrcLoc (SrcLoc file line col cxt _) = "at " ++
+  file ++ ":" ++ show line ++ ":" ++ show col ++
+  T.unpack (maybe "" (" in " <>) cxt)
 
-type Ident = String
-type Label = String
-type Operator = String
+type Ident = Text
+type Label = Text
+type Operator = Text
 type ParameterList = [Ident]
 type VarDeclaration = (Ident, Maybe Expr)
 data Strictness = Strict | NotStrict deriving (Show, Eq)
@@ -57,7 +64,7 @@ data Statement = Block SrcLoc [Statement]
 type FunBody = [Statement]
 
 type PropertyAssignment = (PropertyName, PropertyValue)
-type PropertyName = String
+type PropertyName = Text
 data PropertyValue = Value Expr
                    | Getter [Statement]
                    | Setter Ident [Statement]
@@ -65,20 +72,20 @@ data PropertyValue = Value Expr
 
 data Expr = Num JSNum
           | INum Integer
-          | Str String
+          | Str Text
           | Boolean Bool
           | LiteralNull
           | LiteralUndefined
           | This
           | ArrayLiteral [Maybe Expr]
           | ObjectLiteral [PropertyAssignment]
-          | RegExp String String
+          | RegExp Text Text
           | BinOp Operator Expr Expr
           | UnOp Operator Expr
           | PostOp Operator Expr
           | NewExpr Expr [Expr]
           | ReadVar Ident
-          | Assign Expr String Expr
+          | Assign Expr Text Expr
           | Cond Expr Expr Expr
           | MemberDot Expr Ident  -- e.g., point.x
           | MemberGet Expr Expr   -- e.g., point["x"]
@@ -87,24 +94,24 @@ data Expr = Num JSNum
   deriving (Show, Eq)
 
 data Lang = Lang {
-  reservedWords :: [String],
-  reservedWordsStrict :: [String],
-  assignOps :: [String],
-  unaryOps :: [String],
-  binaryOps :: [String],
-  postfixOps :: [String]
+  reservedWords :: [Text],
+  reservedWordsStrict :: [Text],
+  assignOps :: [Text],
+  unaryOps :: [Text],
+  binaryOps :: [Text],
+  postfixOps :: [Text]
 }
 
 jsLang :: Lang
 jsLang = Lang {
   reservedWords =
-    words "break do instanceof typeof case else new var catch finally" ++
-      words "return void continue for switch while debugger" ++
-      words "function this with default if throw delete in try" ++
-      words "null true false" ++
-      words "class enum extends super const export import",
+    T.words "break do instanceof typeof case else new var catch finally" ++
+      T.words "return void continue for switch while debugger" ++
+      T.words "function this with default if throw delete in try" ++
+      T.words "null true false" ++
+      T.words "class enum extends super const export import",
   reservedWordsStrict =
-    words "implements let private public yield interface package protected static",
+    T.words "implements let private public yield interface package protected static",
   assignOps = [ "=", "+=", "-=", "*=", "/=", "%=",
                 "<<=", ">>=", ">>>=", "&=", "^=", "|="],
   unaryOps  = [ "delete", "void", "typeof",

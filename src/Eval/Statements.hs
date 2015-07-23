@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RankNTypes, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase, RankNTypes, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 
 module Eval.Statements (evalCode, runCode, runProg, runExprStmt) where
 
@@ -13,6 +13,7 @@ import Data.List (intercalate, nub)
 import Data.Bits
 import Data.Foldable
 import qualified Data.Text as T
+import Data.Text (Text)
 import Text.Show.Functions
 import Eval.Expressions
 import Compiler
@@ -35,13 +36,13 @@ data Result a = CTNormal   { rval :: Maybe a }
 
 
 -- | Global interface to eval()
-evalCode :: EvalCallType -> String -> Runtime JSVal
+evalCode :: EvalCallType -> Text -> Runtime JSVal
 evalCode callType str = do
   currentStrictness <- case callType of
     DirectEvalCall -> return . cxtStrictness =<< getGlobalContext
     IndirectEvalCall -> return NotStrict
-  case parseJS'' (T.pack str) "(eval)" currentStrictness False of
-    Left err -> raiseSyntaxError (show err)
+  case parseJS'' str "(eval)" currentStrictness False of
+    Left err -> raiseSyntaxError (T.pack $ show err)
     Right prog -> do
       result <- runInEvalContext callType prog
       case result of
@@ -73,7 +74,7 @@ runCode body = do
     CTNormal _ -> return . Right $ VUndef
     CTThrow  v -> return . Left . fromMaybe VUndef $ v
     CTReturn v -> return . Right . fromMaybe VUndef $ v
-    x -> raiseError $ "Abnormal exit from function body " ++ show x
+    x -> raiseError . T.pack $ "Abnormal exit from function body " ++ show x
 
 
 runProg :: Program -> Runtime (Maybe JSVal)
@@ -315,7 +316,7 @@ runCoreForIn lhs e stmt cont = do
     obj <- toObject exprValue
     keys <- nub <$> recursivelyFindKeys obj
     keepGoing obj keys Nothing cont where
-      keepGoing :: Shared JSObj -> [String] -> Maybe JSVal -> StatementAction
+      keepGoing :: Shared JSObj -> [Text] -> Maybe JSVal -> StatementAction
       keepGoing _ [] v cont = nor cont v
       keepGoing obj (p:ps) v cont = do
         desc <- objGetProperty p obj
@@ -335,7 +336,7 @@ runCoreForIn lhs e stmt cont = do
 
     -- propMapKeys . view ownProperties <$> deref obj
 
-recursivelyFindKeys :: Shared JSObj -> Runtime [String]
+recursivelyFindKeys :: Shared JSObj -> Runtime [Text]
 recursivelyFindKeys obj = do
   myKeys <- propMapKeys . view ownProperties <$> deref obj
   proto <- view objPrototype <$> deref obj

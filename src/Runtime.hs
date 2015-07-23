@@ -1,4 +1,4 @@
-{-# Language LambdaCase #-}
+{-# Language LambdaCase, OverloadedStrings #-}
 
 module Runtime (module Runtime, module X) where
 
@@ -12,7 +12,9 @@ import Control.Applicative
 import Control.Arrow
 import Text.Printf
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Text as T
+import Data.Text (Text)
 import Safe
 
 import Runtime.Reference as X
@@ -110,7 +112,7 @@ exceptionToVal f (JSError (err, stack)) = do
   setStacktrace err (f stack)
   return err
 exceptionToVal f (JSProtoError (t, msg)) = do
-  err <- createError t (VStr msg)
+  err <- createError t (VStr $ T.pack msg)
   exceptionToVal f (JSError (err, []))
 
 setStacktrace :: JSVal -> [SrcLoc] -> Runtime ()
@@ -128,7 +130,7 @@ objToString this _args =
     _ -> do
       o   <- toObject this
       cls <- view objClass <$> deref o
-      return $ VStr ("[object " ++ cls ++ "]")
+      return . VStr $ "[object " <> cls <> "]"
 
 objPrimitive :: JSFunction
 objPrimitive (VObj this) _args = do
@@ -171,7 +173,7 @@ numConstructor this args = do
   case this of
     VObj obj -> do
       VObj <$> (setClass "Number" obj >>= objSetPrimitive num)
-    _ -> raiseError $ "numConstructor called with this = " ++ show this
+    _ -> raiseError . T.pack $ "numConstructor called with this = " ++ show this
 
 
 arrayAssigns :: [Maybe a] -> [(Int, a)]
@@ -197,7 +199,7 @@ createSparseArray len assigns = do
   return $ VObj obj
 
 -- ref 11.1.5
-createObjectLiteral :: [(String, JSVal)] -> Runtime JSVal
+createObjectLiteral :: [(Text, JSVal)] -> Runtime JSVal
 createObjectLiteral nameValueList =do
   cstr <- getGlobalProperty "Object"
   obj <- newObject >>= addOwnProperty "constructor" cstr
@@ -205,7 +207,7 @@ createObjectLiteral nameValueList =do
   return (VObj obj)
 
   where
-    addObjectProp :: Shared JSObj -> (String, JSVal) -> Runtime (Shared JSObj)
+    addObjectProp :: Shared JSObj -> (Text, JSVal) -> Runtime (Shared JSObj)
     addObjectProp obj (name, value) = do
       desc <- makeDescriptor value
       objGetOwnProperty name obj >>= \case
@@ -250,7 +252,7 @@ createObjectLiteral nameValueList =do
 
 setArrayIndices :: [(Int, JSVal)] -> Shared JSObj -> Runtime (Shared JSObj)
 setArrayIndices assigns objRef = do
-  mapM_ (\(n, v) -> defineOwnProperty (show n) (dataPD v True True True) False objRef) assigns
+  mapM_ (\(n, v) -> defineOwnProperty (T.pack $ show n) (dataPD v True True True) False objRef) assigns
   return objRef
 
 funFunction :: Shared JSObj -> JSFunction
@@ -269,8 +271,8 @@ funConstructor this args = case this of
     body <- toString arg
     params <- mapM toString paramList
 
-    case parseInFunction (T.pack body) of
-      Left err -> raiseSyntaxError (show err)
+    case parseInFunction body of
+      Left err -> raiseSyntaxError (T.pack $ show err)
       Right (Program strictness stmts) -> do
         globalEnv <- getGlobalEnvironment
         createFunction Nothing params strictness stmts globalEnv
@@ -279,7 +281,7 @@ funConstructor this args = case this of
 funCallMethod :: JSFunction
 funCallMethod this args = do
   isCallable this >>= \case
-    Nothing   -> raiseTypeError $ "Not a function: " ++ show this
+    Nothing   -> raiseTypeError . T.pack $ "Not a function: " ++ show this
     Just call -> call (first1 args) (tail1 args)
 
 -- ref 15.3.4.3
@@ -297,7 +299,7 @@ funApply this args =
   where
     funApply' call thisArg argArray = do
       n <- objGet "length" argArray >>= toInt32
-      args <- forM [0..n] $ \index -> objGet (show index) argArray
+      args <- forM [0..n] $ \index -> objGet (T.pack $ show index) argArray
       call thisArg args
 
     findCallMethod :: JSVal -> Runtime JSFunction
@@ -410,7 +412,7 @@ thrower :: a -> Runtime b
 thrower _ = raiseTypeError "Cannot access property"
 
 -- ref 15.3.5.4
-funGet :: String -> Shared JSObj -> Runtime JSVal
+funGet :: Text -> Shared JSObj -> Runtime JSVal
 funGet p f = do
   val <- objGetObj p f
   if p /= "caller"
@@ -450,7 +452,7 @@ funcCall name func paramList strict body this args =
     withNewContext (newCxt cxt localEnv newThis) $ do
       performDBI DBIFunction strict body
       when ("arguments" `notElem` paramList) $ do
-        VObj argsObj <- createArgumentsObject func paramList args env strict
+        VObj argsObj <- createArgumentsObject func (map T.unpack paramList) args env strict
         addToNewEnv env "arguments" (VObj argsObj)
       result <- jsRunStmts body
       case result of
@@ -493,7 +495,7 @@ objEscape _this args = case args of
   (x:_) -> return x
 
 jsConsoleLog :: JSVal -> [JSVal] -> Runtime JSVal
-jsConsoleLog _this xs = tell (unwords (map showVal xs) ++ "\n") >> return VUndef
+jsConsoleLog _this xs = tell (T.unpack $ T.unwords (map showVal xs) <> "\n") >> return VUndef
 
 putVar :: Ident -> JSVal -> Runtime ()
 putVar x v = do
@@ -533,7 +535,7 @@ assignRef lref rref =
       disallowEvalAssignment ref
       putValue ref rval
       return rval
-    _ -> raiseReferenceError $ show lref ++ " is not assignable"
+    _ -> raiseReferenceError . T.pack $ show lref ++ " is not assignable"
 
 updateRef :: String -> JSVal -> JSVal -> Runtime JSVal
 updateRef op lref rref =
@@ -541,11 +543,11 @@ updateRef op lref rref =
     VRef ref -> do
       lval   <- getValue lref
       rval   <- getValue rref
-      newVal <- evalBinOp op lval rval
+      newVal <- evalBinOp (T.pack op) lval rval
       disallowEvalAssignment ref
       putValue ref newVal
       return newVal
-    _ -> raiseReferenceError $ show lref ++ " is not assignable"
+    _ -> raiseReferenceError . T.pack $ show lref ++ " is not assignable"
 
 -- ref 11.13.1
 disallowEvalAssignment :: JSRef -> Runtime ()
@@ -555,14 +557,14 @@ disallowEvalAssignment (JSRef (VEnv _) name strict)
   | otherwise = cannotAssignTo name
 disallowEvalAssignment x = return ()
 
-cannotAssignTo :: String -> Runtime ()
-cannotAssignTo name = raiseSyntaxError $ "Assignment of " ++ name ++ " in strict mode"
+cannotAssignTo :: Text -> Runtime ()
+cannotAssignTo name = raiseSyntaxError $ "Assignment of " <> name <> " in strict mode"
 
 -- ref. 11.2.1
 memberGet :: JSVal -> String -> Runtime JSVal
 memberGet lval prop = do
   strict <- getGlobalStrictness
-  return $ VRef (JSRef lval prop strict)
+  return $ VRef (JSRef lval (T.pack prop) strict)
 
 -- ref 11.2.3
 callFunction :: JSVal -> [JSVal] -> Runtime JSVal
@@ -594,7 +596,7 @@ callFunction ref argList = do
       VRef (JSRef _ name _) -> name
       _ -> ""
 
-assertFunction :: String -> (JSObj -> Maybe a) -> JSVal -> Runtime ()
+assertFunction :: Text -> (JSObj -> Maybe a) -> JSVal -> Runtime ()
 assertFunction name m val =
   case val of
     VNative _ _ _ -> return ()
@@ -605,7 +607,7 @@ assertFunction name m val =
     VUndef -> error "is undefined"
     _ -> error "is not a function"
 
-  where error reason = raiseTypeError $ unwords [name, reason]
+  where error reason = raiseTypeError $ T.unwords [name, reason]
 
 -- ref 15.1.2.1
 objEval :: EvalCallType -> JSFunction
@@ -630,9 +632,9 @@ objIsNaN _this args =
 newObjectFromConstructor :: JSVal -> [JSVal] -> Runtime (Shared JSObj)
 newObjectFromConstructor fun args = case fun of
   VRef (JSRef _ name _) -> create name =<< getValue fun
-  _                     -> create (show fun) fun
+  _                     -> create (T.pack $ show fun) fun
   where
-    create :: String -> JSVal -> Runtime (Shared JSObj)
+    create :: Text -> JSVal -> Runtime (Shared JSObj)
     create name val = case val of
       VObj funref -> do
         obj <- newObject
@@ -646,7 +648,7 @@ newObjectFromConstructor fun args = case fun of
         objCstr (VObj funref) (VObj obj) args >>= \case
           VObj o -> return o
           _ -> return obj
-      _ -> raiseProtoError TypeError $ "Can't invoke constructor " ++ name
+      _ -> raiseProtoError TypeError . T.unpack $ "Can't invoke constructor " <> name
     fromObj :: Maybe (PropDesc JSVal) -> Runtime (Maybe (Shared JSObj))
     fromObj Nothing = return Nothing
     fromObj (Just desc) = do
@@ -664,7 +666,7 @@ objCall func this args = case func of
     Nothing -> raiseError "Can't call function: no callMethod"
     Just method -> method this args
   VUndef -> raiseReferenceError "Function is undefined"
-  _ -> raiseError $ "Can't call " ++ show func
+  _ -> raiseError . T.pack $ "Can't call " ++ show func
 
 objCstr :: JSVal -> JSVal -> [JSVal] -> Runtime JSVal
 objCstr func this args = case func of
@@ -673,7 +675,7 @@ objCstr func this args = case func of
     Nothing -> raiseError "Can't create object: function has no cstrMethod"
     Just method -> method this args
   VUndef -> raiseError "Undefined function"
-  _ -> raiseError $ "Can't call " ++ show func
+  _ -> raiseError . T.pack $ "Can't call " ++ show func
 
 
 -- ref 15.2.3.2
@@ -703,10 +705,6 @@ getOwnPropertyNames _this args =
     VObj obj -> do
       ks <- propMapKeys . view ownProperties <$> deref obj
       createArray $ map (Just . VStr) ks
-
-
-
-
 
 -- ref 15.2.3.6
 objDefineProperty :: JSVal -> [JSVal] -> Runtime JSVal
@@ -765,7 +763,7 @@ objPropertyIsEnumerable this args = let v = first1 args in do
 
 objId :: JSVal -> [JSVal] -> Runtime JSVal
 objId (VObj obj) _args = return $ VInt $ fromIntegral (objid obj)
-objId x _ = raiseTypeError $ "No objId for " ++ show x
+objId x _ = raiseTypeError . T.pack $ "No objId for " ++ show x
 
 -- ref 15.2.4.5
 objHasOwnProperty :: JSVal -> [JSVal] -> Runtime JSVal
@@ -808,7 +806,7 @@ bindAll dbiType strict bindings = do
             if propIsConfigurable existingProp
             then void $ defineOwnProperty fn blankDesc True go
             else when (propIsUnwritable existingProp) $
-                  raiseTypeError $ "Cannot overwrite function " ++ fn
+                  raiseTypeError $ "Cannot overwrite function " <> fn
 
         setMutableBinding fn fo (strictFun == Strict) envRec
 
@@ -849,7 +847,7 @@ tail1 :: [JSVal] -> [JSVal]
 tail1 [] = []
 tail1 (x:xs) = xs
 
-addReadOnlyConstants :: [(String, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
+addReadOnlyConstants :: [(Text, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
 addReadOnlyConstants xs obj = do
   forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
   return obj

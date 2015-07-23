@@ -4,6 +4,7 @@ module ParseSpec where
 import Control.Exception (evaluate)
 import Control.Arrow (second)
 import Data.Either
+import qualified Data.Text as T
 import Data.Text (Text)
 import Test.Hspec
 
@@ -131,7 +132,7 @@ spec = do
       parseExpr "'\\117\\143\\164\\141\\154'" `shouldBe` Str "Octal"
 
     it "parses \\0" $ do
-      parseExpr "'a\\0b'" `shouldBe` Str [ 'a', '\0', 'b' ]
+      parseExpr "'a\\0b'" `shouldBe` Str (T.pack [ 'a', '\0', 'b' ])
 
     it "parses \\0 only if the following char is not a number" $ do
       unparseable "'a\\00b'"

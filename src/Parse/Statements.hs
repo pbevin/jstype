@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module Parse.Statements where
 
@@ -8,6 +8,9 @@ import Control.Applicative
 import Data.Maybe
 import Data.Foldable
 import Data.List (sortBy, nub, union, intersect)
+import Data.Monoid
+import qualified Data.Text as T
+import Data.Text (Text)
 import Parse.Types
 import Parse.State
 import Parse.Lexical
@@ -37,11 +40,11 @@ directivePrologue = withDirectivePrologue $ do
              then Strict
              else NotStrict
 
-isString :: Statement -> Maybe String
+isString :: Statement -> Maybe Text
 isString (ExprStmt _ (Str s)) = Just s
 isString _ = Nothing
 
-directive :: JSParser (Maybe String)
+directive :: JSParser (Maybe Text)
 directive = lookAhead quotedString >> isString <$> terminated exprStmt
 
 
@@ -119,7 +122,7 @@ labelledStmt = do
 varDecl :: JSParser Statement
 varDecl = try (keyword "var" >> VarDecl <$> srcLoc <*> varAssign `sepBy1` comma) <?> "variable declaration"
 
-varAssign, varAssignNoIn :: JSParser (String, Maybe Expr)
+varAssign, varAssignNoIn :: JSParser (Text, Maybe Expr)
 varAssign = do
   name <- identifier
   ifStrict $ guard (legalIdentifier name)
@@ -372,18 +375,20 @@ postfixExpr p = do
 unaryExpr :: JSParser Expr -> JSParser Expr
 unaryExpr p = (try unop <|> p) <?> "unary expr"
   where unop = do
-          op <- choice $ map (try . string) $ sortBy reverseLength $ unaryOps jsLang
+          op <- choice $ map (try . text) $ sortBy reverseLength $ unaryOps jsLang
           whiteSpace
           e <- unaryExpr p
           ifStrict (guard $ legalModification op e)
           return $ UnOp op e
 
-legalModification :: String -> Expr -> Bool
+        reverseLength a b = compare (T.length b) (T.length a)
+
+legalModification :: Text -> Expr -> Bool
 legalModification "++" (ReadVar x) = legalIdentifier x
 legalModification "--" (ReadVar x) = legalIdentifier x
 legalModification _ _ = True
 
-binOps :: [String] -> JSParser Expr -> JSParser Expr
+binOps :: [Text] -> JSParser Expr -> JSParser Expr
 binOps allowedOps p = do
   ops <- removeIn allowedOps
   chainl1 p $ try $ do
@@ -414,7 +419,7 @@ assignExpr p = p >>= rest
                     Assign e op <$> assignExpr p
              <|> return e
 
-assignOp :: JSParser String
+assignOp :: JSParser Text
 assignOp = choice $ map op $ assignOps jsLang
   where op name = try (tok name) >> return name
 
@@ -461,7 +466,7 @@ noDuplicateAccessorKeys assignments =
       noMultipleGetters = getters == nub getters
       noMultipleSetters = setters == nub setters
       noAccessorWithValue = null $ values `intersect` (getters `union` setters)
-      getters, setters, values :: [String]
+      getters, setters, values :: [Text]
       getters = map fst $ filter (isGetter . snd) assignments
       setters = map fst $ filter (isSetter . snd) assignments
       values  = map fst $ filter (isValue  . snd) assignments
@@ -480,7 +485,7 @@ noDuplicateKeys assignments =
 propertyName :: JSParser PropertyName
 propertyName = identifierName
            <|> quotedString
-           <|> numberText
+           <|> T.pack <$> numberText
 
 nameValuePair :: JSParser PropertyAssignment
 nameValuePair = do
@@ -495,7 +500,7 @@ getter = try $ do
   name <- propertyName
   tok "("
   tok ")"
-  let cxt = Just ("get " ++ name)
+  let cxt = Just ("get " <> name)
   stmts <- braces (withFunctionContext cxt $ many statement)
   return (name, Getter stmts)
 
@@ -507,7 +512,7 @@ setter = try $ do
   param <- identifier
   ifStrict $ guard (legalIdentifier param)
   tok ")"
-  let cxt = Just ("set " ++ name)
+  let cxt = Just ("set " <> name)
   stmts <- braces (withFunctionContext cxt $ many statement)
   return (name, Setter param stmts)
 
@@ -523,9 +528,9 @@ regexLiteral = do
   flags <- many (oneOf identLetter)
   whiteSpace
 
-  return $ RegExp (first ++ concat rest) flags
+  return $ RegExp (first <> T.concat rest) $ T.pack flags
 
-regexFirstChar, regexChar, regexBackslash, regexClass :: JSParser String
+regexFirstChar, regexChar, regexBackslash, regexClass :: JSParser Text
 regexFirstChar = tostr (noneOf "*\\/\n\r\x2028\x2029")
              <|> regexBackslash
              <|> regexClass
@@ -537,17 +542,17 @@ regexChar      = tostr (noneOf "\\/\n\r\x2028\x2029")
 regexBackslash = do
   b <- char '\\'
   c <- noneOf "\n\r\x2028\x2029"
-  return [b,c]
+  return $ T.pack [b,c]
 
 regexClass = do
   xs <- brackets (many $ tostr (noneOf "\n\\]") <|> regexBackslash)
-  return $ "[" ++ concat xs ++ "]"
+  return $ "[" <> T.concat xs <> "]"
 
 
-tostr :: JSParser Char -> JSParser String
+tostr :: JSParser Char -> JSParser Text
 tostr p = do
   c <- p
-  return [c]
+  return $ T.pack [c]
 
 
 literal :: JSParser Expr

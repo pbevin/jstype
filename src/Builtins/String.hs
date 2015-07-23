@@ -68,7 +68,7 @@ strConstructor this args =
       setClass "String" obj >>= objSetPrototype proto
                             >>= objSetExtensible True
                             >>= objSetPrimitive (VStr str)
-                            >>= addOwnConstant "length" (VInt $ fromIntegral $ length str)
+                            >>= addOwnConstant "length" (VInt $ fromIntegral $ T.length str)
                             >>= addOwnProperty "constructor" stringObject
                             >>= setGetOwnPropertyMethod strGetOwnProperty
       return this
@@ -91,7 +91,7 @@ stringValueOf = stringToString
 
 -- ref 15.5.4.4
 charAt :: JSFunction
-charAt = charAtMethod "charAt" (VStr . maybe "" (replicate 1))
+charAt = charAtMethod "charAt" (VStr . maybe "" T.singleton)
 
 -- ref 15.5.4.5
 charCodeAt :: JSFunction
@@ -104,7 +104,9 @@ charAtMethod name f this args =
     checkObjectCoercible ("String.prototype." ++ name ++ " called on") this
     str <- toString this
     position <- toInt pos
-    return . f . atMay str $ position
+    if 0 <= position && position < T.length str
+    then return . f . Just $ str `T.index` position
+    else return . f $ Nothing
 
 -- ref 15.5.4.7
 indexOf :: JSFunction
@@ -115,11 +117,11 @@ indexOf this args = do
   s               <- toString this
   searchString    <- toString searchStr
   pos             <- toInt position
-  let len          = length s
+  let len          = T.length s
       start        = min (max pos 0) len
-      searchLen    = length searchString
-      needle       = T.pack searchString
-      haystack     = T.drop start (T.pack s)
+      searchLen    = T.length searchString
+      needle       = searchString
+      haystack     = T.drop start s
       (pre, match) = T.breakOn needle haystack
       index        = if match == "" then -1 else start + T.length pre
   return . VInt . fromIntegral $ index
@@ -133,12 +135,12 @@ lastIndexOf this args = do
   s               <- toString this
   searchString    <- toString searchStr
   pos0            <- toNumber position
-  let len          = length s
+  let len          = T.length s
       pos          = if isNaN pos0 then len + 1 else round pos0
       start        = min (max pos 0) len
-      searchLen    = length searchString
-      needle       = T.pack searchString
-      haystack     = T.take start (T.pack s)
+      searchLen    = T.length searchString
+      needle       = searchString
+      haystack     = T.take start s
       (pre, match) = T.breakOnEnd needle haystack
       index        = if pre == "" then -1 else T.length pre - T.length needle
   return . VInt . fromIntegral $ index
@@ -160,26 +162,25 @@ toUpperCase = withT T.toUpper
 withT :: (T.Text -> T.Text) -> JSFunction
 withT f this _args = do
   checkObjectCoercible "Cannot get string value" this
-  s <- toString this
-  return . VStr . T.unpack . f . T.pack $ s
+  VStr . f <$> toString this
 
 fromCharCode :: JSFunction
-fromCharCode _this args = VStr . map (chr . fromIntegral) <$> mapM toUInt16 args
+fromCharCode _this args = VStr . T.pack . map (chr . fromIntegral) <$> mapM toUInt16 args
 
-strGetOwnProperty :: String -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
+strGetOwnProperty :: Text -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))
 strGetOwnProperty p s = do
   objGetOwnPropertyObj p s >>= \case
     Just d -> return (Just d)
     Nothing -> do
       index <- toInt (VStr p)
-      let p' = show (abs index)
+      let p' = T.pack $ show (abs index)
       if p /= p'
       then return Nothing
       else do
         VStr str <- objGetPrimitive s
-        if length str <= index
+        if index < 0 || index >= T.length str
         then return Nothing
-        else let ch = VStr [str !! index]
+        else let ch = VStr . T.singleton $ str `T.index` index
              in return $ Just $ dataPD ch False False False
 
 replace :: JSFunction
@@ -189,16 +190,16 @@ replace this args =
     checkObjectCoercible "Cannot get string value" this
     string <- toString this
     searchString <- toString searchValue
-    case findOnce (T.pack searchString) (T.pack string) of
+    case findOnce searchString string of
       Nothing -> return this
       Just (before, match, after) -> do
         isCallable replaceValue >>= \case
           Nothing -> raiseTypeError "Replace value is not a function"
           Just call -> do
             let offset = T.length before
-            result <- call VUndef [VStr $ T.unpack match, VInt (fromIntegral offset), VStr string]
+            result <- call VUndef [VStr $ match, VInt (fromIntegral offset), VStr string]
             replacement <- toString result
-            return . VStr . T.unpack $ T.concat [before, T.pack replacement, after]
+            return . VStr $ T.concat [before, replacement, after]
 
   where
     findOnce :: Text -> Text -> Maybe (Text, Text, Text)
@@ -216,7 +217,7 @@ search this args = do
   o <- toObject =<< regExpFunction VUndef [regexp]
   view objPrimitiveValue <$> (deref o) >>= \case
     Just (VRegExp p _f) -> do
-      let (offset, _) = string =~ p :: (MatchOffset, MatchLength)
+      let (offset, _) = (T.unpack string) =~ (T.unpack p) :: (MatchOffset, MatchLength)
       return (VInt . fromIntegral $ offset)
     _ -> raiseSyntaxError "No regexp found"
 
@@ -225,5 +226,4 @@ search this args = do
 trim :: JSFunction
 trim this _args = do
   checkObjectCoercible "Cannot call trim() method" this
-  s <- toString this
-  return . VStr . T.unpack . T.dropAround isJsSpace . T.pack $ s
+  VStr . T.dropAround isJsSpace <$> toString this

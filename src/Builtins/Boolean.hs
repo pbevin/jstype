@@ -1,6 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Builtins.Boolean (makeBooleanClass) where
 
 import Control.Lens
+import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Monoid
 import Safe
 import Runtime
 import Data.Maybe
@@ -41,7 +46,7 @@ booleanConstructor this args =
         >>= objSetPrimitive prim
         >>= objSetPrototype prototype
       return (VObj obj)
-    _ -> raiseError $ "Boolean constructor called with this = " ++ show this
+    _ -> raiseError . T.pack $ "Boolean constructor called with this = " ++ show this
 
 
 booleanToString :: JSFunction
