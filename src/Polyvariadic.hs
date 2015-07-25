@@ -11,44 +11,53 @@ import JSNum
 class Polyvariadic a where
   papply :: a -> [JSVal] -> Runtime JSVal
 
-instance Polyvariadic a => Polyvariadic (Int -> a) where
-  papply f []         = papply (f 0) []
-  papply f (d : args) = do a <- toInt d
-                           papply (f a) args
+class Convertible a where
+  jsUnit :: a
+  fromJS :: JSVal -> Runtime a
+  toJS :: a -> JSVal
 
-instance Polyvariadic a => Polyvariadic (Double -> a) where
-  papply f []         = papply (f 0) []
-  papply f (d : args) = do a <- toNumber d
-                           papply (f a) args
+instance Convertible JSVal where
+  jsUnit = VUndef
+  fromJS = return
+  toJS = id
 
-instance Polyvariadic a => Polyvariadic (String -> a) where
-  papply f []         = papply (f "") []
-  papply f (d : args) = do a <- T.unpack <$> toString d
-                           papply (f a) args
+instance Convertible Int where
+  jsUnit = 0
+  fromJS n = fromIntegral <$> toInt n
+  toJS = VInt . fromIntegral
 
-instance Polyvariadic a => Polyvariadic (Text -> a) where
-  papply f []         = papply (f T.empty) []
-  papply f (d : args) = do a <- toString d
-                           papply (f a) args
+instance Convertible Double where
+  jsUnit = 0
+  fromJS = toNumber
+  toJS = VNum
 
-instance Polyvariadic a => Polyvariadic (Maybe Text -> a) where
-  papply f []         = papply (f Nothing) []
-  papply f (d : args) = do a <- toString d
-                           papply (f (Just a)) args
+instance Convertible String where
+  jsUnit = ""
+  fromJS s = T.unpack <$> toString s
+  toJS = VStr . T.pack
 
-instance (Polyvariadic a) => Polyvariadic (Maybe Int -> a) where
-  papply f []         = papply (f Nothing) []
-  papply f (d : args) = do a <- Just <$> toInt d
-                           papply (f a) args
+instance Convertible Text where
+  jsUnit = T.empty
+  fromJS = toString
+  toJS = VStr
 
-instance (Polyvariadic a) => Polyvariadic (Maybe String -> a) where
-  papply f []         = papply (f Nothing) []
-  papply f (d : args) = do a <- Just . T.unpack <$> toString d
-                           papply (f a) args
+instance (Convertible b, Polyvariadic a) => Polyvariadic (b -> a) where
+  papply f [] = papply (f jsUnit) []
+  papply f (arg : args) = do { val <- fromJS arg ; papply (f val) args }
 
-instance (Polyvariadic a) => Polyvariadic (JSVal -> a) where
-  papply f []         = papply (f VUndef) []
-  papply f (a : args) = do papply (f a) args
+instance {-# OVERLAPS #-} (Convertible b, Polyvariadic a) => Polyvariadic (Maybe b -> a) where
+  papply f [] = papply (f Nothing) []
+  papply f (arg : args) = do { val <- fromJS arg ; papply (f $ Just val) args }
+
+instance Convertible a => Polyvariadic (Maybe a) where
+  papply Nothing _  = return VUndef
+  papply (Just v) _ = return (toJS v)
+
+instance Convertible a => Polyvariadic [a] where
+  papply vs _ = createArray (map (Just . toJS) vs)
+
+instance Convertible a => Polyvariadic (Runtime a) where
+  papply v _ = toJS <$> v
 
 instance Polyvariadic Double where
   papply d _ = return $ VNum d
@@ -65,14 +74,8 @@ instance Polyvariadic JSVal where
 instance Polyvariadic String where
   papply s _ = return . VStr . T.pack $ s
 
-instance Polyvariadic (Maybe Double) where
-  papply d _ = return . VNum $ fromMaybe jsNaN d
-
-instance Polyvariadic (Runtime String) where
-  papply v _ = VStr . T.pack <$> v
-
-instance Polyvariadic [Text] where
-  papply ts _ = createArray . map (Just . VStr) $ ts
+instance Polyvariadic Text where
+  papply ts _ = undefined
 
 static :: Polyvariadic a => PropertyName -> Int -> a -> Builder ()
 static name arity f = liftR (return $ papplyNoThis f) >>= method name arity
