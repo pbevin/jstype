@@ -10,21 +10,35 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Monoid
 import Runtime
+import Polyvariadic
 
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do
-  numberPrototype <- makePrototype "Number"
-    >>= addMethod "toFixed"     1 toFixed
-    >>= addMethod "constructor" 1 numberConstructor
-    >>= addMethod "toString"    0 numberToString
-    >>= addMethod "valueOf"     0 numberValueOf
+  numberPrototype <- mkObject $ do
+    className "Number"
+    method "toFixed"     1 toFixed
+    method "toString"    0 numberToString
+    method "valueOf"     0 numberValueOf
 
-  functionObject "Number" numberPrototype
-    >>= setCallMethod numberFunction
-    >>= setCstrMethod numberConstructor
-    >>= addMethod "isNaN" 1 objIsNaN
-    >>= addReadOnlyConstants numberConstants
+  functionPrototype <- objFindPrototype "Function"
+  number <- mkObject $ do
+    className "Function"
+    prototype functionPrototype
+    property "prototype" (VObj numberPrototype)
+    property "length" (VInt 1)
+    internal callMethod numberFunction
+    internal cstrMethod numberConstructor
+    internal hasInstanceMethod funHasInstance
+    method "isNaN" 1 objIsNaN
+    constant "NaN"        jsNaN
+    constant "POSITIVE_INFINITY" jsInf
+    constant "NEGATIVE_INFINITY" (-jsInf)
+    constant "MAX_VALUE" jsMaxValue
+    constant "MIN_VALUE" jsMinValue
 
+  addOwnProperty "constructor" (VObj number) numberPrototype
+
+  return number
 numberConstants :: [(Text, JSNum)]
 numberConstants = [ ("NaN", jsNaN),
                     ("POSITIVE_INFINITY",  jsInf),
