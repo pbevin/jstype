@@ -15,6 +15,7 @@ import Runtime
 import Parse
 import Builtins.RegExp
 import Polyvariadic
+import JSNum
 
 
 makeStringClass :: Runtime (Shared JSObj)

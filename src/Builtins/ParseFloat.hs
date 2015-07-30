@@ -6,8 +6,8 @@ import Data.List (elemIndex)
 import qualified Data.Text as T
 import Data.Maybe
 import Unicode
-import JSNum
 import Runtime
+import JSNum
 
 -- ref 15.1.2.3
 parseFloat :: String -> Maybe Double

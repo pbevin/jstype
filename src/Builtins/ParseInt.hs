@@ -5,7 +5,6 @@ import Data.Char (toLower)
 import Data.List (elemIndex)
 import Data.Maybe
 import Unicode
-import JSNum
 
 -- ref 15.1.2.2
 parseInt :: String -> Maybe Int -> Maybe Double

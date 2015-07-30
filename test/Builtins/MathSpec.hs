@@ -6,6 +6,7 @@ import Test.Hspec
 import Runtime
 import Eval
 import Builtins.Math
+import JSNum
 
 
 spec :: Spec
@@ -61,9 +62,6 @@ spec = do
       jsEvalExpr "Math.hypot()" `shouldReturn` VNum 0
 
   describe "Math.pow" $ do
-    let jsInf = 1/0
-    let nan = 0/0
-
     it "raises one number to the power of another" $ do
       pow 3 2 `shouldBe` 9
 

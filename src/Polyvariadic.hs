@@ -6,7 +6,6 @@ import Data.Maybe
 import Runtime
 import qualified Data.Text as T
 import Data.Text (Text)
-import JSNum
 
 class Polyvariadic a where
   papply :: a -> [JSVal] -> Runtime JSVal

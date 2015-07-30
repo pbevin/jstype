@@ -21,6 +21,7 @@ import Builtins.RegExp
 import Builtins.ParseInt
 import Builtins.ParseFloat
 import Builtins.URI
+import JSNum
 
 configureBuiltins :: Runtime ()
 configureBuiltins = do

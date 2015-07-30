@@ -11,6 +11,7 @@ import Data.Text (Text)
 import Data.Monoid
 import Runtime
 import Polyvariadic
+import JSNum
 
 makeNumberClass :: Runtime (Shared JSObj)
 makeNumberClass = do

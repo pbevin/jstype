@@ -6,7 +6,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe
 import Data.Monoid
-import JSNum
 
 data Program = Program Strictness [Statement] deriving (Show, Eq)
 
@@ -70,7 +69,7 @@ data PropertyValue = Value Expr
                    | Setter Ident [Statement]
                    deriving (Show, Eq)
 
-data Expr = Num JSNum
+data Expr = Num Double
           | INum Integer
           | Str Text
           | Boolean Bool

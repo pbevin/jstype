@@ -15,7 +15,6 @@ import Parse.Types
 import Parse.State
 import Parse.Lexical
 import Expr
-import JSNum
 
 prog :: JSParser Program
 prog = do

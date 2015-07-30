@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Compiler (module Compiler, module CompiledExpr) where
+module Compiler (module Compiler, CompiledExpr) where
 
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Text (Text)
-import CompiledExpr
+import OpCodes
 import Runtime.Types
 import Expr
 
@@ -23,14 +23,14 @@ straighten ops = case mergeBlocks ops of
 
 compile :: Expr -> OpCode
 compile expr = mergeBlocks $ case expr of
-  Num n            -> [ OpConst (VNum n)  ]
-  INum n           -> [ OpConst (VInt n)  ]
-  Str s            -> [ OpConst (VStr s)  ]
-  Boolean b        -> [ OpConst (VBool b) ]
-  LiteralNull      -> [ OpConst (VNull)   ]
-  LiteralUndefined -> [ OpConst (VUndef)  ]
-  ReadVar v        -> [ OpVar v           ]
-  This             -> [ OpThis            ]
+  Num n            -> [ OpNum n   ]
+  INum n           -> [ OpInt n   ]
+  Str s            -> [ OpStr s   ]
+  Boolean b        -> [ OpBool b  ]
+  LiteralNull      -> [ OpNull    ]
+  LiteralUndefined -> [ OpUndef   ]
+  ReadVar v        -> [ OpVar v   ]
+  This             -> [ OpThis    ]
   ArrayLiteral vs  -> compileArrayLiteral vs
   ObjectLiteral vs -> compileObjectLiteral vs
   FunExpr n p s b  -> compileFunctionLiteral (VLambda n p s b)

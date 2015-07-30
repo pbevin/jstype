@@ -6,6 +6,7 @@ import Control.Monad (liftM)
 import Control.Arrow
 import Runtime
 import Polyvariadic
+import JSNum
 
 
 mathObject :: Runtime (Shared JSObj)

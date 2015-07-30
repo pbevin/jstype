@@ -1,14 +1,20 @@
-module CompiledExpr where
+module OpCodes where
 
-import Expr
+import Data.Text (Text)
 import Runtime.Types
 
 data OpCode = OpConst JSVal   -- push constant
+            | OpNum Double
+            | OpInt Integer
+            | OpStr Text
+            | OpBool Bool
+            | OpNull
+            | OpUndef
             | OpThis          -- push current `this`
-            | OpVar Ident     -- read variable, push reference
+            | OpVar Text      -- read variable, push reference
             | OpArray Int     -- make array from last n values on stack
             | OpSparse Int    -- make sparse array from last 2n+1 values on stack
-            | OpGet Ident     -- property access with identifier
+            | OpGet Text      -- property access with identifier
             | OpGet2          -- property access with value
             | OpGetValue      -- dereference top of stack
             | OpToBoolean     -- convert TOS to boolean
@@ -20,10 +26,10 @@ data OpCode = OpConst JSVal   -- push constant
             | OpAdd           -- ...e2 e1 -> ...(e1+e2)
             | OpSub           -- ...e2 e1 -> ...(e1-e2)
             | OpMul           -- ...e2 e1 -> ...(e1*e2)
-            | OpBinary Ident  -- binary op on top 2
-            | OpUnary Ident   -- unary op on TOS
+            | OpBinary Text   -- binary op on top 2
+            | OpUnary Text    -- unary op on TOS
             | OpPostInc Int   -- Add arg to TOS reference without modifying val
-            | OpModify Ident  -- modify TOS reference & eat it
+            | OpModify Text   -- modify TOS reference & eat it
             | OpDelete        -- delete reference at TOS, leave bool
             | OpTypeof        -- replace TOS with its type name
             | OpStore         -- val is TOS, ref is NOS: write val to ref, leave val

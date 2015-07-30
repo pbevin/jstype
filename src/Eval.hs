@@ -19,12 +19,10 @@ import Data.Text (Text)
 import Text.Show.Functions
 import Parse
 import Expr
-import JSNum
 import Runtime
 import Builtins
 import Eval.Statements
 import Compiler
-import Core
 
 data RuntimeError = RuntimeError {
   errorMessage :: String,

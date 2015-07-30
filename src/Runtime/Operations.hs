@@ -15,7 +15,6 @@ import Data.Monoid
 import qualified Data.Text as T
 import Data.Text (Text)
 import Expr
-import JSNum
 import Runtime.Types
 import Runtime.Conversion
 import Runtime.Object
@@ -115,13 +114,13 @@ cmpStrings :: JSVal -> JSVal -> Runtime (Maybe Ordering)
 cmpStrings (VStr x) (VStr y) = return $ Just $ compare x y
 cmpStrings _ _ = return (Just EQ)
 
-numberOp :: (JSNum->JSNum->JSNum) -> JSVal -> JSVal -> Runtime JSVal
+numberOp :: (Double->Double->Double) -> JSVal -> JSVal -> Runtime JSVal
 numberOp op a b = do
   a' <- toPrimitive HintNone a
   b' <- toPrimitive HintNone b
   VNum <$> liftNum op a' b'
 
-fmod :: JSNum -> JSNum -> JSNum
+fmod :: Double -> Double -> Double
 fmod n' d' = fmod' (abs n') (abs d') * signum n'
   where fmod' n d
           | isNaN n      = 0/0
@@ -131,8 +130,8 @@ fmod n' d' = fmod' (abs n') (abs d') * signum n'
           | isInfinite d = n
           | otherwise    = n - d * q
             where q = fromIntegral $ truncate (n/d)
-          -- | n >= 0       = JSNum $ mod' n d
-          -- | n < 0        = JSNum $ -mod' (-n) d
+          -- | n >= 0       = Double $ mod' n d
+          -- | n < 0        = Double $ -mod' (-n) d
 
 fquot :: Double -> Double -> Double
 fquot n d = fromIntegral $ floor (n/d)
@@ -140,7 +139,7 @@ fquot n d = fromIntegral $ floor (n/d)
 boolOp :: (JSVal->JSVal->Bool) -> JSVal -> JSVal -> Runtime JSVal
 boolOp op a b = return (VBool $ op a b)
 
-liftNum :: (JSNum -> JSNum -> a) -> JSVal -> JSVal -> Runtime a
+liftNum :: (Double -> Double -> a) -> JSVal -> JSVal -> Runtime a
 liftNum op a b = do
   n1 <- toNumber a
   n2 <- toNumber b
@@ -261,7 +260,7 @@ chain f g h a = f a >>= g >>= h
 unaryOp :: (a -> JSVal) -> (JSVal -> Runtime a) -> (a -> a) -> JSVal -> Runtime JSVal
 unaryOp toVal fromVal f = chain fromVal (return . f) (return . toVal)
 
-unaryNumOp :: (JSNum->JSNum) -> JSVal -> Runtime JSVal
+unaryNumOp :: (Double->Double) -> JSVal -> Runtime JSVal
 unaryNumOp = unaryOp VNum toNumber
 
 -- ref 11.4.6

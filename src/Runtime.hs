@@ -33,9 +33,8 @@ import Runtime.Prototype as X
 import Runtime.PropertyDescriptor as X
 import Runtime.ObjectBuilder as X
 import Unicode as X
-import JSNum as X
 import Parse as X
-import Expr
+import Expr (Program(..), Strictness(..), Expr(..), Statement, Ident, SrcLoc)
 import Core
 
 import Debug.Trace
@@ -847,7 +846,7 @@ tail1 :: [JSVal] -> [JSVal]
 tail1 [] = []
 tail1 (x:xs) = xs
 
-addReadOnlyConstants :: [(Text, JSNum)] -> Shared JSObj -> Runtime (Shared JSObj)
+addReadOnlyConstants :: [(Text, Double)] -> Shared JSObj -> Runtime (Shared JSObj)
 addReadOnlyConstants xs obj = do
   forM xs $ \(name, value) -> addOwnConstant name (VNum value) obj
   return obj

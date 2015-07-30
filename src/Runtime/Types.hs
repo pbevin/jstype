@@ -14,9 +14,8 @@ import Data.Maybe
 import Data.IORef
 import Runtime.PropMap
 import Expr
-import JSNum
 
-data JSVal = VNum JSNum
+data JSVal = VNum Double
            | VInt Integer
            | VStr Text
            | VBool Bool

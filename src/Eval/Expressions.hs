@@ -7,7 +7,7 @@ import Control.Monad (void, when, replicateM)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Monoid
-import CompiledExpr
+import OpCodes
 import Runtime
 import Expr
 
@@ -22,6 +22,12 @@ evalExpr code = runOpCode code [] (\[v] -> return v)
 runOpCode :: OpCode -> OpCodeHandler a
 runOpCode op = case op of
   OpConst v        -> runConst v
+  OpNum n          -> runConst (VNum n)
+  OpInt n          -> runConst (VInt n)
+  OpStr s          -> runConst (VStr s)
+  OpBool b         -> runConst (VBool b)
+  OpNull           -> runConst VNull
+  OpUndef          -> runConst VUndef
   OpThis           -> runOpThis
   OpVar name       -> runOpVar name
   OpArray n        -> runArray n

@@ -10,12 +10,12 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Monoid
 import Safe
-import JSNum
 import Runtime.Types
 import Runtime.Object
 import Runtime.NumberToString
 import Runtime.PropertyDescriptor
 import Runtime.Shared
+import JSNum
 import Parse (parseNumber, parseNum)
 
 
@@ -36,7 +36,7 @@ toBoolean (VStr "") = False
 toBoolean _         = True
 
 -- ref 9.3
-toNumber :: JSVal -> Runtime JSNum
+toNumber :: JSVal -> Runtime Double
 toNumber VUndef     = return jsNaN
 toNumber VNull      = return 0
 toNumber (VBool b)  = return $ if b then 1 else 0
@@ -54,7 +54,7 @@ toNum val = case val of
   VStr s  -> return (strToNum s)
   _       -> VNum <$> toNumber val
 
-strToNumber :: Text -> JSNum
+strToNumber :: Text -> Double
 strToNumber str = case str of
   "Infinity"  -> jsInf
   "-Infinity" -> negate jsInf
@@ -113,7 +113,7 @@ to32Bit val = do
   then return 0
   else return $ makeInt number
 
-makeInt :: Integral a => JSNum -> a
+makeInt :: Integral a => Double -> a
 makeInt number = sign number * floor (abs number)
     where sign a = floor (signum a)
 

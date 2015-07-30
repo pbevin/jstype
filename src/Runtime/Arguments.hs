@@ -16,7 +16,6 @@ import Runtime.Global
 import Runtime.Types
 import Runtime.PropertyDescriptor
 import Expr
-import JSNum
 
 -- ref 10.6
 createArgumentsObject :: JSVal -> [String] -> [JSVal] -> EnvRec -> Strictness -> Runtime JSVal

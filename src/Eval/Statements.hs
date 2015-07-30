@@ -17,11 +17,7 @@ import Data.Text (Text)
 import Text.Show.Functions
 import Eval.Expressions
 import Compiler
-import Parse
 import Expr
-import JSNum
-import Runtime
-import Builtins
 import Runtime
 import Core
 

@@ -3,6 +3,7 @@ module CompilerSpec where
 
 import Test.Hspec
 import Compiler
+import OpCodes
 import Runtime
 import Expr
 
@@ -13,5 +14,5 @@ spec = do
       compileObjectLiteral [] `shouldBe` [ OpObjLit 0 ]
 
     it "compiles {x:0}" $ do
-      straighten (compileObjectLiteral [("x", Value (Num 0))]) `shouldBe`
-        [ OpConst (VStr "x"), OpConst (VNum 0), OpGetValue, OpObjLit 1 ]
+      straighten (compileObjectLiteral [("x", Value (INum 0))]) `shouldBe`
+        [ OpConst (VStr "x"), OpInt 0, OpGetValue, OpObjLit 1 ]

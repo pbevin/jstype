@@ -14,7 +14,6 @@ import Control.Applicative
 import Text.Parsec hiding (optional)
 import Data.Text (Text)
 import Expr
-import JSNum
 
 import Parse.Types
 import Parse.Lexical
@@ -56,20 +55,20 @@ instance (Negatable a, Negatable b) => Negatable (Either a b) where
 jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> Text -> Either ParseError a
 jsParse p strict inFunction name str = runP p (initialParseState strict inFunction) name str
 
-parseNumber :: Text -> JSNum
+parseNumber :: Text -> Double
 parseNumber str = case jsParse numberParser NotStrict False "" str of
   Right (Just num) -> num
   Right Nothing    -> 0
-  Left _err        -> jsNaN
+  Left _err        -> read "NaN"
 
 parseNum :: Text -> Either Integer Double
 parseNum str = case jsParse (numericParser num <* eof) NotStrict False "" str of
   Right (Just (Right dbl)) -> Right dbl
   Right (Just (Left int))  -> Left int
   Right Nothing            -> Left 0
-  Left _err                -> Right jsNaN
+  Left _err                -> Right (read "NaN")
 
-parseDecimal :: Text -> Maybe JSNum
+parseDecimal :: Text -> Maybe Double
 parseDecimal str = case jsParse decimalParser NotStrict False "" str of
   Right v   -> v
   Left _err -> Nothing
