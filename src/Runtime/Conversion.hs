@@ -16,7 +16,7 @@ import Runtime.NumberToString
 import Runtime.PropertyDescriptor
 import Runtime.Shared
 import JSNum
-import Parse (parseNumber, parseNum)
+import Parse.Number (parseStrNum)
 
 
 -- ref 9.1, incomplete
@@ -55,18 +55,14 @@ toNum val = case val of
   _       -> VNum <$> toNumber val
 
 strToNumber :: Text -> Double
-strToNumber str = case str of
-  "Infinity"  -> jsInf
-  "-Infinity" -> negate jsInf
-  _           -> parseNumber str
+strToNumber str = case parseStrNum str of
+                    Left i -> fromIntegral i
+                    Right d -> d
 
 strToNum :: Text -> JSVal
-strToNum str = case str of
-  "Infinity"  -> VNum jsInf
-  "-Infinity" -> VNum (negate jsInf)
-  _           -> case parseNum str of
-                   Left  int -> VInt int
-                   Right dbl -> VNum dbl
+strToNum str = case parseStrNum str of
+                 Left  int -> VInt int
+                 Right dbl -> VNum dbl
 
 isString :: JSVal -> Bool
 isString (VStr _) = True

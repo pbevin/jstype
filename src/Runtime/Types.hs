@@ -185,6 +185,10 @@ sameValue (VInt x) (VNum y) = fromIntegral x == y
 sameValue (VObj x) (VObj y) = x == y
 sameValue x y = x == y
 
+isJsNaN :: JSVal -> Bool
+isJsNaN (VNum n) = isNaN n
+isJsNaN _ = False
+
 
 type JSOutput = String
 data JSError = JSError (JSVal, [SrcLoc])

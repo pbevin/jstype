@@ -11,10 +11,12 @@ import Data.List (sortBy, nub, union, intersect)
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Text (Text)
+
+import Expr
 import Parse.Types
 import Parse.State
 import Parse.Lexical
-import Expr
+import Parse.Number.NumericLiteral
 
 prog :: JSParser Program
 prog = do
@@ -429,9 +431,14 @@ simple = parens expr
      <|> regexLiteral
      <|> this
      <|> literal
-     <|> numericLiteral
+     <|> (valueOfNumber <$> numericLiteral)
      <|> ReadVar <$> identifier
      <|> Str <$> quotedString
+
+valueOfNumber :: Either Integer Double -> Expr
+valueOfNumber (Left int) = INum int
+valueOfNumber (Right dbl) = Num dbl
+
 
 this :: JSParser Expr
 this = try $ keyword "this" >> return This
@@ -484,7 +491,11 @@ noDuplicateKeys assignments =
 propertyName :: JSParser PropertyName
 propertyName = identifierName
            <|> quotedString
-           <|> T.pack <$> numberText
+           <|> propertyNameForNumber <$> numericLiteral
+
+propertyNameForNumber :: Either Integer Double -> PropertyName
+propertyNameForNumber (Left int) = T.pack $ show int
+propertyNameForNumber (Right dbl) = T.pack $ show dbl
 
 nameValuePair :: JSParser PropertyAssignment
 nameValuePair = do
@@ -558,8 +569,3 @@ literal :: JSParser Expr
 literal = try $ (keyword "true"  >> return (Boolean True))
             <|> (keyword "false" >> return (Boolean False))
             <|> (keyword "null"  >> return LiteralNull)
-
-numericLiteral :: JSParser Expr
-numericLiteral = num >>= \case
-  Left int    -> return $ INum int
-  Right float -> return $ Num float

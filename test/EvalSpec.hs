@@ -12,6 +12,7 @@ import Expr
 import Eval
 import Runtime
 import Expectations
+import JSNum
 
 
 
@@ -540,9 +541,9 @@ spec = do
       jsEvalExpr "new Object(42).valueOf()" `shouldReturn` VNum 42
 
   describe "Array" $ do
-    it "is NaN when coerced to Number" $ do
-      runJStr "console.log('1', +[1,2,3])" `shouldReturn` Right "1 NaN\n"
-      runJStr "console.log('2', +(new Array(1,2,3)))" `shouldReturn` Right "2 NaN\n"
+    describe "is NaN when coerced to Number" $ do
+      specify "[...]" $ jsEvalExpr "+[1,2,3]" >>= \v -> v `shouldSatisfy` isJsNaN
+      specify "new Array(...)" $ jsEvalExpr "+(new Array(1,2,3))"  >>= \v -> v `shouldSatisfy` isJsNaN
 
     it "is an instanceof Array" $ do
       jsEvalExpr "[] instanceof Array" `shouldReturn` VBool True

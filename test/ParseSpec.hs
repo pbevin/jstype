@@ -76,7 +76,7 @@ unparseableInStrictMode str = do
     Left _ -> return ()
     Right prog -> expectationFailure $ "Parseable in strict mode: " ++ show str ++ "\nParsed as: " ++ show prog
   case parseJS'' str "" NotStrict False of
-    Left err -> expectationFailure $ "Unparseable in non-strict mode: " ++ show str ++ "\nError: " ++ show err
+    Left err -> expectationFailure $ "Should be able to parse outside strict mode: " ++ show str ++ "\nError: " ++ show err
     Right _ -> return ()
 
 spec :: Spec
@@ -89,10 +89,11 @@ spec = do
       parseExpr "1.4E3" `shouldBe` Num 1400
       parseExpr "1.5e+3" `shouldBe` Num 1500
       parseExpr "1.6e-3" `shouldBe` Num 0.0016
-      parseExpr "3e3" `shouldBe` Num 3000
+      parseExpr "3e3" `shouldBe` INum 3000
       parseExpr ".5" `shouldBe` Num 0.5
-      parseExpr "5." `shouldBe` Num 5
-      parseExpr "5.e1" `shouldBe` Num 50
+      parseExpr "5." `shouldBe` INum 5
+      parseExpr "5.e1" `shouldBe` INum 50
+      parseExpr "0e1" `shouldBe` INum 0
 
     it "distinguishes between num and float" $ do
       parseExpr "1" `shouldBe` INum 1
@@ -591,7 +592,7 @@ spec = do
     it "can parse an octal number" $ do
       parseExpr "010" `shouldBe` INum 8
 
-    it "refuses to parse a number in strict mode" $ do
+    it "refuses to parse octal in strict mode" $ do
       unparseableInStrictMode "010"
 
   describe "String parsing" $ do

@@ -4,7 +4,7 @@ module Parse.State where
 
 import Control.Monad (void)
 import Control.Applicative
-import Text.Parsec (getState, putState)
+import Text.Parsec (getState, putState, runP, ParseError, SourceName)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.List
@@ -123,6 +123,11 @@ getStrictness = strictnessState <$> getState
 
 
 
+jsParse :: JSParser a -> Strictness -> Bool -> SourceName -> Text -> Either ParseError a
+jsParse p strict inFunction name str = runP p (initialParseState strict inFunction) name str
+
+runp :: JSParser a -> Text -> Either ParseError a
+runp p input = runP p (initialParseState NotStrict False) "" input
 
 recurseState :: (ParseState -> ParseState) -> JSParser a -> JSParser a
 recurseState f p = do

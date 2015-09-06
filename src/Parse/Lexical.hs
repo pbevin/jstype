@@ -40,9 +40,6 @@ trieFromList :: [Text] -> Trie
 trieFromList = foldr insertTrie emptyTrie . map T.unpack
 
 
-
-
-
 sameLine :: SourcePos -> SourcePos -> Bool
 sameLine pos1 pos2 = sourceLine pos1 == sourceLine pos2
 
@@ -74,7 +71,7 @@ identifierPart  ch = identifierStart ch || isDigit ch
 
 identifierName :: JSParser Ident
 identifierName = lexeme $ do
-  x <- unicode identifierStart 
+  x <- unicode identifierStart
   xs <- many (unicode identifierPart)
   return . T.pack $ x:xs
 
@@ -162,74 +159,6 @@ comma, semicolon :: JSParser ()
 comma = skip ","
 semicolon = skip ";"
 
-plusminus :: JSParser String -> JSParser String
-plusminus p = (:) <$> oneOf "+-" <*> p <|> p
-
-number, decimal :: JSParser Double
-number = read . snd <$> np
-decimal = read . snd <$> decimalNumber True
-
-num :: JSParser (Either Integer Double)
-num = readNum . snd <$> np
-
-readNum :: String -> Either Integer Double
-readNum str
-  | 'x' `elem` s = Left  (read str)
-  | '.' `elem` s = Right (read str)
-  | 'e' `elem` s = Right (read str)
-  | otherwise    = Left  (read str)
-  where s = map toLower str
-
-numberText :: JSParser String
-numberText = fst <$> np
-
-np :: JSParser (String, String)
-np = lexeme (octalNumber <|> hexNumber <|> decimalNumber False)
-  where hexNumber = try $ do
-          a <- char '0' >> oneOf "xX"
-          b <- many1 hexDigit
-          return $ dup $ '0':a:b
-
-        octalNumber = ifNotStrict $ try $ do
-          char '0' >> many1 octDigit >>= \oct -> return (oct, octToDec oct)
-
-        octToDec :: String -> String
-        octToDec = show . foldl (\x e -> 8*x + digitToInt e) 0
-
-        dup x = (x,x)
-
-decimalNumber :: Bool -> JSParser (String, String)
-decimalNumber leadingZeros = lexeme (infinity <|> numberWithoutDecimal <|> numberWithDecimal)
-  where decimalInt  = string "0" <|> positiveInt
-        positiveInt = (:) <$> oneOf "123456789" <*> many digit
-        decimalDigits = many1 digit
-
-        fracPart = do
-          dec <- char '.' >> optional (many1 digit)
-          return $ ('.' :) `applyTo` (fromMaybe "" dec, fromMaybe "0" dec)
-
-        expPart  = try $ (:) <$> oneOf "eE" <*> plusminus (many1 digit)
-
-        numberWithoutDecimal = do
-          b <- char '.' >> many1 digit
-          c <- fromMaybe "" <$> optional expPart
-          return ('.' : (b ++ c), "0." ++ (b ++ c))
-
-        numberWithDecimal = do
-          a <- if leadingZeros then decimalDigits else decimalInt
-          mb <- optional fracPart
-          c <- fromMaybe "" <$> optional expPart
-          case mb of
-            Nothing -> return $ dup (a ++ c)
-            Just (b, b') -> return $ (\x -> (a ++ x ++ c)) `applyTo` (b, b')
-
-        infinity = if leadingZeros
-                   then string "Infinity" >> return (dup "Infinity")
-                   else fail ""
-
-        applyTo = fmap
-        dup x = (x,x)
-
 -- ref 7.8.4
 quotedString :: JSParser Text
 quotedString = mapToUtf16 <$>
@@ -310,3 +239,8 @@ mapToUtf16 = T.concatMap toUtf16
       | ord ch <= 0xFFFF = T.pack [ch]
       | otherwise        = T.pack [chr $ 0xD800 + a, chr $ 0xDC00 + b]
         where (a, b) = (ord ch - 0x10000) `divMod` 1024
+
+
+
+xxnum :: JSParser (Either Integer Double)
+xxnum = return (Left 0)
