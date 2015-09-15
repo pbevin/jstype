@@ -1,17 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, MultiWayIf #-}
 
 module Builtins.Array (makeArrayClass) where
 
 import Control.Monad
+import Control.Lens
 import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Monoid
+import Data.Char (isDigit)
 import Safe
 import Data.Int
 import Runtime
 import Builtins.Array.Reduce
 import Builtins.Array.Sort
+import Builtins.Array.Concat
 
 
 makeArrayClass :: Runtime (Shared JSObj)
@@ -30,6 +33,7 @@ makeArrayClass = do
     method "reverse"  0 arrayReverse
     method "sort"     1 arraySort
     method "push"     1 arrayPush
+    method "concat"   1 arrayConcat
 
   obj <- mkObject $ do
     isFunctionObject
@@ -72,12 +76,13 @@ arrayConstructorElements :: Shared JSObj -> [JSVal] -> Runtime (Shared JSObj)
 arrayConstructorElements obj args = do
   let len = VInt $ fromIntegral $ length args
   o <- arrayConstructorLength obj len
+         >>= setDefineOwnPropertyMethod arrayDefineOwnProperty
 
   forM_ (zip args [0..]) $ \(item, idx) -> do
     addOwnProperty (T.pack $ show idx) item o
 
   return o
-      
+
 -- ref 15.4.4.2, incomplete
 arrayToString :: JSVal -> [JSVal] -> Runtime JSVal
 arrayToString this _args = arrayJoin this []
@@ -125,3 +130,31 @@ arrayPush this args = do
     placeValues :: Shared JSObj -> Int -> [JSVal] -> Runtime Int
     placeValues   _ n []     = return n
     placeValues obj n (e:es) = objPut (T.pack $ show n) e True obj >> placeValues obj (n+1) es
+
+-- ref 15.4.5.1
+arrayDefineOwnProperty :: Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
+arrayDefineOwnProperty p desc throw a
+  | p == "length"  = error "array length unimplemented"
+  | isArrayIndex p = setIndexOnArray p desc throw a
+  | otherwise      = objDefineOwnPropertyObject p desc throw a
+
+isArrayIndex :: Text -> Bool
+isArrayIndex p
+  | T.all isDigit p = let n = readInt32 p in n /= 2^32 - 1 && p == T.pack (show n)
+  | otherwise       = False
+
+readInt32 :: Text -> Integer
+readInt32 p =
+  let n = read . T.unpack $ p
+   in n `mod` 2^32
+
+setIndexOnArray :: Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool
+setIndexOnArray p desc throw a = do
+  Just oldLenDesc <- objGetOwnProperty "length" a
+  let Just (VInt oldLen) = propValue oldLenDesc
+      n = readInt32 p
+  -- reject if n >= oldLen and oldLen not writable
+  objDefineOwnPropertyObject p desc throw a
+  if n >= oldLen
+     then objDefineOwnPropertyObject "length" (setValue (VInt $ n+1) oldLenDesc) throw a
+     else return False

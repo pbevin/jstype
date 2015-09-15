@@ -179,12 +179,16 @@ arrayAssigns :: [Maybe a] -> [(Int, a)]
 arrayAssigns xs = map (second fromJust) $ filter (isJust.snd) $ zip [0..] xs
 
 createArray :: [Maybe JSVal] -> Runtime JSVal
-createArray vals =
-  let len = VInt $ fromIntegral $ length vals
-      assigns = arrayAssigns vals
-  in createSparseArray len assigns
+createArray vals = if all isJust vals
+                      then createDenseArray (catMaybes vals)
+                      else createSparseArray (length vals) (arrayAssigns vals)
 
-createSparseArray :: JSVal -> [(Int, JSVal)] -> Runtime JSVal
+createDenseArray :: [JSVal] -> Runtime JSVal
+createDenseArray vals =
+  -- TODO: new dense array type
+  createSparseArray (length vals) (zip [0..] vals)
+
+createSparseArray :: Int -> [(Int, JSVal)] -> Runtime JSVal
 createSparseArray len assigns = do
   cstr <- getGlobalProperty "Array"
   arrayPrototype <- objFindPrototype "Array"
@@ -192,10 +196,11 @@ createSparseArray len assigns = do
     className "Array"
     prototype arrayPrototype
     descriptor "constructor" (dataPD cstr True False  True)
-    descriptor "length"      (dataPD len  True False False)
+    descriptor "length"      (dataPD (VInt $ fromIntegral len)  True False False)
 
   setArrayIndices assigns obj
   return $ VObj obj
+
 
 -- ref 11.1.5
 createObjectLiteral :: [(Text, JSVal)] -> Runtime JSVal

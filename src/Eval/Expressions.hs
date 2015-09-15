@@ -89,7 +89,7 @@ runArray n stack cont =
     cont (v : s')
 
 runSparse :: Int -> OpCodeHandler a
-runSparse n (length:rest) cont =
+runSparse n (VInt length:rest) cont =
   let pairs 0 stack = return ([], stack)
       pairs n (v:k:rest) = do
         k' <- toInt k
@@ -97,7 +97,7 @@ runSparse n (length:rest) cont =
         return ((k',v):ps, s')
   in do
     (ps, s') <- pairs n rest
-    v <- createSparseArray length ps
+    v <- createSparseArray (fromIntegral length) ps
     cont (v : s')
 
 

@@ -14,6 +14,7 @@ module Runtime.PropertyDescriptor ( propIsWritable
                                   , hasGetter
                                   , hasSetter
                                   , propIsUnwritable
+                                  , setValue
                                   ) where
 
 import qualified Data.Map as M
@@ -79,6 +80,9 @@ getPropertyOfType name (PropDesc m) = M.lookup name m
 
 valuePD :: a -> PropDesc a
 valuePD v = PropDesc $ M.fromList [ ("value", PropValue v) ]
+
+setValue :: a -> PropDesc a -> PropDesc a
+setValue v (PropDesc m) = PropDesc $ M.union (M.fromList [ ("value", PropValue v) ]) m
 
 dataPD :: a -> Bool -> Bool -> Bool -> PropDesc a
 dataPD v w e c = PropDesc $ M.fromList [ ("value", PropValue v),

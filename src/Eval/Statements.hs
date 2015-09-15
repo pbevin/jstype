@@ -293,13 +293,13 @@ runCoreTry body catch finally cont = runS body cont' `catchError` \e -> passToTh
 -- ref 12.14
 runCatch :: (Ident, CoreStatement) -> JSVal -> StatementAction
 runCatch (var, block) c cont = do
+  -- debugVal c
   oldEnv <- lexEnv <$> getGlobalContext
   catchEnv <- newDeclarativeEnvironment (Just oldEnv)
   rec <- envRec <$> deref catchEnv
   createMutableBinding var True rec
   setMutableBinding var c False rec
   sadapt (withLexEnv catchEnv $ runStmt block) cont
-
 
 -- ref 12.6.4
 runCoreForIn :: CompiledExpr -> CompiledExpr -> CoreStatement -> StatementAction
