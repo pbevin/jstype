@@ -37,9 +37,9 @@ data OpCode = OpConst JSVal   -- push constant
             | OpNewCall Int   -- As function call, but creating new object
             | OpObjLit Int    -- Create object literal from top N k-v pairs on stack
             | OpLambda        -- Convert VLambda at TOS to a function object
+            | OpBranch Int
+            | OpBFalse Int
             | Nop             -- Do nothing
-            | BasicBlock [OpCode]
-            | IfTrue OpCode OpCode
             deriving (Show, Eq)
 
-type CompiledExpr = OpCode
+type CompiledExpr = [OpCode]
