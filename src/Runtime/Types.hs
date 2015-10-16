@@ -73,6 +73,13 @@ isPrimitive (VStr _)  = True
 isPrimitive _         = False
 
 
+type ArgsParameterMap = M.Map Text (Text, JSVal)
+
+data HostData = ArgumentsData JSVal Int ArgsParameterMap EnvRec Strictness
+              | NoHostData
+  deriving (Show, Eq)
+
+
 data JSObj = JSObj {
   _objClass :: Text,
   _ownProperties :: PropertyMap,
@@ -84,6 +91,7 @@ data JSObj = JSObj {
   _hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
   _defineOwnPropertyMethod :: Maybe (Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
   _objPrimitiveValue :: Maybe JSVal,
+  _objHostData :: HostData,
   _objParameterMap :: Maybe (Shared JSObj),
   _objScope :: Maybe (Shared LexEnv),
   _objFormalParameters :: Maybe ([Ident]),
@@ -104,6 +112,7 @@ emptyObject = JSObj {
   _hasInstanceMethod = Nothing,
   _defineOwnPropertyMethod = Nothing,
   _objPrimitiveValue = Nothing,
+  _objHostData = NoHostData,
   _objParameterMap = Nothing,
   _objScope = Nothing,
   _objFormalParameters = Nothing,

@@ -264,6 +264,9 @@ setGetOwnPropertyMethod f = updateObj $ set getOwnPropertyMethod (Just f)
 setDefineOwnPropertyMethod :: (Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool) -> ObjectModifier
 setDefineOwnPropertyMethod f = updateObj $ set defineOwnPropertyMethod (Just f)
 
+setHostData :: HostData -> ObjectModifier
+setHostData d = updateObj $ set objHostData d
+
 setScope :: Shared LexEnv -> ObjectModifier
 setScope scope = updateObj $ set objScope (Just scope)
 
