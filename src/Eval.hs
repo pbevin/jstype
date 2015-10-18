@@ -103,6 +103,7 @@ createInitialSharedObjects :: IO (Shared JSObj, Shared JSObj, Shared LexEnv)
 createInitialSharedObjects =
   let obj       = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
                                 _getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                                _deleteMethod = Just objDeleteObject,
                                 _getMethod = Just objGetObj }
   in do proRef <- newIORef $ obj
         objRef <- newIORef $ obj { _objPrototype = Just $ Shared proRef 1 }

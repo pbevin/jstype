@@ -39,3 +39,18 @@ spec = do
 
     it "has a length property" $ do
       jsEvalExpr "(function() { return arguments.length; })(1,2,3)" `shouldReturn` VInt 3
+
+    it "allows assignment to object properties" $ do
+      jsEvalExpr "(function() { arguments[7] = 12; return arguments[7]; })(30)" `shouldReturn` VInt 12
+
+    it "allows deletion of object properties" $ do
+      jsEvalExpr "(function() { delete arguments[0]; return arguments[0]; })(30)" `shouldReturn` VUndef
+
+    it "allows overwriting of existing properties" $ do
+      jsEvalExpr "(function() { arguments[0] = 17; return arguments[0]; })(30)" `shouldReturn` VInt 17
+
+    context "Duplicated variable name" $ do
+      specify "successful write" $
+        jsEvalExpr "(function(a, b, a) { arguments[2] = 17; return a; })(1,2,3)" `shouldReturn` VInt 17
+      specify "failed write" $
+        jsEvalExpr "(function(a, b, a) { arguments[0] = 17; return a; })(1,2,3)" `shouldReturn` VInt 3

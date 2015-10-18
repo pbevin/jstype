@@ -73,7 +73,11 @@ isPrimitive (VStr _)  = True
 isPrimitive _         = False
 
 
-type ArgsParameterMap = M.Map Text (Text, JSVal)
+data ArgsParamType = ArgBound Ident   -- tied to a named variable
+                   | ArgUnbound JSVal -- passed in, but not tied to a variable
+                   | ArgMeta JSVal    -- caller, callee, length
+                   deriving (Show, Eq)
+type ArgsParameterMap = M.Map Text ArgsParamType
 
 data HostData = ArgumentsData JSVal Int ArgsParameterMap EnvRec Strictness
               | NoHostData
@@ -88,6 +92,7 @@ data JSObj = JSObj {
   _cstrMethod :: Maybe JSFunction,
   _getMethod :: Maybe (Text -> Shared JSObj -> Runtime JSVal),
   _getOwnPropertyMethod :: Maybe (Text -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))),
+  _deleteMethod :: Maybe (Text -> Bool -> Shared JSObj -> Runtime JSVal),
   _hasInstanceMethod :: Maybe (Shared JSObj -> JSVal -> Runtime Bool),
   _defineOwnPropertyMethod :: Maybe (Text -> PropDesc JSVal -> Bool -> Shared JSObj -> Runtime Bool),
   _objPrimitiveValue :: Maybe JSVal,
@@ -109,6 +114,7 @@ emptyObject = JSObj {
   _cstrMethod = Nothing,
   _getMethod = Nothing,
   _getOwnPropertyMethod = Nothing,
+  _deleteMethod = Nothing,
   _hasInstanceMethod = Nothing,
   _defineOwnPropertyMethod = Nothing,
   _objPrimitiveValue = Nothing,

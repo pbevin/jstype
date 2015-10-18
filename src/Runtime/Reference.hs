@@ -122,7 +122,7 @@ isReference _ = False
 -- ref 10.2.1.2.1
 hasBinding :: Ident -> EnvRec -> Runtime Bool
 hasBinding name (DeclEnvRec m) = liftM (propMapMember name) $ deref m
-hasBinding name (ObjEnvRec obj _) = liftM (propMapMember name . view ownProperties) $ deref obj
+hasBinding name (ObjEnvRec obj _) = objHasProperty name obj --liftM (propMapMember name . view ownProperties) $ deref obj
 
 -- ref 10.2.1.1.2
 -- ref 10.2.1.2.2

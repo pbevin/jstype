@@ -28,6 +28,7 @@ newObject = do
 defaultObject :: JSObj
 defaultObject = emptyObject { _defineOwnPropertyMethod = Just objDefineOwnPropertyObject,
                               _getOwnPropertyMethod = Just objGetOwnPropertyObj,
+                              _deleteMethod = Just objDeleteObject,
                               _getMethod = Just objGetObj }
 
 -- ref 8.12.1
@@ -112,8 +113,8 @@ objHasProperty :: Text -> Shared JSObj -> Runtime Bool
 objHasProperty p objRef = isJust <$> objGetProperty p objRef
 
 -- ref 8.12.7
-objDelete :: Text -> Bool -> Shared JSObj -> Runtime JSVal
-objDelete p throw objRef = do
+objDeleteObject :: Text -> Bool -> Shared JSObj -> Runtime JSVal
+objDeleteObject p throw objRef = do
   desc <- objGetOwnProperty p objRef
   case desc of
     Nothing -> return (VBool True)
@@ -122,6 +123,13 @@ objDelete p throw objRef = do
               else if throw
                    then raiseProtoError TypeError . T.unpack $ "Cannot remove non-existent property " <> p
                    else return (VBool False)
+
+objDelete :: Text -> Bool -> Shared JSObj -> Runtime JSVal
+objDelete p throw objRef = do
+  view deleteMethod <$> deref objRef >>= \case
+    Nothing -> raiseError $ "No delete method for " <> T.pack (show objRef)
+    Just f -> f p throw objRef
+
 
 
 -- ref 8.12.8, incomplete
@@ -257,6 +265,9 @@ setCstrMethod f = updateObj $ set cstrMethod (Just f)
 
 setGetMethod :: (Text -> Shared JSObj -> Runtime JSVal) -> ObjectModifier
 setGetMethod f = updateObj $ set getMethod (Just f)
+
+setDeleteMethod :: (Text -> Bool -> Shared JSObj -> Runtime JSVal) -> ObjectModifier
+setDeleteMethod f = updateObj $ set deleteMethod (Just f)
 
 setGetOwnPropertyMethod :: (Text -> Shared JSObj -> Runtime (Maybe (PropDesc JSVal))) -> ObjectModifier
 setGetOwnPropertyMethod f = updateObj $ set getOwnPropertyMethod (Just f)
