@@ -8,6 +8,7 @@ import Control.Monad.Except
 import Control.Monad.Writer
 import Control.Applicative
 import Control.Arrow
+import Control.DeepSeq
 import Data.IORef
 import qualified Data.Map as M
 import Data.Maybe
@@ -34,6 +35,9 @@ instance Show RuntimeError where
   show (RuntimeError msg _ stack) =
     msg ++ "\n" ++ unlines (map ("    " ++) stack)
 
+
+instance NFData RuntimeError where
+  rnf (RuntimeError msg obj stk) = rnf msg `seq` rnf (show obj) `seq` rnf stk
 
 
 evalJS :: String -> Text -> IO (Either RuntimeError (Maybe JSVal))
