@@ -143,7 +143,7 @@ isArrayIndex p
   | T.all isDigit p = let n = readInt32 p in n /= 2^32 - 1 && p == T.pack (show n)
   | otherwise       = False
 
-readInt32 :: Text -> Integer
+readInt32 :: Text -> Int
 readInt32 p =
   let n = read . T.unpack $ p
    in n `mod` 2^32

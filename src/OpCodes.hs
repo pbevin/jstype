@@ -5,7 +5,7 @@ import Runtime.Types
 
 data OpCode = OpConst JSVal   -- push constant
             | OpNum Double
-            | OpInt Integer
+            | OpInt Int
             | OpStr Text
             | OpBool Bool
             | OpNull

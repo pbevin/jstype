@@ -27,7 +27,7 @@ exportArray obj = do
   VInt len <- objGet "length" obj
   mapM (getOne obj) [0..len-1]
 
-getOne :: Shared JSObj -> Integer -> Runtime (Maybe JSVal)
+getOne :: Shared JSObj -> Int -> Runtime (Maybe JSVal)
 getOne obj n =
   let p = T.pack (show n)
    in do exists <- objHasProperty p obj

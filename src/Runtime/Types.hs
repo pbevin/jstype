@@ -17,7 +17,7 @@ import Runtime.PropMap
 import Expr
 
 data JSVal = VNum Double
-           | VInt Integer
+           | VInt Int
            | VStr Text
            | VBool Bool
            | VRef JSRef

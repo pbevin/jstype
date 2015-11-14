@@ -61,7 +61,7 @@ strToNumber str = case parseStrNum str of
 
 strToNum :: Text -> JSVal
 strToNum str = case parseStrNum str of
-                 Left  int -> VInt int
+                 Left  int -> VInt $ fromIntegral int
                  Right dbl -> VNum dbl
 
 isString :: JSVal -> Bool

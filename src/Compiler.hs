@@ -15,7 +15,7 @@ straighten = id
 compile :: Expr -> CompiledExpr
 compile expr = case expr of
   Num n            -> [ OpNum n   ]
-  INum n           -> [ OpInt n   ]
+  INum n           -> [ OpInt (fromIntegral n) ]
   Str s            -> [ OpStr s   ]
   Boolean b        -> [ OpBool b  ]
   LiteralNull      -> [ OpNull    ]
