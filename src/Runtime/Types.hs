@@ -3,7 +3,8 @@
 module Runtime.Types (module Runtime.Types, liftIO) where
 
 import Control.Lens
-import Control.Monad.RWS.Strict
+import Control.Monad.State.Strict
+import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Applicative
 import Text.Show.Functions
@@ -228,12 +229,10 @@ instance Eq (Shared a) where
   a == b = objid a == objid b
 
 newtype Runtime a = JS {
-  unJS :: ExceptT JSError (RWST JSGlobal String Store IO) a
+  unJS :: ExceptT JSError (ReaderT JSGlobal (StateT Store IO)) a
 } deriving (Monad, MonadIO,
             MonadReader JSGlobal,
-            MonadWriter String,
             MonadState Store,
-            MonadRWS JSGlobal String Store,
             MonadError JSError,
             MonadFix,
             Functor,
@@ -247,7 +246,10 @@ instance MonadPlus Runtime where
   mzero = throwError EarlyExit
 
 runRuntime :: JSGlobal -> Store -> Runtime a -> IO (Either JSError a, Store, String)
-runRuntime r s a = runRWST (runExceptT $ unJS a) r s
+runRuntime r s a =
+  let go = runStateT (runReaderT (runExceptT $ unJS a) r) s
+   in go >>= \(result, store) -> return (result, store, T.unpack $ _output store)
+
 
 withGuard :: Runtime () -> Runtime ()
 withGuard p = p `catchError` (\e -> if e == EarlyExit then return () else throwError e)
@@ -265,6 +267,7 @@ data JSGlobal = JSGlobal {
 }
 
 data Store = Store {
+  _output :: Text,
   _storeNextID :: Int
 }
 

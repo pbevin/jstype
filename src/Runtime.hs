@@ -6,7 +6,6 @@ import Control.Lens hiding (strict, Getter, Setter)
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Except
-import Control.Monad.Writer
 import Control.Monad.Fix
 import Control.Applicative
 import Control.Arrow
@@ -499,7 +498,10 @@ objEscape _this args = case args of
   (x:_) -> return x
 
 jsConsoleLog :: JSVal -> [JSVal] -> Runtime JSVal
-jsConsoleLog _this xs = tell (T.unpack $ T.unwords (map showVal xs) <> "\n") >> return VUndef
+jsConsoleLog _this xs = tell (T.unwords (map showVal xs) <> "\n") >> return VUndef
+
+tell :: Text -> Runtime ()
+tell msg = output <>= msg
 
 putVar :: Ident -> JSVal -> Runtime ()
 putVar x v = do
