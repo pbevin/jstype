@@ -49,6 +49,10 @@ instance Show JSVal where
   show (VSetter _ _)    = "VSetter"
   show (VLambda n _ _ _) = "VLambda " ++ show n
 
+vTrue, vFalse :: JSVal
+vTrue = VBool True
+vFalse = VBool False
+
 isObj :: JSVal -> Bool
 isObj (VObj _) = True
 isObj _ = False

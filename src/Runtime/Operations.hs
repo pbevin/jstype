@@ -66,7 +66,7 @@ jsAdd a b = do
   if isString a' || isString b'
   then VStr <$> liftStr (<>) a' b'
   else numOp vAdd a' b'
-  
+
 numOp :: (JSVal -> JSVal -> JSVal) -> JSVal -> JSVal -> Runtime JSVal
 numOp f a b = do
   a' <- toNum a
@@ -88,7 +88,7 @@ lessThan orderings a b = do
   b' <- toPrimitive HintNumber b
   if isString a' && isString b'
   then cmp =<< cmpStrings a' b'
-  else cmp =<< cmpNumbers a' b'
+  else cmpNumbers a' b' orderings
 
   where cmp :: Maybe Ordering -> Runtime JSVal
         cmp = return . VBool . cmp'
@@ -96,19 +96,24 @@ lessThan orderings a b = do
         cmp' Nothing = False
 
 -- ref 11.8.5 (3)
-cmpNumbers :: JSVal -> JSVal -> Runtime (Maybe Ordering)
-cmpNumbers x y = do
-  f <$> toNumber x <*> toNumber y where
+cmpNumbers :: JSVal -> JSVal -> [Ordering] -> Runtime JSVal
+cmpNumbers x y orderings = do
+  a <- toNumber x
+  b <- toNumber y
+  return (f a b) where
+    g ord = if ord `elem` orderings
+               then vTrue
+               else vFalse
     f nx ny
-      | isNaN nx = Nothing
-      | isNaN ny = Nothing
-      | nx == ny = Just EQ
-      | nx == (1/0) = Just GT
-      | ny == (1/0) = Just LT
-      | ny == (-1/0) = Just GT
-      | nx == (-1/0) = Just LT
-      | nx < ny = Just LT
-      | otherwise = Just GT
+      | isNaN nx = vFalse
+      | isNaN ny = vFalse
+      | nx == ny = g EQ
+      | nx == (1/0) = g GT
+      | ny == (1/0) = g LT
+      | ny == (-1/0) = g GT
+      | nx == (-1/0) = g LT
+      | nx < ny = g LT
+      | otherwise = g GT
 
 cmpStrings :: JSVal -> JSVal -> Runtime (Maybe Ordering)
 cmpStrings (VStr x) (VStr y) = return $ Just $ compare x y
