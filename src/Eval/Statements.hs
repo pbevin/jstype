@@ -190,7 +190,7 @@ runCoreIf e ifThen ifElse cont = do
     (False, Just s)  -> runS s cont
     (False, Nothing) -> nor cont Nothing
 
-runCoreLoop :: [Label] -> CompiledExpr -> CompiledExpr -> CoreStatement -> CompiledExpr -> StatementAction
+runCoreLoop :: [Label] -> CompiledExpr -> CompiledExpr -> CoreStatement -> Maybe CompiledExpr -> StatementAction
 runCoreLoop labelSet test inc body postTest cont = do
   keepGoing labelSet Nothing where
     condition = toBoolean <$> (runExprStmt test >>= getValue)
@@ -214,10 +214,13 @@ runCoreLoop labelSet test inc body postTest cont = do
               breakOut v' = nor cont (v' <|> v)
 
     next labelSet v = do
-      shouldContinue <- toBoolean <$> (runExprStmt postTest >>= getValue)
-      if shouldContinue
-      then keepGoing labelSet v
-      else nor cont v
+      case postTest of
+        Nothing -> keepGoing labelSet v
+        Just tst ->  do
+          shouldContinue <- toBoolean <$> (runExprStmt tst >>= getValue)
+          if shouldContinue
+          then keepGoing labelSet v
+          else nor cont v
 
 runCoreBreak :: Maybe Label -> StatementAction
 runCoreBreak label cont = brk cont Nothing label

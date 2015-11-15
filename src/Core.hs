@@ -13,7 +13,7 @@ type CoreStatement = CoreStmt SrcLoc
 data CoreStmt a  = CoreBind  DBIType EnvType [(Ident, Expr)] (CoreStmt a)
                  | CoreBlock [CoreStmt a]
                  | CoreExpr  a CompiledExpr
-                 | CoreLoop  a CompiledExpr CompiledExpr (CoreStmt a) CompiledExpr
+                 | CoreLoop  a CompiledExpr CompiledExpr (CoreStmt a) (Maybe CompiledExpr)
                  | CoreForIn a CompiledExpr CompiledExpr (CoreStmt a)
                  | CoreBreak a (Maybe Label)
                  | CoreCont  a (Maybe Label)
@@ -69,13 +69,13 @@ convertWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
 convertWhile loc expr stmt = CoreLoop loc (compile expr)
                                       (compile $ LiteralUndefined)
                                       (convert stmt)
-                                      (compile $ Boolean True)
+                                      Nothing
 
 convertDoWhile :: SrcLoc -> Expr -> Statement -> CoreStatement
 convertDoWhile loc e stmt = CoreLoop loc (compile $ Boolean True)
                                          (compile LiteralUndefined)
                                          (convert stmt)
-                                         (compile e)
+                                         (Just $ compile e)
 
 convertFor :: SrcLoc -> ForHeader -> Statement -> CoreStatement
 convertFor loc header stmt = case header of
@@ -86,7 +86,7 @@ convertFor loc header stmt = case header of
 
 convertFor3 :: SrcLoc -> Maybe Expr -> Maybe Expr -> Maybe Expr -> Statement -> CoreStatement
 convertFor3 loc e1 e2 e3 stmt = case e1 of
-  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) (compile $ Boolean True)
+  Nothing -> CoreLoop loc (maybeExpr e2) (maybeExpr e3) (convert stmt) Nothing
   Just e  -> CoreBlock [ CoreExpr loc (compile e), convertFor3 loc Nothing e2 e3 stmt ]
   where
     maybeExpr :: Maybe Expr -> CompiledExpr
