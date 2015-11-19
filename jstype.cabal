@@ -11,90 +11,111 @@ maintainer:          pete@petebevin.com
 build-type:          Simple
 cabal-version:       >=1.20
 
-executable repl
-  hs-source-dirs: src, repl
-  main-is: Main.hs
-  default-language: Haskell2010
-  build-depends:
-    haskeline,
-    base,
-    parsec,
-    text,
-    deepseq,
-    mtl >= 2.2.1,
-    safe,
-    lens,
-    containers,
-    QuickCheck,
-    regex-posix,
-    array,
-    pretty
+library
+  hs-source-dirs:      src
+  exposed-modules:     Builtins.Array.Concat
+                     , Builtins.Array.Reduce
+                     , Builtins.Array.Sort
+                     , Builtins.Array
+                     , Builtins.Boolean
+                     , Builtins.Date
+                     , Builtins.Math
+                     , Builtins.Number
+                     , Builtins.ParseFloat
+                     , Builtins.ParseInt
+                     , Builtins.RegExp
+                     , Builtins.String
+                     , Builtins.URI
+                     , Builtins
+                     , Compiler
+                     , Core
+                     , Eval.Expressions
+                     , Eval.Statements
+                     , Eval
+                     , Expr
+                     , JSNum
+                     , OpCodes
+                     , Parse.Lexical
+                     , Parse.Number.Common
+                     , Parse.Number.NumericLiteral
+                     , Parse.Number.StringNumericLiteral
+                     , Parse.Number
+                     , Parse.State
+                     , Parse.Statements
+                     , Parse.Types
+                     , Parse
+                     , Polyvariadic
+                     , Runtime.Arguments
+                     , Runtime.Conversion
+                     , Runtime.Debug
+                     , Runtime.Error
+                     , Runtime.Function
+                     , Runtime.Global
+                     , Runtime.NumberToString
+                     , Runtime.Object
+                     , Runtime.ObjectBuilder
+                     , Runtime.Operations
+                     , Runtime.PropDesc
+                     , Runtime.PropertyDescriptor
+                     , Runtime.PropMap
+                     , Runtime.Prototype
+                     , Runtime.Reference
+                     , Runtime.Shared
+                     , Runtime.Types
+                     , Runtime
+                     , Unicode
+  build-depends:       base >= 4.7 && < 5
+                       , parsec
+                       , text
+                       , deepseq
+                       , mtl >= 2.2.1
+                       , safe
+                       , lens
+                       , containers
+                       , QuickCheck
+                       , regex-posix
+                       , array
+                       , pretty
+  default-language:    Haskell2010
 
-  ghc-prof-options:
-    -O2
-    -threaded
-    -fprof-auto
-    "-with-rtsopts=-N -p -s -h -i0.1"
+  ghc-prof-options:    -O2
+                       -threaded
+                       -fprof-auto
+                       "-with-rtsopts=-N -p -s -h -i0.1"
 
-  ghc-options:
-    -O
-    -j4
+  ghc-options:         -O2
+                       -j6
 
-executable benchmark
-  hs-source-dirs: src, benchmark
-  main-is: Main.hs
-  default-language: Haskell2010
-  build-depends:
-    base,
-    criterion,
-    parsec,
-    text,
-    deepseq,
-    mtl >= 2.2.1,
-    safe,
-    lens,
-    containers,
-    QuickCheck,
-    regex-posix,
-    array,
-    pretty
+executable jstype-repl
+  hs-source-dirs:      repl
+  main-is:             Main.hs
+  build-depends:       base >= 4.7 && < 5
+                     , haskeline
+                     , mtl
+                     , text
+                     , jstype
+  default-language:    Haskell2010
 
-  ghc-prof-options:
-    -O2
-    -threaded
-    -fprof-auto
-    "-with-rtsopts=-N -p -s -h -i0.1"
+executable jstype-benchmark
+  hs-source-dirs:      benchmark
+  main-is:             Main.hs
+  build-depends:       base >= 4.7 && < 5
+                     , criterion
+                     , deepseq
+                     , text
+                     , jstype
+  default-language:    Haskell2010
 
-  ghc-options:
-    -O
-    -j4
-
-test-suite spec
-  type: exitcode-stdio-1.0
-  hs-source-dirs: src, test
-  main-is: Main.hs
-  default-language: Haskell2010
-  build-depends:
-    hspec >= 2.1.8,
-    base,
-    parsec,
-    text,
-    deepseq,
-    mtl >= 2.2.1,
-    safe,
-    lens,
-    containers,
-    QuickCheck,
-    regex-posix,
-    array,
-    pretty
-
-  ghc-prof-options:
-    -O2
-    -threaded
-    -fprof-auto
-    "-with-rtsopts=-N -p -s -h -i0.1"
-
-  ghc-options:
-    -O
-    -j4
+test-suite jstype-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , hspec >= 2.1.8
+                     , QuickCheck
+                     , lens
+                     , text
+                     , parsec
+                     , mtl
+                     , jstype

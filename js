@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-cabal exec runhaskell -- -isrc -irepl Main "$@"
+stack build && stack exec jstype-repl
